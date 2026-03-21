@@ -1,0 +1,99 @@
+Stap 1: Mosquitto configuratie aanpassen
+
+cat > ~/mosquitto/config/mosquitto.conf << EOF
+listener 1883
+allow_anonymous true
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+EOF
+
+
+Herstart Mosquitto:
+docker restart MQTT-broker
+
+
+
+  Stap 2: Python script aanmaken
+
+  mkdir -p ~/serial-bridge
+cat > ~/serial-bridge/bridge.py << 'EOF'
+import serial
+import paho.mqtt.client as mqtt
+import threading
+import json
+import time
+
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
+MQTT_TOPIC = "plaatjes/data"
+
+POORTEN = [
+    {"poort": "/dev/ttyUSB0", "baud": 115200},
+    {"poort": "/dev/ttyUSB1", "baud": 115200},
+    {"poort": "/dev/ttyUSB2", "baud": 115200},
+]
+
+client = mqtt.Client()
+
+def verbind_mqtt():
+    while True:
+        try:
+            client.connect(MQTT_BROKER, MQTT_PORT, 60)
+            client.loop_start()
+            print("MQTT verbonden")
+            break
+        except Exception as e:
+            print(f"MQTT verbinding mislukt: {e}, opnieuw proberen...")
+            time.sleep(5)
+
+def lees_poort(config):
+    while True:
+        try:
+            print(f"Verbinding maken met {config['poort']}...")
+            ser = serial.Serial(config['poort'], config['baud'], timeout=1)
+            print(f"Verbonden met {config['poort']}")
+
+            while True:
+                lijn = ser.readline().decode('utf-8').strip()
+                if lijn:
+                    try:
+                        # Valideer of het geldige JSON is
+                        json.loads(lijn)
+                        client.publish(MQTT_TOPIC, lijn)
+                        print(f"[{config['poort']}] Verstuurd: {lijn}")
+                    except json.JSONDecodeError:
+                        # Geen geldige JSON, negeer de regel
+                        pass
+
+        except Exception as e:
+            print(f"Fout op {config['poort']}: {e}, opnieuw proberen in 5 seconden...")
+            time.sleep(5)
+
+# Start MQTT verbinding
+verbind_mqtt()
+
+# Start een thread per seriële poort
+for config in POORTEN:
+    thread = threading.Thread(target=lees_poort, args=(config,), daemon=True)
+    thread.start()
+
+# Hoofdprogramma blijft draaien
+print("Serial bridge actief. Luisteren naar 3 poorten...")
+while True:
+    time.sleep(1)
+EOF
+
+
+
+Bouwen en starten:
+cd ~/serial-bridge
+docker build -t serial-bridge .
+
+docker run -d --name serial-bridge \
+  --restart unless-stopped \
+  --device /dev/ttyUSB0:/dev/ttyUSB0 \
+  --device /dev/ttyUSB1:/dev/ttyUSB1 \
+  --device /dev/ttyUSB2:/dev/ttyUSB2 \
+  --network host \
+  serial-bridge
