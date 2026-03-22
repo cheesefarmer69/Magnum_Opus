@@ -1,0 +1,47 @@
+#include <esp_now.h>
+#include <WiFi.h>
+
+// Gedeeld dataformulier tussen Master en Slave
+typedef struct batch_message {
+    int paal_id;
+    int aantalGevonden;
+    struct {
+        char speler_mac[18];
+        int rssi;
+    } spelers[9];
+} batch_message;
+
+// Variabele met andere naam dan het type
+batch_message inkomendeData;
+
+// Wordt automatisch aangeroepen bij elk ontvangen bericht
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+    memcpy(&inkomendeData, incomingData, sizeof(inkomendeData));
+
+    // Loop door alle gevonden spelers in de batch
+    for (int i = 0; i < inkomendeData.aantalGevonden; i++) {
+        Serial.print("{\"paal\":");
+        Serial.print(inkomendeData.paal_id);
+        Serial.print(",\"mac\":\"");
+        Serial.print(inkomendeData.spelers[i].speler_mac);
+        Serial.print("\",\"rssi\":");
+        Serial.print(inkomendeData.spelers[i].rssi);
+        Serial.println("}");
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    delay(3000);
+    WiFi.mode(WIFI_STA);
+    Serial.print("MAC Master: ");
+    Serial.println(WiFi.macAddress());
+
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("ESP-NOW init mislukt");
+        return;
+    }
+    esp_now_register_recv_cb(OnDataRecv);
+}
+
+void loop() {}
