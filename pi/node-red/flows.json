@@ -1,0 +1,478 @@
+[
+    {
+        "id": "124aa052f3987c33",
+        "type": "tab",
+        "label": "Locatiebepaling spelers",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "74b552b9f7b0487b",
+        "type": "mqtt in",
+        "z": "124aa052f3987c33",
+        "name": "Ontvang Paal/MAC Data",
+        "topic": "plaatjes/data",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "0f3c274c3514a5f8",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 270,
+        "y": 240,
+        "wires": [
+            [
+                "144dea3e2a41356e",
+                "b956f233d2dcdefc"
+            ]
+        ]
+    },
+    {
+        "id": "144dea3e2a41356e",
+        "type": "debug",
+        "z": "124aa052f3987c33",
+        "name": "Ontvangen Slave data van Masters",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 580,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "b956f233d2dcdefc",
+        "type": "function",
+        "z": "124aa052f3987c33",
+        "name": "Locatiebepaling Spelers",
+        "func": "// --- CONSTANTEN ---\nconst HYSTERESIS_DBM = 5;\nconst MAX_METINGEN = 3;\n\n// --- 0. SMOELENBOEK ---\nlet spelersLijst = global.get(\"spelersLijst\") || {};\nlet ruweMac = msg.payload.mac;\nlet spelerNaam = spelersLijst[ruweMac];\nif (!spelerNaam) return null; // Onbekende beacon negeren\n\nlet paal = msg.payload.paal;\nlet rssi = msg.payload.rssi;\n\n// --- 1. GEHEUGENS OPHALEN ---\nlet geschiedenis = context.get(\"geschiedenis\") || {};\nlet spelerLocaties = global.get(\"spelerLocaties\") || {};\n\n// --- 2. DATA OPSLAAN ---\nif (!geschiedenis[spelerNaam]) {\n    geschiedenis[spelerNaam] = { huidigePaal: paal, metingen: {} };\n}\nif (!geschiedenis[spelerNaam].metingen[paal]) {\n    geschiedenis[spelerNaam].metingen[paal] = [];\n}\n\ngeschiedenis[spelerNaam].metingen[paal].push(rssi);\nif (geschiedenis[spelerNaam].metingen[paal].length > MAX_METINGEN) {\n    geschiedenis[spelerNaam].metingen[paal].shift();\n}\n\nfunction berekenGemiddelde(array) {\n    if (!array || array.length === 0) return -1000;\n    return array.reduce((a, b) => a + b, 0) / array.length;\n}\n\n// --- 3. HYSTERESIS ---\nlet bekendePaal = geschiedenis[spelerNaam].huidigePaal;\nlet huidigGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[bekendePaal]);\nlet nieuwGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[paal]);\n\nif (paal !== bekendePaal && nieuwGemiddelde > (huidigGemiddelde + HYSTERESIS_DBM)) {\n    geschiedenis[spelerNaam].huidigePaal = paal;\n    bekendePaal = paal;\n}\n\ncontext.set(\"geschiedenis\", geschiedenis);\n\n// --- 4. CENTRALE WAARHEID ---\nspelerLocaties[spelerNaam] = bekendePaal;\nglobal.set(\"spelerLocaties\", spelerLocaties);\n\n// --- 5. TABELDATA ---\nlet tabelData = [];\nfor (let speler in spelerLocaties) {\n    tabelData.push({\n        \"Speler\": speler,\n        \"Locatie\": \"Paal \" + spelerLocaties[speler],\n        \"RSSI\": geschiedenis[speler]?.metingen[spelerLocaties[speler]]?.slice(-1)[0] || \"?\"\n    });\n}\n\nmsg.payload = tabelData;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 850,
+        "y": 240,
+        "wires": [
+            [
+                "7c11e3f6ff689eda",
+                "2f75d20d1f49851d"
+            ]
+        ]
+    },
+    {
+        "id": "2e777e46958a814c",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "[CONFIG] Spelerslijst",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"48:87:2d:9d:bb:7d\":\"Lilou\",\"48:87:2d:9d:ba:5c\":\"Zoë\"}",
+        "payloadType": "json",
+        "x": 280,
+        "y": 380,
+        "wires": [
+            [
+                "4b34e1666df93bbb",
+                "e6288a7d9dcaa5c1"
+            ]
+        ]
+    },
+    {
+        "id": "4b34e1666df93bbb",
+        "type": "change",
+        "z": "124aa052f3987c33",
+        "name": "Sla op in Global",
+        "rules": [
+            {
+                "t": "set",
+                "p": "spelersLijst",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 520,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "7c11e3f6ff689eda",
+        "type": "debug",
+        "z": "124aa052f3987c33",
+        "name": "Locatiebepaling spelers ",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1130,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "e6288a7d9dcaa5c1",
+        "type": "debug",
+        "z": "124aa052f3987c33",
+        "name": "Spelerslijst Doorsturen ",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 540,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "2f75d20d1f49851d",
+        "type": "ui-table",
+        "z": "124aa052f3987c33",
+        "group": "33309fae52329839",
+        "name": "Tabel Locatie Spelers",
+        "label": "",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "maxrows": 0,
+        "passthru": false,
+        "autocols": false,
+        "showSearch": true,
+        "deselect": true,
+        "selectionType": "none",
+        "columns": [
+            {
+                "title": "Naam",
+                "key": "Speler",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Actieve paal",
+                "key": "Locatie",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Signaal (dBm)",
+                "key": "RSSI",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            }
+        ],
+        "mobileBreakpoint": "sm",
+        "mobileBreakpointType": "defaults",
+        "action": "replace",
+        "className": "",
+        "x": 1120,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "394d23a1687efd92",
+        "type": "mqtt out",
+        "z": "124aa052f3987c33",
+        "name": "",
+        "topic": "commando/master1",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "0f3c274c3514a5f8",
+        "x": 1000,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "57488fbe050ca08c",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":1}",
+        "payloadType": "json",
+        "x": 710,
+        "y": 580,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "d4efd5fe9d82acae",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":2}",
+        "payloadType": "json",
+        "x": 710,
+        "y": 640,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "91db8f7204c90d30",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":3}",
+        "payloadType": "json",
+        "x": 710,
+        "y": 700,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "aa6971c83e532c7c",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":4}",
+        "payloadType": "json",
+        "x": 710,
+        "y": 760,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "f76d470bee8a4225",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":0}",
+        "payloadType": "json",
+        "x": 710,
+        "y": 520,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "0f3c274c3514a5f8",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "192.168.1.43",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "33309fae52329839",
+        "type": "ui-group",
+        "name": "Group 1",
+        "page": "65e922971512c908",
+        "width": 6,
+        "height": 1,
+        "order": 1,
+        "showTitle": false,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "65e922971512c908",
+        "type": "ui-page",
+        "name": "Live Radar",
+        "ui": "2560e15da2c4a046",
+        "path": "/page1",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "f4af76d3be7f4001",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "2560e15da2c4a046",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "f4af76d3be7f4001",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "7b7840fe576ebdbe",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@flowfuse/node-red-dashboard": "1.30.2"
+        }
+    }
+]
