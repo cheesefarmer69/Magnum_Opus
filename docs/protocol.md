@@ -59,13 +59,17 @@ typedef struct __attribute__((packed)) {
 
 ### Geldige `actie_id` waarden
 
-| ID | Betekenis | Status |
+| ID | Constante | Gedrag |
 |----|-----------|--------|
-| 0  | Idle / niets doen | Geïmplementeerd |
-| 1  | (placeholder, vul aan) | TBD |
-| 2  | (placeholder, vul aan) | TBD |
+| 0  | `ACTIE_NIETS`       | LEDs uit (CRGB::Black), MOSFET uit |
+| 1  | `ACTIE_ROOD`        | LED strip rood, MOSFET aan |
+| 2  | `ACTIE_GROEN`       | LED strip groen, MOSFET aan |
+| 3  | `ACTIE_BUZZER_AAN`  | Buzzer 1 kHz aan (`tone()`) |
+| 4  | `ACTIE_BUZZER_UIT`  | Buzzer uit (`noTone()`) |
 
-*TODO: aanvullen wanneer slave-acties geïmplementeerd zijn.*
+Bij `ACTIE_ROOD` en `ACTIE_GROEN` wordt de MOSFET eerst HIGH gezet (5 ms
+delay) voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje
+op de LED-strip bij inschakelen.
 
 ## 3. Master → Pi (Serial USB)
 
@@ -79,7 +83,7 @@ Master stuurt detecties door naar de Pi, één JSON-bericht per regel.
 ### Formaat: detectie
 
 ```json
-{"paal":1,"speler":"aa:bb:cc:dd:ee:ff","rssi":-67}
+{"paal":1,"mac":"aa:bb:cc:dd:ee:ff","rssi":-67}
 ```
 
 Eén JSON-object per gedetecteerde speler. Bij een batch met 5 spelers
@@ -110,7 +114,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 
 | Topic              | Richting           | Payload                                      |
 |--------------------|--------------------|----------------------------------------------|
-| `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"speler":"aa:bb:..","rssi":-67}`  |
+| `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
 
 ### MQTT-config in Node-RED
@@ -140,4 +144,5 @@ zodat je veilig vooruit kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-17: actie_id tabel bijgewerkt — alle 5 acties (0–4) geïmplementeerd in slave firmware
 - 2026-05-10: initieel document, opgesteld bij overstap naar VS Code + GitHub workflow

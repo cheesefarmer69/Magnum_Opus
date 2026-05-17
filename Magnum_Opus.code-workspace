@@ -1,8 +1,17 @@
 {
   "folders": [
-    { "name": "Magnum Opus", "path": "." },
-    { "name": "Master firmware", "path": "firmware/Master" },
-    { "name": "Slave firmware", "path": "firmware/Slave" }
+    {
+      "name": "Magnum Opus",
+      "path": "."
+    },
+    {
+      "name": "── Firmware: Master",
+      "path": "firmware/Master"
+    },
+    {
+      "name": "── Firmware: Slave",
+      "path": "firmware/Slave"
+    }
   ],
   "settings": {
     "files.exclude": {

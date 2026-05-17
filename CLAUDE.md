@@ -5,10 +5,15 @@ Werktaal: Nederlands voor commentaar/uitleg, Engels voor code-namen.
 
 ## Wat is dit project?
 
-Een interactief spel gespeeld op een 24 hoek diameter 23m. 
-Op elk middelbint van de buitenste rand van een 24 hoek staat een paaltje. 
+Een interactief spel gespeeld op een 24-hoekig speelveld van ca. 23m doorsnede.
+Het speelveld heeft de vorm van een donut: er is een binnenste cirkel die geen
+deel uitmaakt van het speelveld, zodat alleen de ring tussen die binnenste
+cirkel en de buitenste rand bespeelbaar is.
+
+Op het midden van elke buitenste zijde van de 24-hoek staat een paaltje
+(dus NIET op de hoekpunten), in totaal 24 palen.
 Spelers dragen Bluetooth Low Energy beacons. De palen detecteren welke
-spelers in de buurt zijn en sturen die data naar een centrale hub, die
+spelers binnen hun zijvak zijn en sturen die data naar een centrale hub, die
 de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
 
 ## Architectuur

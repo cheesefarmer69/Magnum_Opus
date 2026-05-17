@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"c:/PROJECTEN ELEKTRONICA/Magnum Opus/\")",
+      "Read(//c/PROJECTEN ELEKTRONICA/Magnum Opus/**)",
+      "Bash(pio run *)",
+      "PowerShell(where.exe pio; Get-Command pio -ErrorAction SilentlyContinue; ls \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" -ErrorAction SilentlyContinue)",
+      "PowerShell(cd \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run 2>&1)"
+    ]
+  }
+}
