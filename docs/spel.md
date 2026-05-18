@@ -1,106 +1,99 @@
-# Magnum Opus — Spelmechanieken
+# Spel oriëntering + mechanieken
 
-## Core concept
+## Overzicht
 
-**Overleef 1 dag.**
+Het spel bestaat uit twee grote delen, gespeeld op dezelfde dag:
 
-Een dag bestaat uit 24 uur. Een uur bestaat uit meerdere events (niet uit één event — dat is te weinig voor flow). Het spel is meer dan enkel overleven: spelers bouwen ook iets op terwijl ze overleven.
+- **Middagspel** — ± 3,5 uur
+- **Avondspel** — ± 1,5 uur
 
-## Wereld-analogie: De Klok
+Beide delen hebben een eigen doel, dynamiek en regelset, maar zijn met elkaar
+verbonden: wat je in de middag opbouwt, neem je mee naar de avond.
 
-De wereld is een Klok. De spelers zijn **dragers van uren** — oude wezens die de Klok mee draaiende houden. Vandaag is De Lange Dag: de cyclus waarop de Klok zichzelf hertelt en hongert. Tijd zelf is de antagonist.
+## De wereld: de klok
 
-Deze analogie is gekozen omdat:
+Het speelveld is een 24-hoekig "donut"-diagram. Het bord is verdeeld in
+24 delen; elk deel stelt één uur voor. De volledige klok is dus één dag.
 
-- Ze past exact bij het "24 uur" core concept — de fictie is letterlijk de structuur
-- Klokken geven natuurlijke visuele consistentie (palen als uur-aanduidingen, posities, ritmes)
-- Tijd-als-vijand is mythologisch volwassen, geschikt voor 17-18 jarigen
-- De eliminatie-rol kan natuurlijk geïntegreerd worden (gevallen spelers worden onderdeel van de Klok)
-- "Levensjaren" past organisch — de spelers zijn oud, tijd-meten in jaren voelt logisch
+De dag kent drie fases:
 
-## De twee opbouw-assen
+| Fase        | Uren      | Opmerking          |
+|-------------|-----------|--------------------|
+| Dag         | 7u – 19u  |                    |
+| Nacht       | 19u – 6u  |                    |
+| Middernacht | 00u       | scharniermoment    |
 
-Het spel groeit langs twee orthogonale assen die elkaar voeden:
+Het is een *plates of fate*-spel: willekeurige events bepalen het verloop.
 
-### 1. Knowledge (kennis)
+### Hardware per uur
 
- lagen kennis worden parallel opgebouwd:
+Elk uur (elk van de 24 delen) is uitgerust met:
 
-- **Hoe de wereld werkt** — mechanisch begrip van palen, patronen, oorzaak-gevolg
-- **Wat ze moeten doen** — het einddoel, dat geheim is aan het begin en pas door fragmenten te verzamelen onthuld wordt
+- een **LED-lamp** — verschillende kleuren en animaties
+- een **zoemer** — verschillende tonen
 
-Spelers leren niet allemaal alles tegelijk. Omdat het spel in een cirkel/open veld gespeeld wordt, verspreidt kennis zich ongelijk. Dit creëert natuurlijke status-differentiatie.
+Daarnaast:
 
-### 2. Capabilities (vaardigheden)
+- een **muziekinstallatie** in het centrum van het speelveld roept de events af
+- **LED-schermen** tonen tekstboodschappen aan de spelers
 
-Spelers beginnen met **beperkte interactie-opties** en ontgrendelen er meer naarmate ze doelen volbrengen.
+### Invloed van de spelers
 
-- Capabilities worden **niet automatisch toegekend met de tijd**, maar verdiend door specifieke prestaties
-- Wanneer één of meerdere spelers een doel volbrengen, ontgrendelen zij (of de groep) een nieuwe capability
-- Dit geeft een gevoel van *status* en *groei* — je klimt op als je het spel meester wordt
+Op sommige uren staat een **drukknop**. Spelers kunnen die gebruiken wanneer
+een event dat toelaat — zo grijpen ze zelf in op het spel.
 
-### De brug tussen de twee assen
+## Middagspel
 
-- Nieuwe capabilities geven **toegang tot nieuwe kennis**
-- Verworven kennis geeft **toegang tot nieuwe capabilities**
-- Het uitstellen van een capability tot na een knowledge-onthulling is pacing-magie: spelers krijgen de tool op het moment dat ze begrijpen waarvoor hij dient
+**Doel: zoveel mogelijk levensjaren verzamelen.**
 
-## Currency: Levensjaren
+Spelers verzamelen levensjaren door zich over de klok te verplaatsen: elk uur
+dat je verder reist in de tijd, levert een levensjaar op. Deze levensjaren zijn
+echter **niet meteen blijvend** — ze worden pas definitief wanneer de speler de
+bijbehorende opdracht of voorwaarde volbrengt.
 
-Eén universele score per speler: **levensjaren**.
+Het is een *plates of fate*-spel: spelers moeten overleven tussen de events door
+en ondertussen zoveel mogelijk levensjaren verzamelen.
 
-Krachtig omdat het meerdere lagen tegelijk dekt:
+### Ritme: opbouw, voorwaarde, beloning, minigame
 
-- Het is een score
-- Het is een ranglijst-positie (spelers kunnen zichzelf vergelijken met anderen)
-- Het is een resource (kan verdiend en verloren worden)
-- Het is thematisch geladen (mortaliteit, tijd, gewicht van betekenis)
+Het middagspel is bewust géén ononderbroken *plates of fate* — er zijn
+rustmomenten nodig. Daarom verloopt het in cycli:
 
-Eén getal — geen complexiteit, perfect voor outdoor flow.
+1. **Voorwaarde** — er is telkens een voorwaarde die door één of meerdere
+   spelers volbracht moet worden. Die is meestal niet eenvoudig en kost tijd.
+2. **Beloning** — de speler die erin slaagt, krijgt een beloning: een
+   **voorwerp** dat voordeel geeft, of een **skill** die enkel díe speler kan
+   gebruiken. Dit zorgt voor exclusiviteit en een reden om competitief te spelen.
+3. **Minigame** — daarna wordt een unieke, meestal rustigere minigame gespeeld
+   die de eigenschappen van het speelveld benut. Dit is een echte pauze.
+4. **Herstart** — het *plates of fate*-spel begint opnieuw, met een nieuw doel
+   en een schone lei: de levensjaren-teller wordt gereset naar 0.
 
-## Tweedelige structuur
+Na elke skill-bemachtiging verandert het *plates of fate*-spel: er worden
+**nieuwe events toegevoegd**. Zo blijft het spel fris, zonder dat spelers meteen
+met alle events tegelijk overspoeld worden — er blijft tijd om het spel te leren
+kennen.
 
-Het spel is verdeeld over twee echte sessies binnen één spel-"dag":
+### Flow state
 
-### Middag-sessie (ongeveer 3 - 3,5 uur)
+De kracht van deze opzet: ze laat toe om een *flow state* te bereiken. Zodra
+iedereen het spel doorheeft, kunnen de events automatisch gespeeld worden.
 
-**Doel: in flow komen, het spel leren kennen, levensjaren verdienen.**
+## Avondspel
 
-- Intensiteit en snelheid zijn niet extreem
-- Focus op opbouw: spelers leren de wereld kennen, ontdekken oorzaak en gevolg
-- Capabilities worden ontgrendeld door doelen te volbrengen
-- Levensjaren worden voornamelijk *verdiend*
-- Atmosfeer: oplopende spanning, hoopvol maar gespannen
-- Eindigt met een keerpunt — eerste echte aankondiging dat de Klok ook kan nemen
+**Doel: de dood voorblijven.**
 
-### Avond-sessie (ongeveer 1,5 uur)
+Het avondspel heeft een andere dynamiek. In de avond komen de LED-lampen pas
+echt tot hun recht; daar wordt gebruik van gemaakt met actievere spellen.
 
-**Doel: knockout fase, gebruiken wat je geleerd hebt onder druk.**
-
-- Hoger tempo, hogere dichtheid van events
-- Geen tijd voor langzame opbouw — alles wat in de middag geleerd is, moet nu toegepast worden
-- De Dood probeert levensjaren terug te nemen
-- **Dubbele tijdsdruk**: niet alleen "events" nemen levensjaren, maar **de tijd zelf werkt mee**. Echte tijd die voorbijgaat tijdens de avond-sessie wordt afgetrokken van de opgebouwde levensjaren van spelers. Stilstaan = verliezen. Dit dwingt voortdurende actie en beslissingen.
-- Spelers die al hun levensjaren verliezen, worden **uitgeschakeld als speler** — maar krijgen een andere rol die hen in het spel houdt
-- Donker (avond/nacht in het echt) — de LED-effecten van de hardware komen nu echt tot hun recht
-- Atmosfeer: gevaar, urgentie, horror-pacing, lede lampen komen pas echt tot uiting
-
-## Eliminatie met behoud van rol
-
-Een speler die alle levensjaren verliest gaat **niet naar huis** en wordt **geen toeschouwer**.
-
-In plaats daarvan krijgen ze een nieuwe rol binnen het spel. Concrete invulling moet nog uitgewerkt worden, maar het principe is:
-
-- Eliminatie wordt een transformatie, geen straf
-- De nieuwe rol heeft narratief gewicht (de eliminatie wordt een opwaardering in betekenis, geen degradatie)
-- Voorkomt het ergste outdoor-gamedesign-probleem: uitgeschakelde spelers die staan toe te kijken en zich rot voelen
+De spelers gaan de avond in met de levensjaren die ze in de middag opgespaard
+hebben. Het spel dat volgt is **"de dood"**: die probeert hen in te halen.
+Zijn al hun levensjaren op, dan zijn ze door de dood ingehaald.
 
 ## Open vragen / nog uit te werken
 
-- Concrete invulling van de nieuwe rol voor uitgeschakelde spelers
-- Specifieke capabilities en hoe ze met de hardware (palen, gsm-interface, LED-borden, audio) gekoppeld worden
-- Concrete doelen die capabilities ontgrendelen
-- Snelheid waarmee de echte tijd levensjaren aftrekt in het avond-spel
-- Uitwerking van de 24-uur narratieve boog (fases, ritme, climax-punten)
-- Vorm van de eindpuzzel/finale
-- Beslissing of de spelers samenwerken (één team) of er competitieve elementen zijn op de levensjaren-ranglijst
+- Functie/rol voor spelers die door de dood ingehaald zijn (de "gesneuvelden")
+- Concrete voorwaarden, beloningen en skills in het middagspel
+- Concrete invulling van de minigames
+- Lijst van events en hun timing/afroeping
+- Regels en scenario van het avondspel

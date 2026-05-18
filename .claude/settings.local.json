@@ -5,7 +5,9 @@
       "Read(//c/PROJECTEN ELEKTRONICA/Magnum Opus/**)",
       "Bash(pio run *)",
       "PowerShell(where.exe pio; Get-Command pio -ErrorAction SilentlyContinue; ls \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" -ErrorAction SilentlyContinue)",
-      "PowerShell(cd \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run 2>&1)"
+      "PowerShell(cd \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run 2>&1)",
+      "PowerShell($f = Get-Content \"pi\\\\node-red\\\\blokken\\\\01_preflight\\\\preflight.flow.json\" -Raw | ConvertFrom-Json; \"preflight.flow.json OK - $\\($f.Count\\) nodes\"; $f | Where-Object { $_.type -eq 'function' } | ForEach-Object { \"  func: $\\($_.name\\)\" })",
+      "PowerShell($f = Get-Content \"pi\\\\node-red\\\\flows.json\" -Raw | ConvertFrom-Json; \"flows.json OK - $\\($f.Count\\) nodes\"; \"tabs: \" + \\(\\($f | Where-Object { $_.type -eq 'tab' } | ForEach-Object { $_.label }\\) -join ', '\\); $ids = $f | ForEach-Object { $_.id }; $dups = $ids | Group-Object | Where-Object { $_.Count -gt 1 }; if \\($dups\\) { \"DUPLICATE IDS: \" + \\($dups.Name -join ', '\\) } else { \"geen dubbele ids\" })"
     ]
   }
 }

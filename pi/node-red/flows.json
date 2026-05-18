@@ -1,10 +1,156 @@
 [
     {
+        "id": "c0a0000000000001",
+        "type": "tab",
+        "label": "00 Configuratie",
+        "disabled": false,
+        "info": "Centrale configuratie: spelerslijst en paaltjeslijst. Zie pi/node-red/blokken/00_configuratie/README.md",
+        "env": []
+    },
+    {
+        "id": "2e777e46958a814c",
+        "type": "inject",
+        "z": "c0a0000000000001",
+        "name": "[CONFIG] Spelerslijst",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"48:87:2d:9d:bb:7d\":\"Lilou\",\"48:87:2d:9d:ba:5c\":\"Zoë\"}",
+        "payloadType": "json",
+        "x": 200,
+        "y": 120,
+        "wires": [
+            [
+                "4b34e1666df93bbb"
+            ]
+        ]
+    },
+    {
+        "id": "4b34e1666df93bbb",
+        "type": "change",
+        "z": "c0a0000000000001",
+        "name": "Sla op als spelersLijst",
+        "rules": [
+            {
+                "t": "set",
+                "p": "spelersLijst",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 480,
+        "y": 120,
+        "wires": [
+            [
+                "e6288a7d9dcaa5c1"
+            ]
+        ]
+    },
+    {
+        "id": "e6288a7d9dcaa5c1",
+        "type": "debug",
+        "z": "c0a0000000000001",
+        "name": "spelersLijst (controle)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 760,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "c0a0000000000002",
+        "type": "inject",
+        "z": "c0a0000000000001",
+        "name": "[CONFIG] Paaltjeslijst",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.2,
+        "topic": "",
+        "payload": "[1,2,3,4,5,6,7,8]",
+        "payloadType": "json",
+        "x": 200,
+        "y": 240,
+        "wires": [
+            [
+                "c0a0000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "c0a0000000000003",
+        "type": "change",
+        "z": "c0a0000000000001",
+        "name": "Sla op als paaltjesLijst",
+        "rules": [
+            {
+                "t": "set",
+                "p": "paaltjesLijst",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 480,
+        "y": 240,
+        "wires": [
+            [
+                "c0a0000000000004"
+            ]
+        ]
+    },
+    {
+        "id": "c0a0000000000004",
+        "type": "debug",
+        "z": "c0a0000000000001",
+        "name": "paaltjesLijst (controle)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 760,
+        "y": 240,
+        "wires": []
+    },
+    {
         "id": "124aa052f3987c33",
         "type": "tab",
-        "label": "Locatiebepaling spelers",
+        "label": "01 Locatiebepaling",
         "disabled": false,
-        "info": "",
+        "info": "Bepaalt op welke paal elke speler zich bevindt. Zie pi/node-red/blokken/01_locatiebepaling/README.md",
         "env": []
     },
     {
@@ -20,8 +166,8 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 270,
-        "y": 240,
+        "x": 200,
+        "y": 160,
         "wires": [
             [
                 "144dea3e2a41356e",
@@ -42,8 +188,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 580,
-        "y": 160,
+        "x": 540,
+        "y": 100,
         "wires": []
     },
     {
@@ -58,8 +204,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 850,
-        "y": 240,
+        "x": 530,
+        "y": 200,
         "wires": [
             [
                 "7c11e3f6ff689eda",
@@ -68,61 +214,10 @@
         ]
     },
     {
-        "id": "2e777e46958a814c",
-        "type": "inject",
-        "z": "124aa052f3987c33",
-        "name": "[CONFIG] Spelerslijst",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": true,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"48:87:2d:9d:bb:7d\":\"Lilou\",\"48:87:2d:9d:ba:5c\":\"Zoë\"}",
-        "payloadType": "json",
-        "x": 280,
-        "y": 380,
-        "wires": [
-            [
-                "4b34e1666df93bbb",
-                "e6288a7d9dcaa5c1"
-            ]
-        ]
-    },
-    {
-        "id": "4b34e1666df93bbb",
-        "type": "change",
-        "z": "124aa052f3987c33",
-        "name": "Sla op in Global",
-        "rules": [
-            {
-                "t": "set",
-                "p": "spelersLijst",
-                "pt": "global",
-                "to": "payload",
-                "tot": "msg"
-            }
-        ],
-        "action": "",
-        "property": "",
-        "from": "",
-        "to": "",
-        "reg": false,
-        "x": 520,
-        "y": 380,
-        "wires": [
-            []
-        ]
-    },
-    {
         "id": "7c11e3f6ff689eda",
         "type": "debug",
         "z": "124aa052f3987c33",
-        "name": "Locatiebepaling spelers ",
+        "name": "Locatiebepaling spelers",
         "active": false,
         "tosidebar": true,
         "console": false,
@@ -131,25 +226,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1130,
-        "y": 160,
-        "wires": []
-    },
-    {
-        "id": "e6288a7d9dcaa5c1",
-        "type": "debug",
-        "z": "124aa052f3987c33",
-        "name": "Spelerslijst Doorsturen ",
-        "active": false,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 540,
-        "y": 440,
+        "x": 850,
+        "y": 140,
         "wires": []
     },
     {
@@ -198,19 +276,603 @@
         "mobileBreakpointType": "defaults",
         "action": "replace",
         "className": "",
-        "x": 1120,
+        "x": 860,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "10ca71e000000001",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "[TEST] Detectie Lilou paal 1",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"mac\":\"48:87:2d:9d:bb:7d\",\"rssi\":-55}",
+        "payloadType": "json",
+        "x": 220,
+        "y": 320,
+        "wires": [
+            [
+                "b956f233d2dcdefc"
+            ]
+        ]
+    },
+    {
+        "id": "10ca71e000000002",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "[TEST] Detectie Zoë paal 2",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":2,\"mac\":\"48:87:2d:9d:ba:5c\",\"rssi\":-58}",
+        "payloadType": "json",
+        "x": 220,
+        "y": 380,
+        "wires": [
+            [
+                "b956f233d2dcdefc"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60101",
+        "type": "tab",
+        "label": "02 Spelstatus",
+        "disabled": false,
+        "info": "Toont de gezondheid van het spel; moet OK zijn vóór de start. Zie pi/node-red/blokken/02_spelstatus/README.md",
+        "env": []
+    },
+    {
+        "id": "a1b2c3d4e5f60102",
+        "type": "mqtt in",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Ontvang detecties",
+        "topic": "plaatjes/data",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "0f3c274c3514a5f8",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 120,
+        "wires": [
+            [
+                "a1b2c3d4e5f60103"
+            ]
+        ]
+    },
+    {
+        "id": "10ca71e000000003",
+        "type": "inject",
+        "z": "a1b2c3d4e5f60101",
+        "name": "[TEST] Detectie",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"mac\":\"48:87:2d:9d:bb:7d\",\"rssi\":-60}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 200,
+        "wires": [
+            [
+                "a1b2c3d4e5f60103"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60103",
+        "type": "function",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Registreer detectie",
+        "func": "// Detectie binnen via plaatjes/data: {paal, mac, rssi}\nconst nu = Date.now();\nconst d = msg.payload;\nif (!d || d.paal === undefined || !d.mac) { return null; }\n\nlet macSeen = global.get(\"status_lastSeenMac\") || {};\nlet paalSeen = global.get(\"status_lastSeenPaal\") || {};\n\nmacSeen[d.mac] = nu;\npaalSeen[d.paal] = nu;\n\nglobal.set(\"status_lastSeenMac\", macSeen);\nglobal.set(\"status_lastSeenPaal\", paalSeen);\nglobal.set(\"status_lastDataTs\", nu);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 120,
+        "wires": [
+            [
+                "a1b2c3d4e5f6010c"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f6010c",
+        "type": "debug",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Detectie (debug)",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 680,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "a1b2c3d4e5f60106",
+        "type": "inject",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Evalueer (elke 3s)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "3",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 360,
+        "wires": [
+            [
+                "a1b2c3d4e5f60107"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60107",
+        "type": "function",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Evalueer spelstatus",
+        "func": "// === Spelstatus evaluatie ===\nconst nu = Date.now();\n\n// Instelbare drempels\nconst SPELER_TIMEOUT_MS = 15000;\nconst SLAVE_STALE_MS = 60000;\nconst GEEN_DATA_MS = 10000;\n\n// Bronnen\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst paaltjesLijst = global.get(\"paaltjesLijst\") || [];\nconst macSeen = global.get(\"status_lastSeenMac\") || {};\nconst paalSeen = global.get(\"status_lastSeenPaal\") || {};\nconst lastDataTs = global.get(\"status_lastDataTs\") || 0;\n\nlet fouten = [];\n\n// 1. SPELERS\nlet spelersTabel = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const t = macSeen[mac];\n    let status, ouderdom;\n    if (!t) {\n        status = \"NIET GEZIEN\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler nog niet gedetecteerd in het veld\" });\n    } else if (nu - t > SPELER_TIMEOUT_MS) {\n        ouderdom = Math.round((nu - t) / 1000) + \"s\";\n        status = \"VERLOREN\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler al \" + ouderdom + \" niet meer gezien\" });\n    } else {\n        ouderdom = Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    spelersTabel.push({ Speler: naam, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 2. SLAVES / PALEN\nlet palenTabel = [];\nfor (const paal of paaltjesLijst) {\n    const t = paalSeen[paal];\n    let status, ouderdom;\n    if (!t) {\n        status = \"GEEN CONTACT\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"FOUT\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave heeft nog geen data gestuurd\" });\n    } else if (nu - t > SLAVE_STALE_MS) {\n        ouderdom = Math.round((nu - t) / 1000) + \"s\";\n        status = \"VEROUDERD\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"WAARSCHUWING\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave al \" + ouderdom + \" stil\" });\n    } else {\n        ouderdom = Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    palenTabel.push({ Paal: paal, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 3. DATASTROOM\nif (lastDataTs === 0) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Nog geen enkel bericht ontvangen op plaatjes/data\" });\n} else if (nu - lastDataTs > GEEN_DATA_MS) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Al \" + Math.round((nu - lastDataTs) / 1000) + \"s geen data - controleer master/bridge\" });\n}\n\n// 4. ONBEKENDE BEACONS (informatief)\nfor (const mac in macSeen) {\n    if (!spelersLijst[mac] && (nu - macSeen[mac] < SPELER_TIMEOUT_MS)) {\n        fouten.push({ Code: \"ST-004\", Niveau: \"INFO\", Onderdeel: mac, Omschrijving: \"Onbekende beacon gedetecteerd (niet geregistreerd)\" });\n    }\n}\n\n// SAMENVATTING\nconst aantalFout = fouten.filter(f => f.Niveau === \"FOUT\").length;\nconst spelOk = aantalFout === 0 && spelersTabel.length > 0 && palenTabel.length > 0;\n\nglobal.set(\"status_ok\", spelOk);\nglobal.set(\"status_fouten\", fouten);\n\nconst statusTekst = spelOk\n    ? \"GO - spelstatus OK, klaar om te starten\"\n    : \"NO-GO - \" + aantalFout + \" fout(en), zie foutcodes\";\n\nconst foutenTabel = fouten.length > 0\n    ? fouten\n    : [{ Code: \"-\", Niveau: \"INFO\", Onderdeel: \"-\", Omschrijving: \"Geen fouten\" }];\n\nreturn [\n    { payload: spelersTabel },\n    { payload: palenTabel },\n    { payload: foutenTabel },\n    { payload: statusTekst }\n];",
+        "outputs": 4,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 360,
+        "wires": [
+            [
+                "a1b2c3d4e5f60108"
+            ],
+            [
+                "a1b2c3d4e5f60109"
+            ],
+            [
+                "a1b2c3d4e5f6010a"
+            ],
+            [
+                "a1b2c3d4e5f6010b"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f6010b",
+        "type": "ui-text",
+        "z": "a1b2c3d4e5f60101",
+        "group": "a1b2c3d4e5f6010e",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "Spelstatus",
+        "label": "Status",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wires": []
+    },
+    {
+        "id": "a1b2c3d4e5f60108",
+        "type": "ui-table",
+        "z": "a1b2c3d4e5f60101",
+        "group": "a1b2c3d4e5f6010f",
+        "name": "Tabel Spelers",
+        "label": "",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "maxrows": 0,
+        "passthru": false,
+        "autocols": false,
+        "showSearch": false,
+        "deselect": true,
+        "selectionType": "none",
+        "columns": [
+            {
+                "title": "Speler",
+                "key": "Speler",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Status",
+                "key": "Status",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Laatst gezien",
+                "key": "Laatst gezien",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            }
+        ],
+        "mobileBreakpoint": "sm",
+        "mobileBreakpointType": "defaults",
+        "action": "replace",
+        "className": "",
+        "x": 700,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "a1b2c3d4e5f60109",
+        "type": "ui-table",
+        "z": "a1b2c3d4e5f60101",
+        "group": "a1b2c3d4e5f60110",
+        "name": "Tabel Palen",
+        "label": "",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "maxrows": 0,
+        "passthru": false,
+        "autocols": false,
+        "showSearch": false,
+        "deselect": true,
+        "selectionType": "none",
+        "columns": [
+            {
+                "title": "Paal",
+                "key": "Paal",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Status",
+                "key": "Status",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Laatst gezien",
+                "key": "Laatst gezien",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            }
+        ],
+        "mobileBreakpoint": "sm",
+        "mobileBreakpointType": "defaults",
+        "action": "replace",
+        "className": "",
+        "x": 700,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "a1b2c3d4e5f6010a",
+        "type": "ui-table",
+        "z": "a1b2c3d4e5f60101",
+        "group": "a1b2c3d4e5f60111",
+        "name": "Tabel Foutcodes",
+        "label": "",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "maxrows": 0,
+        "passthru": false,
+        "autocols": false,
+        "showSearch": true,
+        "deselect": true,
+        "selectionType": "none",
+        "columns": [
+            {
+                "title": "Code",
+                "key": "Code",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Niveau",
+                "key": "Niveau",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Onderdeel",
+                "key": "Onderdeel",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Omschrijving",
+                "key": "Omschrijving",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "left"
+            }
+        ],
+        "mobileBreakpoint": "sm",
+        "mobileBreakpointType": "defaults",
+        "action": "replace",
+        "className": "",
+        "x": 710,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "b3d1000000000001",
+        "type": "tab",
+        "label": "03 Bediening",
+        "disabled": false,
+        "info": "Interactief dashboard om het spel te starten/pauzeren/herstarten. Zie pi/node-red/blokken/03_bediening/README.md",
+        "env": []
+    },
+    {
+        "id": "b3d1000000000002",
+        "type": "ui-button",
+        "z": "b3d1000000000001",
+        "group": "b3d100000000000a",
+        "name": "Start spel",
+        "label": "Start spel",
+        "order": 1,
+        "width": 3,
+        "height": 1,
+        "emulateClick": false,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "payload": "start",
+        "payloadType": "str",
+        "topic": "bediening",
+        "topicType": "str",
+        "x": 180,
+        "y": 100,
+        "wires": [
+            [
+                "b3d1000000000006"
+            ]
+        ]
+    },
+    {
+        "id": "b3d1000000000003",
+        "type": "ui-button",
+        "z": "b3d1000000000001",
+        "group": "b3d100000000000a",
+        "name": "Pauzeer",
+        "label": "Pauzeer",
+        "order": 2,
+        "width": 3,
+        "height": 1,
+        "emulateClick": false,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "payload": "pauzeer",
+        "payloadType": "str",
+        "topic": "bediening",
+        "topicType": "str",
+        "x": 180,
+        "y": 160,
+        "wires": [
+            [
+                "b3d1000000000006"
+            ]
+        ]
+    },
+    {
+        "id": "b3d1000000000004",
+        "type": "ui-button",
+        "z": "b3d1000000000001",
+        "group": "b3d100000000000a",
+        "name": "Hervat",
+        "label": "Hervat",
+        "order": 3,
+        "width": 3,
+        "height": 1,
+        "emulateClick": false,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "payload": "hervat",
+        "payloadType": "str",
+        "topic": "bediening",
+        "topicType": "str",
+        "x": 180,
+        "y": 220,
+        "wires": [
+            [
+                "b3d1000000000006"
+            ]
+        ]
+    },
+    {
+        "id": "b3d1000000000005",
+        "type": "ui-button",
+        "z": "b3d1000000000001",
+        "group": "b3d100000000000a",
+        "name": "Herstart",
+        "label": "Herstart",
+        "order": 4,
+        "width": 3,
+        "height": 1,
+        "emulateClick": false,
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "iconPosition": "left",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "payload": "herstart",
+        "payloadType": "str",
+        "topic": "bediening",
+        "topicType": "str",
+        "x": 180,
         "y": 280,
         "wires": [
-            []
+            [
+                "b3d1000000000006"
+            ]
         ]
+    },
+    {
+        "id": "b3d1000000000008",
+        "type": "inject",
+        "z": "b3d1000000000001",
+        "name": "Toon toestand bij opstart",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 1,
+        "topic": "",
+        "payload": "toon",
+        "payloadType": "str",
+        "x": 200,
+        "y": 360,
+        "wires": [
+            [
+                "b3d1000000000006"
+            ]
+        ]
+    },
+    {
+        "id": "b3d1000000000006",
+        "type": "function",
+        "z": "b3d1000000000001",
+        "name": "Verwerk bediening",
+        "func": "// Verwerk een knop van het Bediening-dashboard\nconst actie = msg.payload;\nlet toestand = global.get(\"spelToestand\") || \"gestopt\";\nconst statusOk = global.get(\"status_ok\");\nlet melding = \"\";\n\nswitch (actie) {\n    case \"start\":\n        if (toestand === \"lopend\") {\n            melding = \"Spel liep al.\";\n        } else {\n            toestand = \"lopend\";\n            melding = (statusOk === false)\n                ? \"Spel GESTART - let op: spelstatus was NIET OK\"\n                : \"Spel gestart.\";\n        }\n        break;\n    case \"pauzeer\":\n        if (toestand === \"lopend\") {\n            toestand = \"gepauzeerd\";\n            melding = \"Spel gepauzeerd.\";\n        } else {\n            melding = \"Pauzeren kan enkel terwijl het spel loopt.\";\n        }\n        break;\n    case \"hervat\":\n        if (toestand === \"gepauzeerd\") {\n            toestand = \"lopend\";\n            melding = \"Spel hervat.\";\n        } else {\n            melding = \"Hervatten kan enkel vanuit pauze.\";\n        }\n        break;\n    case \"herstart\":\n        toestand = \"lopend\";\n        melding = \"Spel herstart - toestand teruggezet naar het begin.\";\n        break;\n    case \"toon\":\n        melding = \"Huidige toestand.\";\n        break;\n    default:\n        melding = \"Onbekende actie: \" + actie;\n}\n\nglobal.set(\"spelToestand\", toestand);\n\nmsg.payload = \"Toestand: \" + toestand.toUpperCase() + \"  |  \" + melding;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 200,
+        "wires": [
+            [
+                "b3d1000000000007"
+            ]
+        ]
+    },
+    {
+        "id": "b3d1000000000007",
+        "type": "ui-text",
+        "z": "b3d1000000000001",
+        "group": "b3d100000000000a",
+        "order": 5,
+        "width": 12,
+        "height": 1,
+        "name": "Huidige speltoestand",
+        "label": "Speltoestand",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wires": []
     },
     {
         "id": "394d23a1687efd92",
         "type": "mqtt out",
-        "z": "124aa052f3987c33",
-        "name": "",
+        "z": "b3d1000000000001",
+        "name": "commando/master1",
         "topic": "commando/master1",
-        "qos": "",
+        "qos": "2",
         "retain": "",
         "respTopic": "",
         "contentType": "",
@@ -218,115 +880,15 @@
         "correl": "",
         "expiry": "",
         "broker": "0f3c274c3514a5f8",
-        "x": 1000,
-        "y": 580,
+        "x": 800,
+        "y": 560,
         "wires": []
-    },
-    {
-        "id": "57488fbe050ca08c",
-        "type": "inject",
-        "z": "124aa052f3987c33",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"paal\":1,\"actie\":1}",
-        "payloadType": "json",
-        "x": 710,
-        "y": 580,
-        "wires": [
-            [
-                "394d23a1687efd92"
-            ]
-        ]
-    },
-    {
-        "id": "d4efd5fe9d82acae",
-        "type": "inject",
-        "z": "124aa052f3987c33",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"paal\":1,\"actie\":2}",
-        "payloadType": "json",
-        "x": 710,
-        "y": 640,
-        "wires": [
-            [
-                "394d23a1687efd92"
-            ]
-        ]
-    },
-    {
-        "id": "91db8f7204c90d30",
-        "type": "inject",
-        "z": "124aa052f3987c33",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"paal\":1,\"actie\":3}",
-        "payloadType": "json",
-        "x": 710,
-        "y": 700,
-        "wires": [
-            [
-                "394d23a1687efd92"
-            ]
-        ]
-    },
-    {
-        "id": "aa6971c83e532c7c",
-        "type": "inject",
-        "z": "124aa052f3987c33",
-        "name": "",
-        "props": [
-            {
-                "p": "payload"
-            }
-        ],
-        "repeat": "",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "{\"paal\":1,\"actie\":4}",
-        "payloadType": "json",
-        "x": 710,
-        "y": 760,
-        "wires": [
-            [
-                "394d23a1687efd92"
-            ]
-        ]
     },
     {
         "id": "f76d470bee8a4225",
         "type": "inject",
-        "z": "124aa052f3987c33",
-        "name": "",
+        "z": "b3d1000000000001",
+        "name": "[TEST] Commando paal 1 - uit (0)",
         "props": [
             {
                 "p": "payload"
@@ -339,8 +901,108 @@
         "topic": "",
         "payload": "{\"paal\":1,\"actie\":0}",
         "payloadType": "json",
-        "x": 710,
-        "y": 520,
+        "x": 470,
+        "y": 440,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "57488fbe050ca08c",
+        "type": "inject",
+        "z": "b3d1000000000001",
+        "name": "[TEST] Commando paal 1 - rood (1)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":1}",
+        "payloadType": "json",
+        "x": 470,
+        "y": 500,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "d4efd5fe9d82acae",
+        "type": "inject",
+        "z": "b3d1000000000001",
+        "name": "[TEST] Commando paal 1 - groen (2)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":2}",
+        "payloadType": "json",
+        "x": 470,
+        "y": 560,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "91db8f7204c90d30",
+        "type": "inject",
+        "z": "b3d1000000000001",
+        "name": "[TEST] Commando paal 1 - buzzer aan (3)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":3}",
+        "payloadType": "json",
+        "x": 460,
+        "y": 620,
+        "wires": [
+            [
+                "394d23a1687efd92"
+            ]
+        ]
+    },
+    {
+        "id": "aa6971c83e532c7c",
+        "type": "inject",
+        "z": "b3d1000000000001",
+        "name": "[TEST] Commando paal 1 - buzzer uit (4)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"actie\":4}",
+        "payloadType": "json",
+        "x": 460,
+        "y": 680,
         "wires": [
             [
                 "394d23a1687efd92"
@@ -379,9 +1041,190 @@
         "sessionExpiry": ""
     },
     {
+        "id": "2560e15da2c4a046",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "f4af76d3be7f4001",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "a1b2c3d4e5f6010d",
+        "type": "ui-page",
+        "name": "Spelstatus",
+        "ui": "2560e15da2c4a046",
+        "path": "/spelstatus",
+        "icon": "check-circle",
+        "layout": "grid",
+        "theme": "f4af76d3be7f4001",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "a1b2c3d4e5f6010e",
+        "type": "ui-group",
+        "name": "Spelstatus",
+        "page": "a1b2c3d4e5f6010d",
+        "width": 12,
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "a1b2c3d4e5f6010f",
+        "type": "ui-group",
+        "name": "Spelers",
+        "page": "a1b2c3d4e5f6010d",
+        "width": 6,
+        "height": 1,
+        "order": 2,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "a1b2c3d4e5f60110",
+        "type": "ui-group",
+        "name": "Palen / Slaves",
+        "page": "a1b2c3d4e5f6010d",
+        "width": 6,
+        "height": 1,
+        "order": 3,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "a1b2c3d4e5f60111",
+        "type": "ui-group",
+        "name": "Foutcodes",
+        "page": "a1b2c3d4e5f6010d",
+        "width": 12,
+        "height": 1,
+        "order": 4,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "b3d1000000000009",
+        "type": "ui-page",
+        "name": "Bediening",
+        "ui": "2560e15da2c4a046",
+        "path": "/bediening",
+        "icon": "gamepad-variant",
+        "layout": "grid",
+        "theme": "f4af76d3be7f4001",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 2,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "b3d100000000000a",
+        "type": "ui-group",
+        "name": "Speltoestand",
+        "page": "b3d1000000000009",
+        "width": 12,
+        "height": 5,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
         "id": "33309fae52329839",
         "type": "ui-group",
-        "name": "Group 1",
+        "name": "Live Radar",
         "page": "65e922971512c908",
         "width": 6,
         "height": 1,
@@ -423,49 +1266,10 @@
                 "cols": "12"
             }
         ],
-        "order": 1,
+        "order": 3,
         "className": "",
         "visible": "true",
         "disabled": "false"
-    },
-    {
-        "id": "2560e15da2c4a046",
-        "type": "ui-base",
-        "name": "My Dashboard",
-        "path": "/dashboard",
-        "appIcon": "",
-        "includeClientData": true,
-        "acceptsClientConfig": [
-            "ui-notification",
-            "ui-control"
-        ],
-        "showPathInSidebar": false,
-        "headerContent": "page",
-        "navigationStyle": "default",
-        "titleBarStyle": "default",
-        "showReconnectNotification": true,
-        "notificationDisplayTime": 1,
-        "showDisconnectNotification": true,
-        "allowInstall": false
-    },
-    {
-        "id": "f4af76d3be7f4001",
-        "type": "ui-theme",
-        "name": "Default Theme",
-        "colors": {
-            "surface": "#ffffff",
-            "primary": "#0094CE",
-            "bgPage": "#eeeeee",
-            "groupBg": "#ffffff",
-            "groupOutline": "#cccccc"
-        },
-        "sizes": {
-            "density": "default",
-            "pagePadding": "12px",
-            "groupGap": "12px",
-            "groupBorderRadius": "4px",
-            "widgetGap": "12px"
-        }
     },
     {
         "id": "7b7840fe576ebdbe",

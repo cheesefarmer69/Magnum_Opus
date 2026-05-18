@@ -10,7 +10,7 @@
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 1;
+const int PAAL_ID        = 2;
 const int WIFI_KANAAL    = 1;
 
 // ====================================================================
@@ -74,8 +74,12 @@ const uint8_t ACTIE_BUZZER_UIT  = 4;
 const char *toegelatenBeacons[] = {
   "48:87:2d:9d:bb:7d",
   "48:87:2d:9d:ba:5c",
+  "48:87:2d:9d:ba:cc",
+  "48:87:2d:9d:ba:5f",
+  "48:87:2d:9d:bb:0b",
+  "48:87:2d:9d:ba:a5",
 };
-const int aantalBeacons = 2;
+const int aantalBeacons = 6;
 
 // ====================================================================
 // MAC ADRES MASTER
@@ -315,6 +319,15 @@ void setup() {
   delay(100);
   esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
 
+  // Eenmalig het MAC-adres van deze slave (ESP32-C3 mini) tonen.
+  // Noteer dit adres en zet het in de master's slaveAdressen[] array.
+  Serial.println();
+  Serial.println("============================================");
+  Serial.print("  SLAVE MAC-ADRES : ");
+  Serial.println(WiFi.macAddress());
+  Serial.println("============================================");
+  Serial.println();
+
   // ESP-NOW init
   if (esp_now_init() != ESP_OK) {
     Serial.println("[ESP-NOW] Init MISLUKT!");
@@ -327,7 +340,6 @@ void setup() {
   esp_wifi_set_promiscuous(false);
 
   Serial.println("[SETUP] WiFi kanaal: " + String(WiFi.channel()));
-  Serial.println("[SETUP] Slave MAC: " + WiFi.macAddress());
 
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
