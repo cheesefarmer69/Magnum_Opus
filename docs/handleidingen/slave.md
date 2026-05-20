@@ -20,26 +20,33 @@
 
 ```
 loop()
- └── scan-cyclus (elke ~1050ms):
+ └── scan-cyclus (elke ~1100-1300ms):
       ├── BLE scan (1 seconde, blokkerend)
       │    └── BeaconZoeker::onResult() per gevonden apparaat
       │         └── MAC in whitelist? → toevoegen aan batchData
       │
-      ├── [als spelers gevonden]
-      │    ├── esp_now_send() → master
-      │    └── wacht max 200ms op OnDataRecv() callback
-      │         ├── checkBatterij()     elke 5s (binnenin de wacht-loop)
-      │         └── checkLichtSensor()  elke 100ms (binnenin de wacht-loop)
+      ├── random backoff (0..MAX_BACKOFF_MS) — willekeurige zendvertraging
       │
-      ├── [als commandoOntvangen] → voerActieUit()
+      ├── esp_now_send() → master   (ALTIJD, ook bij 0 spelers)
       │
-      └── [als geen spelers] → delay(50), direct volgende scan
+      ├── wacht max 200ms op OnDataRecv() callback
+      │    ├── checkBatterij()     elke 5s (binnenin de wacht-loop)
+      │    └── checkLichtSensor()  elke 100ms (binnenin de wacht-loop)
+      │
+      └── [als commandoOntvangen] → voerActieUit()
 ```
 
-> `checkBatterij()` en `checkLichtSensor()` worden **alleen** aangeroepen
-> tijdens het 200ms wacht-venster nadat een batch is verstuurd.
-> Bij een lege scan (geen spelers) worden de sensoren die iteratie
-> niet gecontroleerd.
+> **Altijd versturen:** de slave stuurt elke cyclus een batch, óók bij 0
+> gevonden spelers. Zo weet de master (en het dashboard) dat een leeg vak
+> ook echt leeg is — een oude spelersstand blijft anders eindeloos staan.
+>
+> **Random backoff:** vóór het verzenden wacht de slave een willekeurige
+> tijd (`0..MAX_BACKOFF_MS`, hardware-RNG via `esp_random()`). Dit verbreekt
+> de fase-vergrendeling tussen meerdere slaves zodat ze niet elke cyclus
+> tegelijk zenden en elkaars pakket wegdrukken bij de master.
+>
+> `checkBatterij()` en `checkLichtSensor()` worden aangeroepen tijdens het
+> 200ms wacht-venster na het verzenden — dat venster draait nu elke cyclus.
 >
 > De BLE-scan blokkeert 1 seconde. Commando's die tijdens de scan
 > binnenkomen via ESP-NOW worden gebufferd in de callback en direct
@@ -55,6 +62,7 @@ loop()
 | `WIFI_KANAAL` | ~15 | Moet overeenkomen met de master (standaard: 1) |
 | `SCAN_DUUR_S` | ~11 | BLE-scanduur in seconden |
 | `WACHT_TIMEOUT` | ~12 | Max wachttijd (ms) op commando na verzenden |
+| `MAX_BACKOFF_MS` | ~16 | Bovengrens (ms) van de willekeurige zendvertraging |
 | `toegelatenBeacons[]` | ~80 | Whitelist van beacon-MAC-adressen |
 | `masterAddress[]` | ~89 | MAC-adres van de master — lees uit Serial Monitor van master |
 | `LICHT_DREMPEL` | ~56 | ADC-drempel (V) voor laser-detectie — kalibreer per opstelling |
@@ -91,12 +99,13 @@ De huidige code gebruikt de volgende volgorde:
 | `[SCAN] Start...` | Nieuwe BLE-scan gestart |
 | `[BLE] Whitelisted: xx:xx RSSI: -67` | Speler gevonden en toegevoegd aan batch |
 | `[SCAN] Klaar, 2 whitelisted gevonden` | Scan klaar, 2 spelers in batch |
-| `[SEND] Versturen naar master...` | Batch wordt verstuurd |
+| `[BACKOFF] 87 ms` | Willekeurige zendvertraging vóór verzenden |
+| `[SEND] Versturen naar master (2 spelers)...` | Batch wordt verstuurd (ook bij 0 spelers) |
 | `[ESP-NOW] Batch verzonden OK` | Master heeft pakket ontvangen |
 | `[ESP-NOW] Verzending MISLUKT` | Master niet bereikbaar (kanaal? MAC?) |
 | `[CMD] Actie ontvangen: 2` | Commando 2 (GROEN) ontvangen van master |
 | `[ACTIE] LED strip GROEN` | Commando wordt uitgevoerd |
-| `[SKIP] Geen spelers, niets verstuurd` | Lege scan, geen verzending |
+| `[CMD] Timeout, geen commando` | Geen commando binnen 200ms na verzenden |
 | `[BATT] 3.87V` | Batterijspanning om de 5 seconden |
 | `[LASER] Straal verbroken` | Lichtdrempel onderschreden |
 | `[ESP-NOW] Init MISLUKT!` | Fatale fout — ESP knippert warning-LED snel |
@@ -119,7 +128,13 @@ De huidige code gebruikt de volgende volgorde:
 
 1. Stel `PAAL_ID` in op het gewenste paal-nummer
 2. Flash de slave met PlatformIO (`Upload`)
-3. Open Serial Monitor — noteer de regel `[SETUP] Slave MAC: xx:xx:...`
+3. Open Serial Monitor — bij het opstarten toont de slave eenmalig een
+   banner met zijn MAC-adres:
+   ```
+   ============================================
+     SLAVE MAC-ADRES : xx:xx:xx:xx:xx:xx
+   ============================================
+   ```
 4. Voeg dit MAC-adres toe aan de master (zie master-handleiding)
 5. Herflash de master
 

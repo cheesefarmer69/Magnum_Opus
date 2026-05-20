@@ -65,7 +65,8 @@ uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
 
 - Index 0 = paal 1, index 1 = paal 2, etc.
 - Rijen met alleen `0x00` worden overgeslagen (placeholder)
-- Slave-MAC lees je uit de Serial Monitor van de slave: `[SETUP] Slave MAC:`
+- Slave-MAC lees je uit de Serial Monitor van de slave: de banner
+  `SLAVE MAC-ADRES : ...` die bij het opstarten eenmalig wordt getoond
 
 **Nieuwe slave toevoegen:**
 1. Flash slave, lees MAC uit Serial Monitor
@@ -125,7 +126,7 @@ Beide moeten `WIFI_KANAAL = 1` (of wat je ingesteld hebt).
 
 **`[SEND] Status: MISLUKT` na commando**
 → Slave-MAC in `slaveAdressen[]` klopt niet, of slave staat uit.
-Check het MAC in de slave Serial Monitor (`[SETUP] Slave MAC:`).
+Check het MAC in de slave Serial Monitor (banner `SLAVE MAC-ADRES : ...`).
 
 **Pi stuurt commando's maar master doet niets**
 → Controleer of de USB-verbinding op `/dev/ttyMaster1` staat (udev rule).

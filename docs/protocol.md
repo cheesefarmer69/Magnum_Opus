@@ -42,7 +42,12 @@ typedef struct __attribute__((packed)) {
 
 - Slave scant BLE met scanInterval/scanWindow afgestemd op antenne-coexistence
   (single-antenne C3 moet schakelen tussen ESP-NOW en BLE)
-- Batch wordt verzonden zodra scan-cyclus klaar is.
+- Batch wordt **elke** scan-cyclus verzonden, óók bij 0 gevonden spelers.
+  Zo herkent het systeem een leeggelopen vak en blijft de stand niet hangen.
+- Vóór verzenden wacht de slave een willekeurige tijd (`0..MAX_BACKOFF_MS`,
+  standaard 150 ms, hardware-RNG `esp_random()`). Deze random backoff
+  ontkoppelt de zendmomenten van meerdere slaves zodat hun pakketten elkaar
+  niet structureel wegdrukken bij de master.
 
 ## 2. Master → Slave (ESP-NOW)
 
@@ -134,7 +139,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 MAC-adressen van slaves zijn hardcoded in master's `slaveAdressen[]` array.
 
 Bij het toevoegen van een nieuwe slave:
-1. Flash slave en lees MAC uit Serial Monitor (`[SETUP] Slave MAC: xx:xx:...`)
+1. Flash slave en lees MAC uit Serial Monitor (banner `SLAVE MAC-ADRES : ...`)
 2. Voeg toe aan master's `slaveAdressen[]`
 3. Verhoog `AANTAL_SLAVES`
 4. Herflash master
@@ -144,5 +149,7 @@ zodat je veilig vooruit kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-18: slave verstuurt nu elke cyclus (ook bij 0 spelers) + random
+  backoff vóór verzenden tegen botsende ESP-NOW-pakketten van meerdere slaves
 - 2026-05-17: actie_id tabel bijgewerkt — alle 5 acties (0–4) geïmplementeerd in slave firmware
 - 2026-05-10: initieel document, opgesteld bij overstap naar VS Code + GitHub workflow

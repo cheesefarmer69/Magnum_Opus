@@ -4,14 +4,16 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include <FastLED.h>
+#include "esp_random.h"
 
 // ====================================================================
 // PARAMETERS
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 2;
+const int PAAL_ID        = 3;
 const int WIFI_KANAAL    = 1;
+const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
 // ====================================================================
 // PIN MAPPING (komt overeen met PCB schema)
@@ -382,32 +384,38 @@ void loop() {
 
   Serial.printf("[SCAN] Klaar, %d whitelisted gevonden\n", batchData.aantalGevonden);
 
-  if (batchData.aantalGevonden > 0) {
-    Serial.println("[SEND] Versturen naar master...");
+  // Random backoff: ontkoppelt de zendmomenten van meerdere slaves zodat ze
+  // niet elke cyclus in fase blijven en elkaar wegdrukken. esp_random() is
+  // een hardware-RNG, dus per bordje verschillend — geen randomSeed() nodig.
+  uint32_t backoff = esp_random() % (MAX_BACKOFF_MS + 1);
+  Serial.printf("[BACKOFF] %u ms\n", backoff);
+  delay(backoff);
 
-    esp_err_t result = esp_now_send(masterAddress,
-                                     (uint8_t *)&batchData,
-                                     sizeof(batchData));
+  // Altijd versturen, ook bij 0 spelers: zo weet de master (en het dashboard)
+  // dat een leeg vak ook echt leeg is. Bij overslaan blijft de oude stand staan.
+  Serial.printf("[SEND] Versturen naar master (%d spelers)...\n",
+                batchData.aantalGevonden);
 
-    if (result != ESP_OK) {
-      Serial.printf("[SEND] esp_now_send fout: %d\n", result);
-    }
+  esp_err_t result = esp_now_send(masterAddress,
+                                   (uint8_t *)&batchData,
+                                   sizeof(batchData));
 
-    unsigned long startWacht = millis();
-    while (!commandoOntvangen && (millis() - startWacht < WACHT_TIMEOUT)) {
-      checkBatterij();
-      checkLichtSensor();
-      delay(1);
-    }
+  if (result != ESP_OK) {
+    Serial.printf("[SEND] esp_now_send fout: %d\n", result);
+  }
 
-    if (commandoOntvangen) {
-      Serial.printf("[CMD] Actie ontvangen: %d\n", ontvangenActie);
-      voerActieUit(ontvangenActie);
-    } else {
-      Serial.println("[CMD] Timeout, geen commando");
-    }
+  unsigned long startWacht = millis();
+  while (!commandoOntvangen && (millis() - startWacht < WACHT_TIMEOUT)) {
+    checkBatterij();
+    checkLichtSensor();
+    delay(1);
+  }
+
+  if (commandoOntvangen) {
+    Serial.printf("[CMD] Actie ontvangen: %d\n", ontvangenActie);
+    voerActieUit(ontvangenActie);
   } else {
-    Serial.println("[SKIP] Geen spelers, niets verstuurd");
+    Serial.println("[CMD] Timeout, geen commando");
   }
 
   delay(50);
