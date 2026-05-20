@@ -11,7 +11,7 @@
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 3;
+const int PAAL_ID        = 1;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
@@ -150,20 +150,39 @@ class BeaconZoeker : public NimBLEAdvertisedDeviceCallbacks {
     std::string gevondenMac = apparaat->getAddress().toString();
     int rssi = apparaat->getRSSI();
 
+    // Alleen whitelisted beacons doorlaten
+    bool whitelisted = false;
     for (int i = 0; i < aantalBeacons; i++) {
       if (gevondenMac == toegelatenBeacons[i]) {
-        if (batchData.aantalGevonden < 9) {
-          strncpy(
-            batchData.spelers[batchData.aantalGevonden].speler_mac,
-            gevondenMac.c_str(), 17);
-          batchData.spelers[batchData.aantalGevonden].speler_mac[17] = '\0';
-          batchData.spelers[batchData.aantalGevonden].rssi = rssi;
-          batchData.aantalGevonden++;
-          Serial.printf("[BLE] Whitelisted: %s RSSI: %d\n",
-                        gevondenMac.c_str(), rssi);
-        }
+        whitelisted = true;
         break;
       }
+    }
+    if (!whitelisted) return;
+
+    // Dedup binnen deze batch: dezelfde MAC mag maar één keer voorkomen.
+    // Een beacon adverteert meerdere keren per seconde — zonder dedup zou
+    // batchData[] volstromen met duplicaten van dezelfde speler.
+    // Bestaat de MAC al? Behoud de sterkste RSSI van deze scan.
+    for (int i = 0; i < batchData.aantalGevonden; i++) {
+      if (gevondenMac == batchData.spelers[i].speler_mac) {
+        if (rssi > batchData.spelers[i].rssi) {
+          batchData.spelers[i].rssi = rssi;
+        }
+        return;
+      }
+    }
+
+    // Nieuwe MAC: toevoegen als er nog plek is.
+    if (batchData.aantalGevonden < 9) {
+      strncpy(
+        batchData.spelers[batchData.aantalGevonden].speler_mac,
+        gevondenMac.c_str(), 17);
+      batchData.spelers[batchData.aantalGevonden].speler_mac[17] = '\0';
+      batchData.spelers[batchData.aantalGevonden].rssi = rssi;
+      batchData.aantalGevonden++;
+      Serial.printf("[BLE] Whitelisted: %s RSSI: %d\n",
+                    gevondenMac.c_str(), rssi);
     }
   }
 };

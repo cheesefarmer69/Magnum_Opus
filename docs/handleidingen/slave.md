@@ -23,7 +23,9 @@ loop()
  └── scan-cyclus (elke ~1100-1300ms):
       ├── BLE scan (1 seconde, blokkerend)
       │    └── BeaconZoeker::onResult() per gevonden apparaat
-      │         └── MAC in whitelist? → toevoegen aan batchData
+      │         └── MAC in whitelist? →
+      │              ├── bestaat al in batch? → sterkste RSSI behouden
+      │              └── nieuw? → toevoegen (max 9 unieke MACs)
       │
       ├── random backoff (0..MAX_BACKOFF_MS) — willekeurige zendvertraging
       │
@@ -39,6 +41,12 @@ loop()
 > **Altijd versturen:** de slave stuurt elke cyclus een batch, óók bij 0
 > gevonden spelers. Zo weet de master (en het dashboard) dat een leeg vak
 > ook echt leeg is — een oude spelersstand blijft anders eindeloos staan.
+>
+> **Dedup binnen batch:** een beacon adverteert ~10×/s, dus tijdens een 1s-scan
+> vuurt `onResult()` vaak voor dezelfde MAC. De callback voegt zo'n MAC maar
+> één keer toe aan `batchData.spelers[]` en behoudt de sterkste RSSI. Zonder
+> dit zou de array volstromen met duplicaten en zou de master tientallen
+> JSON-regels per seconde naar Node-RED sturen voor één paal.
 >
 > **Random backoff:** vóór het verzenden wacht de slave een willekeurige
 > tijd (`0..MAX_BACKOFF_MS`, hardware-RNG via `esp_random()`). Dit verbreekt

@@ -44,6 +44,11 @@ typedef struct __attribute__((packed)) {
   (single-antenne C3 moet schakelen tussen ESP-NOW en BLE)
 - Batch wordt **elke** scan-cyclus verzonden, óók bij 0 gevonden spelers.
   Zo herkent het systeem een leeggelopen vak en blijft de stand niet hangen.
+- **Dedup binnen een batch**: een beacon adverteert meerdere keren per seconde,
+  maar elke whitelisted MAC komt maximaal één keer voor in `spelers[]`. Bij
+  meerdere advertenties van dezelfde beacon binnen één scan houdt de slave de
+  sterkste RSSI. Zonder deze dedup zou `spelers[9]` volstromen met duplicaten
+  en zou de master tientallen JSON-regels per seconde doorsturen voor één paal.
 - Vóór verzenden wacht de slave een willekeurige tijd (`0..MAX_BACKOFF_MS`,
   standaard 150 ms, hardware-RNG `esp_random()`). Deze random backoff
   ontkoppelt de zendmomenten van meerdere slaves zodat hun pakketten elkaar
@@ -134,9 +139,23 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 - **Server**: `127.0.0.1` (bridge draait in host-netwerk, dus localhost = Pi)
 - **Port**: 1883
 
-## 6. Slave-registratie (master code)
+## 6. Slave-registratie en sender-MAC gate (master code)
 
 MAC-adressen van slaves zijn hardcoded in master's `slaveAdressen[]` array.
+Deze array vervult **twee** rollen:
+
+1. **Peer-lijst voor zenden**: alle MACs worden via `esp_now_add_peer()`
+   geregistreerd zodat de master commando's naar die slaves kan sturen.
+2. **Ontvangst-whitelist**: `OnDataRecv()` vergelijkt de afzender-MAC met
+   `slaveAdressen[]`. Pakketten van slaves die niet in deze lijst staan
+   worden gedropt en NIET doorgestuurd naar de Pi.
+
+> **Waarom een ontvangst-whitelist nodig is**: ESP-NOW levert standaard
+> pakketten van **elke** afzender aan de receive-callback. `esp_now_add_peer()`
+> is alleen nodig om te kunnen zenden, het filtert geen binnenkomst.
+> Zonder deze gate zou een master pakketten ontvangen en doorzetten van
+> alle 24 slaves in het veld — terwijl één master maar 8 specifieke slaves
+> hoort te bedienen.
 
 Bij het toevoegen van een nieuwe slave:
 1. Flash slave en lees MAC uit Serial Monitor (banner `SLAVE MAC-ADRES : ...`)
@@ -145,10 +164,18 @@ Bij het toevoegen van een nieuwe slave:
 4. Herflash master
 
 Slots met placeholder MAC `0x00:0x00:0x00:0x00:0x00:0x00` worden overgeslagen
-zodat je veilig vooruit kunt definiëren.
+bij zowel peer-registratie als de ontvangst-gate, zodat je veilig vooruit
+kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-20: master filtert binnenkomende ESP-NOW pakketten op afzender-MAC
+  tegen `slaveAdressen[]`. Vreemde slaves worden gelogd als `[GATE]` en niet
+  doorgezet naar de Pi. Maakt 1 master → 8 slaves segmentatie mogelijk in
+  een veld met 3 masters / 24 slaves.
+- 2026-05-20: slave dedupliceert nu binnen één batch (elke whitelisted MAC
+  max één entry per scan, sterkste RSSI behouden) — voorheen vulde
+  `spelers[9]` zich met duplicaten van dezelfde beacon
 - 2026-05-18: slave verstuurt nu elke cyclus (ook bij 0 spelers) + random
   backoff vóór verzenden tegen botsende ESP-NOW-pakketten van meerdere slaves
 - 2026-05-17: actie_id tabel bijgewerkt — alle 5 acties (0–4) geïmplementeerd in slave firmware

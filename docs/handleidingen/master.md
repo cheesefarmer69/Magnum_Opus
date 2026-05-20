@@ -21,6 +21,9 @@ geen spellogica in de master.
 
 ```
 Slave → ESP-NOW → OnDataRecv()
+                    ├── sender-MAC gate (vindSlaveIndex)
+                    │    ├── in slaveAdressen[]? → ga door
+                    │    └── onbekend?           → [GATE] log, drop
                     └── per speler: Serial.printf JSON → Pi
 
 Pi → Serial → verwerkSerieel()
@@ -37,6 +40,13 @@ Elke batch van een slave levert één JSON-regel per gevonden speler:
 ```
 
 Bij een batch met 2 spelers op paal 3 verschijnen er 2 regels.
+
+> **Sender-MAC gate**: ESP-NOW levert pakketten van **élke** afzender aan
+> `OnDataRecv()` — `esp_now_add_peer()` regelt alleen zenden, niet ontvangst.
+> De master vergelijkt de afzender-MAC met `slaveAdressen[]` en dropt
+> pakketten van slaves die daar niet in staan. Dit maakt segmentatie
+> mogelijk: in een veld met 3 masters / 24 slaves accepteert elke master
+> alleen zijn eigen 8 slaves.
 
 ### Richting 2: Pi → Slave
 
@@ -106,7 +116,8 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 
 | Output | Betekenis |
 |--------|-----------|
-| `[RECV] 124 bytes van AC:A7:...` | Batch ontvangen van slave |
+| `[GATE] Genegeerd: AC:A7:...` | Pakket van een slave die NIET in `slaveAdressen[]` staat — gedropt |
+| `[RECV] 124 bytes van paal 2 (AC:A7:...)` | Batch ontvangen van een geregistreerde slave |
 | `[RECV] Paal 2, 3 spelers` | Batch inhoud |
 | `{"paal":2,"mac":"...","rssi":-65}` | JSON doorgestuurd naar Pi |
 | `[RECV] Te kort: 10 < 206, genegeerd` | Corrupt/kort pakket ontvangen (206 = sizeof batch_message) |
@@ -123,6 +134,11 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 **Slaves sturen wel, master ontvangt niets**
 → WiFi-kanaal verschil. Check `[SETUP] WiFi kanaal:` bij master én slave.
 Beide moeten `WIFI_KANAAL = 1` (of wat je ingesteld hebt).
+
+**Master ziet `[GATE] Genegeerd` voor een slave die wél bij hem hoort**
+→ Slave-MAC staat niet (of verkeerd) in `slaveAdressen[]`. Kopieer de MAC
+exact uit de banner `SLAVE MAC-ADRES : ...` in de slave Serial Monitor en
+voeg toe aan de array, `AANTAL_SLAVES` mee ophogen, herflash de master.
 
 **`[SEND] Status: MISLUKT` na commando**
 → Slave-MAC in `slaveAdressen[]` klopt niet, of slave staat uit.

@@ -22,18 +22,50 @@ typedef struct __attribute__((packed)) commando_message {
 } commando_message;
 
 // ---- SLAVES REGISTREREN ----
-const int AANTAL_SLAVES = 2;
+const int AANTAL_SLAVES = 3;
 
 uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
   {0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},  
-  {0xAC, 0xA7, 0x04, 0xB9, 0xE1, 0xC0}
+  {0xAC, 0xA7, 0x04, 0xC0, 0xC6, 0x14},
+  {0x8C, 0xFD, 0x49, 0x54, 0xC4, 0x38}
   
 };
 
+// ---- HULPFUNCTIES ----
+// True als deze MAC-rij alleen uit nullen bestaat (placeholder-slot).
+static bool isPlaceholderMac(const uint8_t *mac) {
+  for (int j = 0; j < 6; j++) {
+    if (mac[j] != 0x00) return false;
+  }
+  return true;
+}
+
+// Zoek de afzender-MAC in slaveAdressen[]. Geeft 0-based index of -1 bij geen
+// match. Placeholder-rijen (all-zero) worden overgeslagen zodat een lege
+// slot nooit per ongeluk matcht.
+static int vindSlaveIndex(const uint8_t *mac) {
+  for (int i = 0; i < AANTAL_SLAVES; i++) {
+    if (isPlaceholderMac(slaveAdressen[i])) continue;
+    if (memcmp(mac, slaveAdressen[i], 6) == 0) return i;
+  }
+  return -1;
+}
+
 // ---- CALLBACKS ----
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
-  Serial.printf("[RECV] %d bytes van %02X:%02X:%02X:%02X:%02X:%02X\n",
-    len, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  // Sender-MAC gate: ESP-NOW levert pakketten van ÉLKE afzender aan deze
+  // callback. esp_now_add_peer() filtert alleen voor zenden, niet ontvangst.
+  // Drop dus pakketten van slaves die niet in slaveAdressen[] staan — zo
+  // negeert deze master de slaves die bij een andere master horen.
+  int paalIndex = vindSlaveIndex(mac);
+  if (paalIndex < 0) {
+    Serial.printf("[GATE] Genegeerd: %02X:%02X:%02X:%02X:%02X:%02X (niet in slaveAdressen[])\n",
+      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return;
+  }
+
+  Serial.printf("[RECV] %d bytes van paal %d (%02X:%02X:%02X:%02X:%02X:%02X)\n",
+    len, paalIndex + 1, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
   if (len < (int)sizeof(batch_message)) {
     Serial.printf("[RECV] Te kort: %d < %d, genegeerd\n", len, (int)sizeof(batch_message));
