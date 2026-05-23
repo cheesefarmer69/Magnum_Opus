@@ -14,11 +14,46 @@ Het speelveld is een 24-hoekige klok: elke paal stelt één uur voor.
   levert **+1 levensuur** op.
 - **24 levensuren = 1 levensdag.**
 - **Terug in de tijd** reizen kost **−1 levensuur per uur**. In normale
-  omstandigheden mag dit **niet**: achteruit bewegen telt dan gewoon niet mee.
-  Het mechanisme bestaat al en wordt per speler aangezet via de vlag
-  `tijdTerug` (toekomstige spelmechanismen kunnen die aan/uit zetten).
+  omstandigheden mag dit **niet**: achteruit bewegen levert geen aftrek op,
+  maar bouwt wel een **achterstand** op (zie hieronder). Het mechanisme bestaat
+  al en wordt per speler aangezet via de vlag `tijdTerug` (toekomstige
+  spelmechanismen kunnen die aan/uit zetten).
 
 De teller kan nooit onder 0 zakken (geen negatieve levensuren).
+
+### Deficit-model (tegen gratis levensuren na illegaal tijdreizen)
+
+Punten worden toegekend op basis van de **hoogst-bereikte legale positie**,
+niet de laatste positie. Per speler houden we `achterstand` bij = hoeveel uur
+de speler illegaal onder zijn hoogste punt zit.
+
+- **Vooruit (k uur):** eerst de achterstand inhalen, dan pas punten.
+  `achterstand >= k` → `achterstand -= k` (geen punten); anders
+  `totaalUren += (k - achterstand)` en `achterstand = 0`.
+- **Achteruit (k uur), `tijdTerug` UIT (illegaal):** geen aftrek, maar
+  `achterstand += k`.
+- **Achteruit (k uur), `tijdTerug` AAN (legaal):** `totaalUren -= k` (clamp ≥ 0).
+
+> **Voorbeeld:** speler op 20 u → 15 u (illegaal) → achterstand = 5. Daarna
+> 15 → 16 → … → 20: telkens vooruit, maar dit haalt enkel de achterstand in →
+> géén punten. Pas voorbíj 20 u (zijn oude hoogtepunt) komen er weer levensuren
+> bij. Zo levert terug-en-weer-vooruit niets gratis op.
+
+### Regel-afdwinging (Plates of Fate)
+
+`Bereken levensuren` leest `global.pofRegels`. De regel `maxVerplaatsing`
+begrenst de vooruit-verplaatsing **per ronde** (bijgehouden in `verplaatstRonde`,
+gereset door flow 06 bij elk nieuw event). Verplaatst een speler verder dan
+toegestaan, dan telt het teveel als achterstand — niet te belonen, ook niet
+later. Zo kan de regel niet omzeild worden door simpelweg verder te lopen.
+
+### Effect-afdwinging: `mag_niet_bewegen`
+
+`Bereken levensuren` leest ook `global.spelerEffecten`. Heeft een speler een
+actief `mag_niet_bewegen`-effect (geplaatst door een Plates-of-Fate event),
+dan telt elke beweging van die speler niet mee: geen punten, geen achterstand,
+enkel de positie wordt bijgewerkt. Het effect loopt af volgens zijn `duurRondes`
+(beheerd in flow 06).
 
 > **Scoren gebeurt alleen tijdens een lopend spel.** `Bereken levensuren`
 > controleert `global.spelToestand`: is die niet `"lopend"` (dus `gestopt`
@@ -32,10 +67,11 @@ De teller kan nooit onder 0 zakken (geen negatieve levensuren).
 |-------------------------------|-------------------------------------------------------------------------|
 | `Beweging van Locatiebepaling`| `link in` — ontvangt paal-wissels van flow 01                           |
 | `Bereken levensuren`          | berekent de kortste verplaatsing op de klok en past de score aan        |
-| `Stel tijdreizen in`          | zet de `tijdTerug`-vlag aan/uit voor een speler                         |
-| `Reset levensjaren`           | zet alle tellers terug op 0 (bij 'Herstart' van een spelcyclus)         |
 | `Levensjaren (debug)`         | toont de laatste mutatie in de debug-sidebar én als node-status         |
-| `[TEST] …`-injects            | simuleren bewegingen, tijdreizen-toggle en reset zonder hardware        |
+
+> De `[TEST]`-injects en de helperfuncties `Stel tijdreizen in` / `Reset
+> levensjaren` zijn verwijderd. Resetten gebeurt nu via het **Admin**-paneel
+> (flow 05); `tijdTerug` wordt later een Plates-of-Fate speler-effect.
 
 ## Hoe een beweging binnenkomt
 
@@ -69,7 +105,7 @@ gelijke stand (12 vs 12) wordt vooruit gekozen.
 
 | Bestemming          | Beschrijving                                                       |
 |---------------------|--------------------------------------------------------------------|
-| `global.spelerStats`| `{ naam: { totaalUren, tijdTerug, huidigePaal } }` — de bron van waarheid voor de score. |
+| `global.spelerStats`| `{ naam: { totaalUren, tijdTerug, achterstand, verplaatstRonde, huidigePaal } }` — de bron van waarheid voor de score. |
 | Radar-tabel (flow 01)| Leest `spelerStats` en toont kolommen **Levensdagen** en **Levensuren**. |
 
 `totaalUren` is het totaal aantal verzamelde levensuren. De radar toont dit als
@@ -86,7 +122,7 @@ gelijke stand (12 vs 12) wordt vooruit gekozen.
 
 | Variabele          | Type                                          | Gezet door | Gelezen door            |
 |--------------------|-----------------------------------------------|------------|-------------------------|
-| `spelerStats`      | `{ naam: { totaalUren, tijdTerug, huidigePaal } }` | 04    | 04, 01 (radar-tabel)    |
+| `spelerStats`      | `{ naam: { totaalUren, tijdTerug, achterstand, verplaatstRonde, huidigePaal } }` | 04 | 04, 01 (radar-tabel), 05/06 |
 
 ## Testen (zonder hardware)
 

@@ -14,8 +14,11 @@ testen als tijdens een echt spel. In deze eerste versie beheert het de
 | `Verwerk bediening`       | past de speltoestand aan volgens de ingedrukte knop         |
 | `Huidige speltoestand`    | tekstveld dat de actuele toestand + laatste melding toont   |
 | `Toon toestand bij opstart` | inject die de weergave vult bij het starten van Node-RED  |
-| `[TEST] Commando ...`     | inject-nodes die een ruw commando naar een paal sturen      |
-| `commando/master1`        | MQTT-out naar de master                                     |
+| Plates of Fate-besturing  | Start/Stop POF + "Huidig event" (flow 06) staan op deze pagina |
+
+> De ruwe `[TEST] Commando ...`-injects en de losse `commando/master1` MQTT-out
+> zijn verwijderd; de Plates-of-Fate engine stuurt commando's nu zelf. De
+> POF-besturingsgroep is naar deze Bediening-pagina verplaatst.
 
 ## De speltoestand
 
@@ -61,22 +64,12 @@ weer uitzetten als je klaar bent. Zolang hij aanstaat verschijnt
 | Bestemming            | Beschrijving                                          |
 |-----------------------|-------------------------------------------------------|
 | `global.spelToestand` | Huidige toestand, gelezen door toekomstige spel-flows.|
-| Dashboard "Bediening" | Knoppen + tekstveld met de actuele toestand.          |
-| `commando/master1`    | Ruwe testcommando's naar een paal (zie hieronder).    |
+| Dashboard "Bediening" | Knoppen + tekstveld + Plates-of-Fate besturing.       |
 
-## Testcommando's naar de palen
-
-Onderaan de tab staan inject-nodes `[TEST] Commando ...`. Ze sturen een
-commando rechtstreeks naar de master op `commando/master1`:
-
-```json
-{"paal": 1, "actie": 1}
-```
-
-De geldige `actie`-waarden staan in `docs/protocol.md` (0 = uit, 1 = rood,
-2 = groen, 3 = buzzer aan, 4 = buzzer uit). Pas de `paal` in de payload aan om
-een andere paal te testen. Dit is bewust géén dashboard-knop: het is
-ontwikkel-/testgereedschap.
+> De ruwe `[TEST] Commando ...`-injects zijn verwijderd. Wil je los een commando
+> naar een paal testen, gebruik dan vanaf de Pi:
+> `mosquitto_pub -h 192.168.1.43 -t commando/master1 -m '{"paal":1,"actie":1}'`
+> (actie: 0 uit · 1 rood · 2 groen · 3 buzzer aan · 4 buzzer uit, zie `docs/protocol.md`).
 
 ## Testen
 
@@ -89,5 +82,5 @@ ontwikkel-/testgereedschap.
    enkel vanuit pauze kan. De toestand verandert niet.
 6. Controleer in Node-RED via menu (≡) → **Context Data** → **Global** dat
    `spelToestand` mee verandert.
-7. Testcommando's: klik een `[TEST] Commando`-node aan en controleer dat de
-   master het commando ontvangt (LED/buzzer op de betrokken paal).
+7. Plates of Fate: met **Start POF** start de engine (alleen terwijl het spel
+   loopt); **Huidig event** toont het lopende event. **Stop POF** stopt de loop.

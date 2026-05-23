@@ -69,7 +69,7 @@ signaal op. De flow bepaalt de actieve paal zo:
 | Bestemming               | Beschrijving                                                            |
 |--------------------------|-------------------------------------------------------------------------|
 | `global.spelerLocaties`  | `{ naam: paalId }` — huidige paal per speler.                           |
-| Dashboard "Live Radar"   | Tabel met speler, actieve paal, signaalsterkte, levensdagen en levensuren. |
+| Dashboard "Live Radar"   | Spelerstabel: speler, actieve paal, signaalsterkte, levensdagen, levensuren en achterstand. Daaronder de tabel "Actieve effecten" (gevoed door flow 06). |
 | Beweging-event (2e output)| `{ speler, vanPaal, naarPaal }` bij een paal-wissel → via `link out` naar flow 04 Puntensysteem. |
 
 > **2e output:** de functie heeft sinds het puntensysteem twee outputs. Output 1

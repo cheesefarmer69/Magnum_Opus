@@ -140,6 +140,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 |--------------------|--------------------|----------------------------------------------|
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
+| `audio/afspelen`   | Node-RED → box     | `{"tekst":"...","fase":"event","prioriteit":"normaal"}` |
 
 ### MQTT-config in Node-RED
 
@@ -152,6 +153,26 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 
 - **Server**: `127.0.0.1` (bridge draait in host-netwerk, dus localhost = Pi)
 - **Port**: 1883
+
+### Audio-abstractie (`audio/afspelen`)
+
+De Plates-of-Fate engine (Node-RED flow 06) publiceert audio-verzoeken op
+`audio/afspelen`. Het is bewust een **abstractie**: de engine zegt alleen
+*wat* voorgelezen moet worden, niet *hoe*. Een aparte consument (op de
+geluidsbox/Pi) zet dit later om naar spraak (TTS) of speelt opgenomen
+bestanden af — die consument bestaat nog niet.
+
+```json
+{"tekst":"De zon staat hoog...","fase":"event","prioriteit":"normaal"}
+```
+
+- `fase`: `"event"` (event wordt voorgelezen) of `"doelwit"` (getroffen
+  uren/spelers worden voorgelezen).
+- `prioriteit`: vrije tekst voor latere afspeel-volgorde.
+
+Plates-of-Fate **gevolgen** die LED's/buzzers aansturen hergebruiken het
+bestaande `commando/master1`-pad (zie sectie 2, `actie_id` 0–4) — er is dus
+geen apart commando-formaat voor events.
 
 ## 6. Slave-registratie en sender-MAC gate (master code)
 
@@ -183,6 +204,9 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-23: nieuw MQTT-topic `audio/afspelen` (Node-RED → geluidsbox) als
+  abstractie voor de Plates-of-Fate engine. Engine-gevolgen voor LED/buzzer
+  hergebruiken `commando/master1`.
 - 2026-05-20: `batch_message` uitgebreid met `float batterij_v`. Master
   stuurt per batch één extra JSON-regel `{"paal":N,"batt":3.87}` naar de Pi.
   Node-RED toont dit in de Spelstatus-tabel onder een toggle "Toon batterij".

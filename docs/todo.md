@@ -26,9 +26,24 @@ en waarom het nodig is.
 
 ## Node-RED blokken
 
-- [ ] **Blok: speler-score** — beheer van levensjaren per speler (middagspel),
-  inclusief de reset naar 0 bij een nieuwe cyclus.
-- [ ] **Blok: event engine** — afroepen en afhandelen van *plates of fate*-events.
+- [x] **Blok: speler-score** — flow 04 Puntensysteem: levensuren/levensdagen
+  per speler, deficit-model tegen illegaal tijdreizen, reset via flow 05 Admin.
+- [x] **Blok: event engine** — flow 06 Plates of Fate: kiest events, leest voor
+  (audio-abstractie), kiest doelwitten, voert gevolgen uit, regel-afdwinging.
+  Nog uit te werken (zie hieronder).
+
+## Plates of Fate — nog uit te werken
+
+- [ ] **Audio-consument** — een component op de geluidsbox die `audio/afspelen`
+  afspeelt (TTS live, of vooraf opgenomen bestanden). Nu publiceert de engine
+  enkel het verzoek; er luistert nog niets.
+- [ ] **Concrete events** — de huidige `pofEvents` zijn placeholders. Echte
+  events met afgestemde teksten, doelwitten, gevolgen en reactietijden.
+- [ ] **Straffen tegen valsspelen** — bovenop het deficit-model: actieve sancties
+  wanneer een speler regels overtreedt (bv. illegaal tijdreizen of te ver
+  verplaatsen). Het deficit-model is hiervan de basis.
+- [ ] **Minigames + cyclusbeheer** — afwisseling Plates of Fate ↔ minigame ↔
+  herstart (levensjaren-reset), zoals beschreven in `docs/spel.md`.
 
 ## Spelontwerp
 

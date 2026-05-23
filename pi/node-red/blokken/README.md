@@ -33,7 +33,8 @@ pi/node-red/
     ├── 02_spelstatus/README.md
     ├── 03_bediening/README.md
     ├── 04_puntensysteem/README.md
-    └── 05_admin/README.md
+    ├── 05_admin/README.md
+    └── 06_plates_of_fate/README.md
 ```
 
 ## De flows
@@ -46,6 +47,7 @@ pi/node-red/
 | 03 | Bediening       | Interactief dashboard om het spel te starten/pauzeren/herstarten.     |
 | 04 | Puntensysteem   | Houdt levensuren/levensdagen per speler bij (score middagspel).       |
 | 05 | Admin           | Beheerpaneel: levensjaren resetten achter twee-staps verificatie.     |
+| 06 | Plates of Fate  | Spel-engine: kiest events, leest voor (audio), kiest doelwit, gevolgen.|
 
 ## Communicatie tussen blokken
 
@@ -68,6 +70,13 @@ Blokken wisselen op drie manieren gegevens uit:
 | `spelerLocaties`      | `{naam: paalId}`  | 01 Locatiebepaling | 04 Puntensysteem, toekomstige flows |
 | `spelerStats`         | `{naam: {totaalUren, tijdTerug, huidigePaal}}` | 04 Puntensysteem | 04 Puntensysteem, 05 Admin, 01 (radar-tabel) |
 | `admin_unlocked`      | `boolean`         | 05 Admin           | 05 Admin                           |
+| `pofEvents`           | `[{event}, ...]`  | 06 Plates of Fate  | 06 Plates of Fate                  |
+| `pofActief`           | `boolean`         | 06 Plates of Fate  | 06 Plates of Fate                  |
+| `pofHuidigEvent`      | `{event}`         | 06 Plates of Fate  | 06 Plates of Fate (dashboard)      |
+| `pofRegels`           | `{maxVerplaatsing, ...}` | 06 Plates of Fate | 04 Puntensysteem              |
+| `bordStaat`           | `{uur: {effecten:[...]}}` | 06 Plates of Fate | 06 (visualisatie)             |
+| `spelerEffecten`      | `{naam: [effecten]}`     | 06 Plates of Fate | 06, 04 (`mag_niet_bewegen`)   |
+| `wereldEffecten`      | `[effecten]`             | 06 Plates of Fate | 06 (`events_sneller`)         |
 | `status_lastSeenMac`  | `{mac: ts}`       | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_lastSeenPaal` | `{id: ts}`        | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_lastDataTs`   | `ts`              | 02 Spelstatus      | 02 Spelstatus                      |

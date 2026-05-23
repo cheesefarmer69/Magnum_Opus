@@ -76,6 +76,16 @@ loop()
 | `LICHT_DREMPEL` | ~56 | ADC-drempel (V) voor laser-detectie — kalibreer per opstelling |
 | `BATT_WAARSCHUWING` | ~46 | Spanning (V) waaronder LED langzaam knippert |
 | `BATT_KRITIEK` | ~47 | Spanning (V) waaronder LED snel knippert |
+| `BUZZER_FREQ` | ~37 | Toonfrequentie (Hz) van de buzzer — zet op de resonantiefrequentie |
+
+> **Batterijmeting:** `leesBatterijSpanning()` gebruikt `analogReadMilliVolts()`
+> (fabriekskalibratie van de ADC), niet `analogRead()` met een vaste 3.3V-referentie.
+> Dat laatste meet op de ESP32-C3 structureel enkele procenten te laag.
+>
+> **Buzzervolume:** een passieve buzzer is het luidst rond zijn resonantie­frequentie
+> (typisch 2–4 kHz). Klinkt hij te stil, zet dan `BUZZER_FREQ` op de waarde uit het
+> datasheet van jouw buzzer. Een actieve buzzer (met ingebouwde oscillator) hoort
+> NIET met `tone()` aangestuurd te worden maar met een vaste `digitalWrite(HIGH)`.
 
 ---
 
@@ -127,7 +137,7 @@ De huidige code gebruikt de volgende volgorde:
 | 0 | `ACTIE_NIETS` | LEDs uit, MOSFET uit |
 | 1 | `ACTIE_ROOD` | LED strip rood, MOSFET aan |
 | 2 | `ACTIE_GROEN` | LED strip groen, MOSFET aan |
-| 3 | `ACTIE_BUZZER_AAN` | Buzzer 1kHz aan |
+| 3 | `ACTIE_BUZZER_AAN` | Buzzer aan (`BUZZER_FREQ`, standaard 2700 Hz) |
 | 4 | `ACTIE_BUZZER_UIT` | Buzzer uit |
 
 ---

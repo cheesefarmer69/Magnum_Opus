@@ -35,6 +35,11 @@ CRGB leds[NUM_LEDS];
 // ====================================================================
 // BUZZER
 // ====================================================================
+// Passieve buzzer: het volume hangt sterk af van de frequentie. Een passieve
+// piezo is het luidst rond zijn resonantiefrequentie (typisch 2-4 kHz). 1000 Hz
+// is ver onder resonantie -> stil. Zet dit op de resonantiefrequentie uit het
+// datasheet van jouw buzzer voor maximaal volume.
+const int BUZZER_FREQ = 2700;   // Hz
 volatile bool buzzerActief = false;
 
 // ====================================================================
@@ -192,8 +197,15 @@ class BeaconZoeker : public NimBLEAdvertisedDeviceCallbacks {
 // BATTERIJ CHECK
 // ====================================================================
 float leesBatterijSpanning() {
-  int adc_raw = analogRead(BATTERY_ADC_PIN);
-  float v_adc = (adc_raw / ADC_MAX_VALUE) * ADC_REF_VOLT;
+  // analogReadMilliVolts() gebruikt de fabriekskalibratie (eFuse) van de ADC.
+  // Dat is veel nauwkeuriger dan analogRead() met een vaste 3.3V-referentie,
+  // die op de ESP32-C3 structureel enkele procenten afwijkt (meet te laag).
+  // Gemiddelde van 8 metingen tegen ruis.
+  uint32_t som_mv = 0;
+  for (int i = 0; i < 8; i++) {
+    som_mv += analogReadMilliVolts(BATTERY_ADC_PIN);
+  }
+  float v_adc = (som_mv / 8.0f) / 1000.0f;   // mV -> V
   float v_batterij = v_adc * DIVIDER_FACTOR;
   return v_batterij;
 }
@@ -275,7 +287,7 @@ void voerActieUit(uint8_t actie) {
     case ACTIE_BUZZER_AAN:
       Serial.println("[ACTIE] Buzzer AAN");
       buzzerActief = true;
-      tone(BUZZER_PIN, 1000);
+      tone(BUZZER_PIN, BUZZER_FREQ);
       break;
 
     case ACTIE_BUZZER_UIT:
