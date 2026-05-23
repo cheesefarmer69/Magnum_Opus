@@ -106,7 +106,7 @@ De huidige code gebruikt de volgende volgorde:
 |--------|-----------|
 | `[SCAN] Start...` | Nieuwe BLE-scan gestart |
 | `[BLE] Whitelisted: xx:xx RSSI: -67` | Speler gevonden en toegevoegd aan batch |
-| `[SCAN] Klaar, 2 whitelisted gevonden` | Scan klaar, 2 spelers in batch |
+| `[SCAN] Klaar, 2 whitelisted gevonden (batt 3.87V)` | Scan klaar, 2 spelers in batch, huidige batterij-spanning |
 | `[BACKOFF] 87 ms` | Willekeurige zendvertraging vóór verzenden |
 | `[SEND] Versturen naar master (2 spelers)...` | Batch wordt verstuurd (ook bij 0 spelers) |
 | `[ESP-NOW] Batch verzonden OK` | Master heeft pakket ontvangen |

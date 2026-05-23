@@ -18,14 +18,18 @@ spel van start gaat. Hij geeft een duidelijk **GO / NO-GO**.
 
 ## Wat de flow doet
 
-| Node                   | Functie                                                       |
-|------------------------|---------------------------------------------------------------|
-| `Ontvang detecties`    | MQTT-in op `plaatjes/data`                                    |
-| `Registreer detectie`  | houdt per beacon en per paal bij wanneer ze laatst gezien zijn |
-| `Evalueer (elke 3s)`   | timer-inject die de evaluatie elke 3 seconden start           |
-| `Evalueer spelstatus`  | berekent de status van spelers, palen en foutcodes            |
-| `[TEST] Detectie`      | inject-node om zonder hardware een detectie te simuleren      |
-| 3× tabel + statustekst | dashboard-weergave op de pagina **Spelstatus**                |
+| Node                       | Functie                                                                   |
+|----------------------------|---------------------------------------------------------------------------|
+| `Ontvang detecties`        | MQTT-in op `plaatjes/data` (zowel `{paal,mac,rssi}` als `{paal,batt}`)    |
+| `Registreer detectie`      | houdt per beacon en per paal bij wanneer ze laatst gezien zijn            |
+| `Registreer batterij`      | slaat de laatste batterij-spanning per paal op; dient ook als heartbeat   |
+| `MQTT status watcher` + UI | groen/rood blokje linksboven dat de MQTT-broker verbinding toont          |
+| `Toon batterij`-switch     | toggelt of de Batterij-kolom in de palen-tabel met data wordt gevuld      |
+| `Override NO-GO`-switch    | laat het Bediening-blok het spel starten ook al is de spelstatus NO-GO    |
+| `Evalueer (elke 3s)`       | timer-inject die de evaluatie elke 3 seconden start                       |
+| `Evalueer spelstatus`      | berekent de status van spelers, palen, batterij en foutcodes              |
+| `[TEST] Detectie`          | inject-node om zonder hardware een detectie te simuleren                  |
+| 3× tabel + statustekst     | dashboard-weergave op de pagina **Spelstatus**                            |
 
 ## Inputs
 
@@ -69,20 +73,32 @@ Bovenaan de functie `Evalueer spelstatus`:
 
 ## Globale variabelen
 
-| Variabele               | Inhoud                                          |
-|-------------------------|-------------------------------------------------|
-| `status_lastSeenMac`    | `{mac: timestamp}` — laatste detectie per beacon |
-| `status_lastSeenPaal`   | `{paalId: timestamp}` — laatste data per paal   |
-| `status_lastDataTs`     | timestamp van het laatste bericht op `plaatjes/data` |
-| `status_ok`             | boolean GO/NO-GO                                |
-| `status_fouten`         | array van fouten                                |
+| Variabele                | Inhoud                                                |
+|--------------------------|-------------------------------------------------------|
+| `status_lastSeenMac`     | `{mac: timestamp}` — laatste detectie per beacon      |
+| `status_lastSeenPaal`    | `{paalId: timestamp}` — laatste data per paal         |
+| `status_lastDataTs`      | timestamp van het laatste bericht op `plaatjes/data`  |
+| `status_batterijPaal`    | `{paalId: {volt, ts}}` — laatst gemelde batterij V    |
+| `status_toonBatterij`    | boolean — toggle "Toon batterij" op dashboard         |
+| `status_override`        | boolean — toggle "Override NO-GO" op dashboard        |
+| `status_ok`              | boolean GO/NO-GO                                      |
+| `status_fouten`          | array van fouten                                      |
 
-## Bekende beperking
+## Heartbeat via batterij-regels
 
-Slaves sturen momenteel enkel data wanneer ze een beacon zien. Een paal zonder
-spelers in de buurt is dus niet te onderscheiden van een offline paal. Daarom
-geldt een paal als "OK" zodra hij **ooit** data stuurde. Een echte
-connectiviteitscheck vereist een slave-heartbeat — zie `docs/todo.md`.
+Sinds 2026-05-20 stuurt elke slave per scancyclus óók een `{paal,batt}`-regel,
+los van het aantal gevonden spelers. `Registreer batterij` werkt daarmee
+tegelijk als heartbeat: `status_lastSeenPaal[paalId]` wordt elke batch
+ververst, ook als er 0 spelers in het vak staan. Een paal die niets meer
+stuurt valt nu vanzelf in **VEROUDERD** na `SLAVE_STALE_MS` (60 s).
+
+## Dashboard-elementen (toegevoegd 2026-05-20)
+
+| Element                  | Werking                                                       |
+|--------------------------|---------------------------------------------------------------|
+| MQTT-blok (linksboven)   | Groen `MQTT ✓ OK` of rood `MQTT ✗ WEG`, gestuurd door de status van de `Ontvang detecties` MQTT-in node. |
+| Toggle **Toon batterij** | Bij UIT toont de Batterij-kolom in de palen-tabel `-`. Bij AAN: `3.87 V` per paal (laatste meting). De switch triggert direct een herberekening (niet wachten op de 3s-timer). |
+| Toggle **Override NO-GO**| Bij UIT en `status_ok = false` weigert `Start spel`. Bij AAN: spel start met expliciete waarschuwing in de speltoestand-melding. Statustekst toont `OVERRIDE actief` zodat de switch nooit per ongeluk aanblijft. |
 
 ## Testen
 

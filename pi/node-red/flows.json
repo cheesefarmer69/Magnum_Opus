@@ -22,7 +22,7 @@
         "once": true,
         "onceDelay": 0.1,
         "topic": "",
-        "payload": "{\"48:87:2d:9d:bb:7d\":\"Lilou\",\"48:87:2d:9d:ba:5c\":\"Zoë\"}",
+        "payload": "{\"48:87:2d:9d:bb:7d\": \"Lilou\", \"48:87:2d:9d:ba:5c\": \"Zoë\", \"48:87:2d:9d:ba:cc\": \"Louisa\", \"48:87:2d:9d:ba:5f\": \"Lola\", \"48:87:2d:9d:bb:0b\": \"Maud\", \"48:87:2d:9d:ba:a5\": \"Mien\"}",
         "payloadType": "json",
         "x": 200,
         "y": 120,
@@ -197,8 +197,8 @@
         "type": "function",
         "z": "124aa052f3987c33",
         "name": "Locatiebepaling Spelers",
-        "func": "// --- CONSTANTEN ---\nconst HYSTERESIS_DBM = 5;\nconst MAX_METINGEN = 3;\n\n// --- 0. SMOELENBOEK ---\nlet spelersLijst = global.get(\"spelersLijst\") || {};\nlet ruweMac = msg.payload.mac;\nlet spelerNaam = spelersLijst[ruweMac];\nif (!spelerNaam) return null; // Onbekende beacon negeren\n\nlet paal = msg.payload.paal;\nlet rssi = msg.payload.rssi;\n\n// --- 1. GEHEUGENS OPHALEN ---\nlet geschiedenis = context.get(\"geschiedenis\") || {};\nlet spelerLocaties = global.get(\"spelerLocaties\") || {};\n\n// --- 2. DATA OPSLAAN ---\nif (!geschiedenis[spelerNaam]) {\n    geschiedenis[spelerNaam] = { huidigePaal: paal, metingen: {} };\n}\nif (!geschiedenis[spelerNaam].metingen[paal]) {\n    geschiedenis[spelerNaam].metingen[paal] = [];\n}\n\ngeschiedenis[spelerNaam].metingen[paal].push(rssi);\nif (geschiedenis[spelerNaam].metingen[paal].length > MAX_METINGEN) {\n    geschiedenis[spelerNaam].metingen[paal].shift();\n}\n\nfunction berekenGemiddelde(array) {\n    if (!array || array.length === 0) return -1000;\n    return array.reduce((a, b) => a + b, 0) / array.length;\n}\n\n// --- 3. HYSTERESIS ---\nlet bekendePaal = geschiedenis[spelerNaam].huidigePaal;\nlet huidigGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[bekendePaal]);\nlet nieuwGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[paal]);\n\nif (paal !== bekendePaal && nieuwGemiddelde > (huidigGemiddelde + HYSTERESIS_DBM)) {\n    geschiedenis[spelerNaam].huidigePaal = paal;\n    bekendePaal = paal;\n}\n\ncontext.set(\"geschiedenis\", geschiedenis);\n\n// --- 4. CENTRALE WAARHEID ---\nspelerLocaties[spelerNaam] = bekendePaal;\nglobal.set(\"spelerLocaties\", spelerLocaties);\n\n// --- 5. TABELDATA ---\nlet tabelData = [];\nfor (let speler in spelerLocaties) {\n    tabelData.push({\n        \"Speler\": speler,\n        \"Locatie\": \"Paal \" + spelerLocaties[speler],\n        \"RSSI\": geschiedenis[speler]?.metingen[spelerLocaties[speler]]?.slice(-1)[0] || \"?\"\n    });\n}\n\nmsg.payload = tabelData;\nreturn msg;",
-        "outputs": 1,
+        "func": "// --- CONSTANTEN ---\nconst HYSTERESIS_DBM = 5;\nconst MAX_METINGEN = 3;\n\n// --- 0. SMOELENBOEK ---\nlet spelersLijst = global.get(\"spelersLijst\") || {};\nlet ruweMac = msg.payload.mac;\nlet spelerNaam = spelersLijst[ruweMac];\nif (!spelerNaam) return null; // Onbekende beacon negeren\n\nlet paal = msg.payload.paal;\nlet rssi = msg.payload.rssi;\n\n// --- 1. GEHEUGENS OPHALEN ---\nlet geschiedenis = context.get(\"geschiedenis\") || {};\nlet spelerLocaties = global.get(\"spelerLocaties\") || {};\n\n// --- 2. DATA OPSLAAN ---\nif (!geschiedenis[spelerNaam]) {\n    geschiedenis[spelerNaam] = { huidigePaal: paal, metingen: {} };\n}\nif (!geschiedenis[spelerNaam].metingen[paal]) {\n    geschiedenis[spelerNaam].metingen[paal] = [];\n}\n\ngeschiedenis[spelerNaam].metingen[paal].push(rssi);\nif (geschiedenis[spelerNaam].metingen[paal].length > MAX_METINGEN) {\n    geschiedenis[spelerNaam].metingen[paal].shift();\n}\n\nfunction berekenGemiddelde(array) {\n    if (!array || array.length === 0) return -1000;\n    return array.reduce((a, b) => a + b, 0) / array.length;\n}\n\n// --- 3. HYSTERESIS ---\nlet bekendePaal = geschiedenis[spelerNaam].huidigePaal;\nlet huidigGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[bekendePaal]);\nlet nieuwGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[paal]);\n\n// Beweging-event voor het puntensysteem (flow 04). Alleen bij een ECHTE\n// paal-wissel (na hysteresis), zodat ruis geen levensuren toekent.\nlet bewegingEvent = null;\nif (paal !== bekendePaal && nieuwGemiddelde > (huidigGemiddelde + HYSTERESIS_DBM)) {\n    bewegingEvent = { payload: { speler: spelerNaam, vanPaal: bekendePaal, naarPaal: paal } };\n    geschiedenis[spelerNaam].huidigePaal = paal;\n    bekendePaal = paal;\n}\n\ncontext.set(\"geschiedenis\", geschiedenis);\n\n// --- 4. CENTRALE WAARHEID ---\nspelerLocaties[spelerNaam] = bekendePaal;\nglobal.set(\"spelerLocaties\", spelerLocaties);\n\n// --- 5. TABELDATA (incl. levensuren/levensdagen uit flow 04) ---\nlet stats = global.get(\"spelerStats\") || {};\nlet tabelData = [];\nfor (let speler in spelerLocaties) {\n    let totaalUren = (stats[speler] && stats[speler].totaalUren) || 0;\n    tabelData.push({\n        \"Speler\": speler,\n        \"Locatie\": \"Paal \" + spelerLocaties[speler],\n        \"RSSI\": geschiedenis[speler]?.metingen[spelerLocaties[speler]]?.slice(-1)[0] || \"?\",\n        \"Levensdagen\": Math.floor(totaalUren / 24),\n        \"Levensuren\": totaalUren % 24\n    });\n}\n\nmsg.payload = tabelData;\n// Output 1: radar-tabel  |  Output 2: beweging-event naar puntensysteem\nreturn [msg, bewegingEvent];",
+        "outputs": 2,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -210,6 +210,9 @@
             [
                 "7c11e3f6ff689eda",
                 "2f75d20d1f49851d"
+            ],
+            [
+                "c1b0000000000001"
             ]
         ]
     },
@@ -266,6 +269,22 @@
             {
                 "title": "Signaal (dBm)",
                 "key": "RSSI",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Levensdagen",
+                "key": "Levensdagen",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Levensuren",
+                "key": "Levensuren",
                 "keyType": "key",
                 "type": "text",
                 "width": "",
@@ -355,7 +374,8 @@
         "y": 120,
         "wires": [
             [
-                "a1b2c3d4e5f60103"
+                "a1b2c3d4e5f60103",
+                "a1b2c3d4e5f60129"
             ]
         ]
     },
@@ -451,7 +471,7 @@
         "type": "function",
         "z": "a1b2c3d4e5f60101",
         "name": "Evalueer spelstatus",
-        "func": "// === Spelstatus evaluatie ===\nconst nu = Date.now();\n\n// Instelbare drempels\nconst SPELER_TIMEOUT_MS = 15000;\nconst SLAVE_STALE_MS = 60000;\nconst GEEN_DATA_MS = 10000;\n\n// Bronnen\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst paaltjesLijst = global.get(\"paaltjesLijst\") || [];\nconst macSeen = global.get(\"status_lastSeenMac\") || {};\nconst paalSeen = global.get(\"status_lastSeenPaal\") || {};\nconst lastDataTs = global.get(\"status_lastDataTs\") || 0;\n\nlet fouten = [];\n\n// 1. SPELERS\nlet spelersTabel = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const t = macSeen[mac];\n    let status, ouderdom;\n    if (!t) {\n        status = \"NIET GEZIEN\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler nog niet gedetecteerd in het veld\" });\n    } else if (nu - t > SPELER_TIMEOUT_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VERLOREN\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler al \" + ouderdom + \" niet meer gezien\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    spelersTabel.push({ Speler: naam, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 2. SLAVES / PALEN\nlet palenTabel = [];\nfor (const paal of paaltjesLijst) {\n    const t = paalSeen[paal];\n    let status, ouderdom;\n    if (!t) {\n        status = \"GEEN CONTACT\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"FOUT\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave heeft nog geen data gestuurd\" });\n    } else if (nu - t > SLAVE_STALE_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VEROUDERD\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"WAARSCHUWING\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave al \" + ouderdom + \" stil\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    palenTabel.push({ Paal: paal, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 3. DATASTROOM\nif (lastDataTs === 0) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Nog geen enkel bericht ontvangen op plaatjes/data\" });\n} else if (nu - lastDataTs > GEEN_DATA_MS) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Al \" + Math.round((nu - lastDataTs) / 1000) + \"s geen data - controleer master/bridge\" });\n}\n\n// 4. ONBEKENDE BEACONS (informatief)\nfor (const mac in macSeen) {\n    if (!spelersLijst[mac] && (nu - macSeen[mac] < SPELER_TIMEOUT_MS)) {\n        fouten.push({ Code: \"ST-004\", Niveau: \"INFO\", Onderdeel: mac, Omschrijving: \"Onbekende beacon gedetecteerd (niet geregistreerd)\" });\n    }\n}\n\n// SAMENVATTING\nconst aantalFout = fouten.filter(f => f.Niveau === \"FOUT\").length;\nconst spelOk = aantalFout === 0 && spelersTabel.length > 0 && palenTabel.length > 0;\n\nglobal.set(\"status_ok\", spelOk);\nglobal.set(\"status_fouten\", fouten);\n\nconst statusTekst = spelOk\n    ? \"GO - spelstatus OK, klaar om te starten\"\n    : \"NO-GO - \" + aantalFout + \" fout(en), zie foutcodes\";\n\nconst foutenTabel = fouten.length > 0\n    ? fouten\n    : [{ Code: \"-\", Niveau: \"INFO\", Onderdeel: \"-\", Omschrijving: \"Geen fouten\" }];\n\nreturn [\n    { payload: spelersTabel },\n    { payload: palenTabel },\n    { payload: foutenTabel },\n    { payload: statusTekst }\n];",
+        "func": "// === Spelstatus evaluatie ===\nconst nu = Date.now();\n\n// Instelbare drempels\nconst SPELER_TIMEOUT_MS = 15000;\nconst SLAVE_STALE_MS = 60000;\nconst GEEN_DATA_MS = 10000;\n\n// Bronnen\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst paaltjesLijst = global.get(\"paaltjesLijst\") || [];\nconst macSeen = global.get(\"status_lastSeenMac\") || {};\nconst paalSeen = global.get(\"status_lastSeenPaal\") || {};\nconst lastDataTs = global.get(\"status_lastDataTs\") || 0;\nconst batterijPaal = global.get(\"status_batterijPaal\") || {};\nconst toonBatterij = global.get(\"status_toonBatterij\") === true;\nconst override = global.get(\"status_override\") === true;\n\nlet fouten = [];\n\n// 1. SPELERS\nlet spelersTabel = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const t = macSeen[mac];\n    let status, ouderdom;\n    if (!t) {\n        status = \"NIET GEZIEN\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler nog niet gedetecteerd in het veld\" });\n    } else if (nu - t > SPELER_TIMEOUT_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VERLOREN\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler al \" + ouderdom + \" niet meer gezien\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    spelersTabel.push({ Speler: naam, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 2. SLAVES / PALEN\nlet palenTabel = [];\nfor (const paal of paaltjesLijst) {\n    const t = paalSeen[paal];\n    let status, ouderdom;\n    if (!t) {\n        status = \"GEEN CONTACT\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"FOUT\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave heeft nog geen data gestuurd\" });\n    } else if (nu - t > SLAVE_STALE_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VEROUDERD\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"WAARSCHUWING\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave al \" + ouderdom + \" stil\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    // Batterij-kolom: gevuld als toggle aan staat, anders \"-\"\n    let batterijTekst = \"-\";\n    if (toonBatterij) {\n        const b = batterijPaal[paal];\n        batterijTekst = (b && typeof b.volt === \"number\")\n            ? b.volt.toFixed(2) + \" V\"\n            : \"?\";\n    }\n    palenTabel.push({ Paal: paal, Status: status, \"Laatst gezien\": ouderdom, \"Batterij\": batterijTekst });\n}\n\n// 3. DATASTROOM\nif (lastDataTs === 0) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Nog geen enkel bericht ontvangen op plaatjes/data\" });\n} else if (nu - lastDataTs > GEEN_DATA_MS) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Al \" + Math.round((nu - lastDataTs) / 1000) + \"s geen data - controleer master/bridge\" });\n}\n\n// 4. ONBEKENDE BEACONS (informatief)\nfor (const mac in macSeen) {\n    if (!spelersLijst[mac] && (nu - macSeen[mac] < SPELER_TIMEOUT_MS)) {\n        fouten.push({ Code: \"ST-004\", Niveau: \"INFO\", Onderdeel: mac, Omschrijving: \"Onbekende beacon gedetecteerd (niet geregistreerd)\" });\n    }\n}\n\n// SAMENVATTING\nconst aantalFout = fouten.filter(f => f.Niveau === \"FOUT\").length;\nconst spelOk = aantalFout === 0 && spelersTabel.length > 0 && palenTabel.length > 0;\n\nglobal.set(\"status_ok\", spelOk);\nglobal.set(\"status_fouten\", fouten);\n\nlet statusTekst;\nif (spelOk) {\n    statusTekst = override\n        ? \"GO - spelstatus OK (override actief)\"\n        : \"GO - spelstatus OK, klaar om te starten\";\n} else if (override) {\n    statusTekst = \"NO-GO - \" + aantalFout + \" fout(en) - OVERRIDE actief, Start spel mogelijk\";\n} else {\n    statusTekst = \"NO-GO - \" + aantalFout + \" fout(en), zie foutcodes\";\n}\n\nconst foutenTabel = fouten.length > 0\n    ? fouten\n    : [{ Code: \"-\", Niveau: \"INFO\", Onderdeel: \"-\", Omschrijving: \"Geen fouten\" }];\n\nreturn [\n    { payload: spelersTabel },\n    { payload: palenTabel },\n    { payload: foutenTabel },\n    { payload: statusTekst }\n];",
         "outputs": 4,
         "timeout": 0,
         "noerr": 0,
@@ -579,6 +599,14 @@
             {
                 "title": "Laatst gezien",
                 "key": "Laatst gezien",
+                "keyType": "key",
+                "type": "text",
+                "width": "",
+                "align": "center"
+            },
+            {
+                "title": "Batterij",
+                "key": "Batterij",
                 "keyType": "key",
                 "type": "text",
                 "width": "",
@@ -833,7 +861,7 @@
         "type": "function",
         "z": "b3d1000000000001",
         "name": "Verwerk bediening",
-        "func": "// Verwerk een knop van het Bediening-dashboard\nconst actie = msg.payload;\nlet toestand = global.get(\"spelToestand\") || \"gestopt\";\nconst statusOk = global.get(\"status_ok\");\nlet melding = \"\";\n\nswitch (actie) {\n    case \"start\":\n        if (toestand === \"lopend\") {\n            melding = \"Spel liep al.\";\n        } else {\n            toestand = \"lopend\";\n            melding = (statusOk === false)\n                ? \"Spel GESTART - let op: spelstatus was NIET OK\"\n                : \"Spel gestart.\";\n        }\n        break;\n    case \"pauzeer\":\n        if (toestand === \"lopend\") {\n            toestand = \"gepauzeerd\";\n            melding = \"Spel gepauzeerd.\";\n        } else {\n            melding = \"Pauzeren kan enkel terwijl het spel loopt.\";\n        }\n        break;\n    case \"hervat\":\n        if (toestand === \"gepauzeerd\") {\n            toestand = \"lopend\";\n            melding = \"Spel hervat.\";\n        } else {\n            melding = \"Hervatten kan enkel vanuit pauze.\";\n        }\n        break;\n    case \"herstart\":\n        toestand = \"lopend\";\n        melding = \"Spel herstart - toestand teruggezet naar het begin.\";\n        break;\n    case \"toon\":\n        melding = \"Huidige toestand.\";\n        break;\n    default:\n        melding = \"Onbekende actie: \" + actie;\n}\n\nglobal.set(\"spelToestand\", toestand);\n\nmsg.payload = \"Toestand: \" + toestand.toUpperCase() + \"  |  \" + melding;\nreturn msg;",
+        "func": "// Verwerk een knop van het Bediening-dashboard\nconst actie = msg.payload;\nlet toestand = global.get(\"spelToestand\") || \"gestopt\";\nconst statusOk = global.get(\"status_ok\");\nconst override = global.get(\"status_override\") === true;\nlet melding = \"\";\n\nswitch (actie) {\n    case \"start\":\n        if (toestand === \"lopend\") {\n            melding = \"Spel liep al.\";\n        } else if (statusOk === false && !override) {\n            // NO-GO en geen override: weiger te starten\n            melding = \"NO-GO - kan niet starten. Los fouten op of zet OVERRIDE aan.\";\n        } else {\n            toestand = \"lopend\";\n            if (statusOk === false && override) {\n                melding = \"Spel GESTART met OVERRIDE - spelstatus was NIET OK\";\n            } else {\n                melding = \"Spel gestart.\";\n            }\n        }\n        break;\n    case \"pauzeer\":\n        if (toestand === \"lopend\") {\n            toestand = \"gepauzeerd\";\n            melding = \"Spel gepauzeerd.\";\n        } else {\n            melding = \"Pauzeren kan enkel terwijl het spel loopt.\";\n        }\n        break;\n    case \"hervat\":\n        if (toestand === \"gepauzeerd\") {\n            toestand = \"lopend\";\n            melding = \"Spel hervat.\";\n        } else {\n            melding = \"Hervatten kan enkel vanuit pauze.\";\n        }\n        break;\n    case \"herstart\":\n        toestand = \"lopend\";\n        melding = \"Spel herstart - toestand teruggezet naar het begin.\";\n        break;\n    case \"toon\":\n        melding = \"Huidige toestand.\";\n        break;\n    default:\n        melding = \"Onbekende actie: \" + actie;\n}\n\nglobal.set(\"spelToestand\", toestand);\n\nmsg.payload = \"Toestand: \" + toestand.toUpperCase() + \"  |  \" + melding;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -1120,9 +1148,9 @@
         "type": "ui-group",
         "name": "Spelstatus",
         "page": "a1b2c3d4e5f6010d",
-        "width": 12,
+        "width": 6,
         "height": 1,
-        "order": 1,
+        "order": 2,
         "showTitle": true,
         "className": "",
         "visible": "true",
@@ -1270,6 +1298,495 @@
         "className": "",
         "visible": "true",
         "disabled": "false"
+    },
+    {
+        "id": "a1b2c3d4e5f60120",
+        "type": "ui-group",
+        "name": "MQTT",
+        "page": "a1b2c3d4e5f6010d",
+        "width": 2,
+        "height": 1,
+        "order": 1,
+        "showTitle": false,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "a1b2c3d4e5f60121",
+        "type": "ui-group",
+        "name": "Bediening status",
+        "page": "a1b2c3d4e5f6010d",
+        "width": 4,
+        "height": 1,
+        "order": 3,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "a1b2c3d4e5f60122",
+        "type": "status",
+        "z": "a1b2c3d4e5f60101",
+        "name": "MQTT status watcher",
+        "scope": [
+            "a1b2c3d4e5f60102"
+        ],
+        "x": 170,
+        "y": 500,
+        "wires": [
+            [
+                "a1b2c3d4e5f60123"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60123",
+        "type": "function",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Map naar groen/rood",
+        "func": "// Status-event van de MQTT-in node: bepaal of de broker bereikbaar is.\n// node-red zet fill='green' bij 'connected', anders rood/grijs/geel.\nconst fill = msg.status && msg.status.fill;\nconst text = (msg.status && msg.status.text) || \"\";\nconst connected = (fill === \"green\")\n    || /connected/i.test(text);\nreturn { payload: connected };",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 500,
+        "wires": [
+            [
+                "a1b2c3d4e5f60124"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60124",
+        "type": "ui-template",
+        "z": "a1b2c3d4e5f60101",
+        "group": "a1b2c3d4e5f60120",
+        "page": "",
+        "ui": "",
+        "name": "MQTT indicator",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "head": "",
+        "format": "<template>\n    <div :style=\"{\n        backgroundColor: msg && msg.payload ? '#2e7d32' : '#c62828',\n        color: 'white',\n        padding: '14px 8px',\n        textAlign: 'center',\n        fontWeight: 'bold',\n        borderRadius: '4px',\n        fontSize: '16px',\n        letterSpacing: '0.5px'\n    }\">\n        MQTT {{ msg && msg.payload ? '✓ OK' : '✗ WEG' }}\n    </div>\n</template>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 660,
+        "y": 500,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60125",
+        "type": "ui-switch",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Toon batterij",
+        "label": "Toon batterij",
+        "group": "a1b2c3d4e5f60121",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "",
+        "topicType": "str",
+        "style": "",
+        "className": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "x": 180,
+        "y": 580,
+        "wires": [
+            [
+                "a1b2c3d4e5f60126"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60126",
+        "type": "change",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Sla status_toonBatterij op",
+        "rules": [
+            {
+                "t": "set",
+                "p": "status_toonBatterij",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 460,
+        "y": 580,
+        "wires": [
+            [
+                "a1b2c3d4e5f60107"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60127",
+        "type": "ui-switch",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Override NO-GO",
+        "label": "Override NO-GO",
+        "group": "a1b2c3d4e5f60121",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "",
+        "topicType": "str",
+        "style": "",
+        "className": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "x": 180,
+        "y": 640,
+        "wires": [
+            [
+                "a1b2c3d4e5f60128"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60128",
+        "type": "change",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Sla status_override op",
+        "rules": [
+            {
+                "t": "set",
+                "p": "status_override",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 460,
+        "y": 640,
+        "wires": [
+            [
+                "a1b2c3d4e5f60107"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f60129",
+        "type": "function",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Registreer batterij",
+        "func": "// Batterij-regel binnen via plaatjes/data: {paal, batt}\n// Tegelijk gebruiken als heartbeat zodat een paal met 0 spelers ook\n// als 'levend' geldt in de spelstatus.\nconst nu = Date.now();\nconst d = msg.payload;\nif (!d || d.paal === undefined || d.batt === undefined) return null;\n\nlet batterijPaal = global.get(\"status_batterijPaal\") || {};\nbatterijPaal[d.paal] = { volt: d.batt, ts: nu };\nglobal.set(\"status_batterijPaal\", batterijPaal);\n\nlet paalSeen = global.get(\"status_lastSeenPaal\") || {};\npaalSeen[d.paal] = nu;\nglobal.set(\"status_lastSeenPaal\", paalSeen);\nglobal.set(\"status_lastDataTs\", nu);\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 60,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f6012a",
+        "type": "inject",
+        "z": "a1b2c3d4e5f60101",
+        "name": "Init toggles bij opstart",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.5,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 180,
+        "y": 700,
+        "wires": [
+            [
+                "a1b2c3d4e5f60126",
+                "a1b2c3d4e5f60128"
+            ]
+        ]
+    },
+    {
+        "id": "c1b0000000000001",
+        "type": "link out",
+        "z": "124aa052f3987c33",
+        "name": "Beweging naar Puntensysteem",
+        "mode": "link",
+        "links": [
+            "c4a0000000000002"
+        ],
+        "x": 855,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "c4a0000000000001",
+        "type": "tab",
+        "label": "04 Puntensysteem",
+        "disabled": false,
+        "info": "Houdt levensuren/levensdagen per speler bij. Zie pi/node-red/blokken/04_puntensysteem/README.md",
+        "env": []
+    },
+    {
+        "id": "c4a0000000000002",
+        "type": "link in",
+        "z": "c4a0000000000001",
+        "name": "Beweging van Locatiebepaling",
+        "links": [
+            "c1b0000000000001"
+        ],
+        "x": 160,
+        "y": 120,
+        "wires": [
+            [
+                "c4a0000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "c4a0000000000003",
+        "type": "function",
+        "z": "c4a0000000000001",
+        "name": "Bereken levensuren",
+        "func": "// === Puntensysteem: levensuren op de 24-uurs klok ===\n// Inkomend event: { speler, vanPaal, naarPaal }\n// Regels (zie docs/spel.md):\n//  - elk uur VOORUIT in de tijd = +1 levensuur\n//  - 24 levensuren = 1 levensdag\n//  - ACHTERUIT in de tijd = -1 levensuur per uur, maar normaal NIET toegestaan.\n//    Per speler kan 'tijdTerug' aangezet worden (toekomstig spelmechanisme).\n//  - Score telt ALLEEN mee als het spel loopt (global.spelToestand === \"lopend\").\nconst AANTAL_UREN = 24;   // volledige klok = 24 palen/uren\n\nconst ev = msg.payload;\nif (!ev || !ev.speler || ev.vanPaal === undefined || ev.naarPaal === undefined) {\n    return null;\n}\n\nlet stats = global.get(\"spelerStats\") || {};\nlet s = stats[ev.speler] || { totaalUren: 0, tijdTerug: false, huidigePaal: ev.naarPaal };\nif (s.totaalUren === undefined) s.totaalUren = 0;\nif (s.tijdTerug === undefined) s.tijdTerug = false;\n\n// Alleen scoren tijdens een lopend spel. Bij opstellen/testen/pauze wordt de\n// positie wel bijgehouden maar worden geen levensuren toegekend.\nconst toestand = global.get(\"spelToestand\") || \"gestopt\";\nif (toestand !== \"lopend\") {\n    s.huidigePaal = ev.naarPaal;\n    stats[ev.speler] = s;\n    global.set(\"spelerStats\", stats);\n    msg.payload = {\n        speler: ev.speler,\n        van: ev.vanPaal,\n        naar: ev.naarPaal,\n        richting: \"genegeerd\",\n        stappen: 0,\n        totaalUren: s.totaalUren,\n        levensdagen: Math.floor(s.totaalUren / 24),\n        levensuren: s.totaalUren % 24,\n        tijdTerug: s.tijdTerug,\n        melding: ev.speler + \" bewoog (\" + ev.vanPaal + \"->\" + ev.naarPaal + \") maar spel is \" + toestand.toUpperCase() + \" - geen levensuren\"\n    };\n    return msg;\n}\n\n// Kortste signed verplaatsing op de cirkel bepalen.\n// Spelers lopen fysiek langs de ring, dus de korte weg is de werkelijke route.\nlet vooruit = (((ev.naarPaal - ev.vanPaal) % AANTAL_UREN) + AANTAL_UREN) % AANTAL_UREN; // 0..23\nlet achteruit = AANTAL_UREN - vooruit; // tegenovergestelde richting\n\nlet richting, stappen;\nif (vooruit === 0) {\n    richting = \"geen\"; stappen = 0;\n} else if (vooruit <= achteruit) {\n    richting = \"vooruit\"; stappen = vooruit;\n} else {\n    richting = \"achteruit\"; stappen = achteruit;\n}\n\nlet melding;\nif (richting === \"vooruit\") {\n    s.totaalUren += stappen;\n    melding = ev.speler + \" +\" + stappen + \" levensuur(en) (vooruit in de tijd)\";\n} else if (richting === \"achteruit\") {\n    if (s.tijdTerug) {\n        s.totaalUren = Math.max(0, s.totaalUren - stappen);\n        melding = ev.speler + \" -\" + stappen + \" levensuur(en) (terug in de tijd)\";\n    } else {\n        // Normaal mag je niet terug in de tijd: beweging telt niet mee.\n        melding = ev.speler + \" ging achteruit, maar tijdreizen staat UIT - geen wijziging\";\n    }\n} else {\n    melding = ev.speler + \" geen netto verplaatsing\";\n}\n\ns.huidigePaal = ev.naarPaal;\nstats[ev.speler] = s;\nglobal.set(\"spelerStats\", stats);\n\nmsg.payload = {\n    speler: ev.speler,\n    van: ev.vanPaal,\n    naar: ev.naarPaal,\n    richting: richting,\n    stappen: stappen,\n    totaalUren: s.totaalUren,\n    levensdagen: Math.floor(s.totaalUren / 24),\n    levensuren: s.totaalUren % 24,\n    tijdTerug: s.tijdTerug,\n    melding: melding\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 120,
+        "wires": [
+            [
+                "c4a0000000000004"
+            ]
+        ]
+    },
+    {
+        "id": "c4a0000000000004",
+        "type": "debug",
+        "z": "c4a0000000000001",
+        "name": "Levensjaren (debug)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload.melding",
+        "targetType": "msg",
+        "statusVal": "payload.melding",
+        "statusType": "msg",
+        "x": 720,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "c4a0000000000005",
+        "type": "inject",
+        "z": "c4a0000000000001",
+        "name": "[TEST] Lilou vooruit (paal 1->2)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"speler\":\"Lilou\",\"vanPaal\":1,\"naarPaal\":2}",
+        "payloadType": "json",
+        "x": 180,
+        "y": 200,
+        "wires": [
+            [
+                "c4a0000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "c4a0000000000006",
+        "type": "inject",
+        "z": "c4a0000000000001",
+        "name": "[TEST] Lilou achteruit (paal 2->1)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"speler\":\"Lilou\",\"vanPaal\":2,\"naarPaal\":1}",
+        "payloadType": "json",
+        "x": 180,
+        "y": 260,
+        "wires": [
+            [
+                "c4a0000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "c4a0000000000007",
+        "type": "function",
+        "z": "c4a0000000000001",
+        "name": "Stel tijdreizen in",
+        "func": "// Zet het 'terug in de tijd reizen'-mechanisme aan/uit voor een speler.\n// Inkomend payload: { speler, tijdTerug: true|false }\nconst p = msg.payload;\nif (!p || !p.speler) { node.warn(\"Verwacht { speler, tijdTerug }\"); return null; }\n\nlet stats = global.get(\"spelerStats\") || {};\nlet s = stats[p.speler] || { totaalUren: 0, tijdTerug: false };\ns.tijdTerug = (p.tijdTerug === true);\nstats[p.speler] = s;\nglobal.set(\"spelerStats\", stats);\n\nmsg.payload = { speler: p.speler, melding: p.speler + \" tijdreizen: \" + (s.tijdTerug ? \"AAN\" : \"UIT\") };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 360,
+        "wires": [
+            [
+                "c4a0000000000004"
+            ]
+        ]
+    },
+    {
+        "id": "c4a0000000000008",
+        "type": "inject",
+        "z": "c4a0000000000001",
+        "name": "[TEST] tijdreizen AAN: Lilou",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"speler\":\"Lilou\",\"tijdTerug\":true}",
+        "payloadType": "json",
+        "x": 190,
+        "y": 360,
+        "wires": [
+            [
+                "c4a0000000000007"
+            ]
+        ]
+    },
+    {
+        "id": "c4a0000000000009",
+        "type": "inject",
+        "z": "c4a0000000000001",
+        "name": "[TEST] tijdreizen UIT: Lilou",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"speler\":\"Lilou\",\"tijdTerug\":false}",
+        "payloadType": "json",
+        "x": 190,
+        "y": 420,
+        "wires": [
+            [
+                "c4a0000000000007"
+            ]
+        ]
+    },
+    {
+        "id": "c4a000000000000a",
+        "type": "function",
+        "z": "c4a0000000000001",
+        "name": "Reset levensjaren",
+        "func": "// Reset de levensuren-teller naar 0 voor alle spelers.\n// Gebruikt bij 'Herstart' van het plates-of-fate spel (zie docs/spel.md).\n// Behoudt de tijdTerug-instelling per speler.\nlet stats = global.get(\"spelerStats\") || {};\nlet aantal = 0;\nfor (let naam in stats) {\n    stats[naam].totaalUren = 0;\n    aantal++;\n}\nglobal.set(\"spelerStats\", stats);\nmsg.payload = { melding: \"Levensjaren gereset naar 0 (\" + aantal + \" speler(s))\" };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 500,
+        "wires": [
+            [
+                "c4a0000000000004"
+            ]
+        ]
+    },
+    {
+        "id": "c4a000000000000b",
+        "type": "inject",
+        "z": "c4a0000000000001",
+        "name": "[TEST] Reset levensjaren",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 500,
+        "wires": [
+            [
+                "c4a000000000000a"
+            ]
+        ]
     },
     {
         "id": "7b7840fe576ebdbe",

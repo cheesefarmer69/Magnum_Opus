@@ -9,6 +9,7 @@ const int WIFI_KANAAL = 1;
 typedef struct __attribute__((packed)) batch_message {
   int32_t paal_id;
   int32_t aantalGevonden;
+  float   batterij_v;       // gemeten batterijspanning slave (0.0 = niet gemeten)
   struct {
     char speler_mac[18];
     int32_t rssi;
@@ -74,14 +75,21 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 
   memcpy(&inkomendeData, incomingData, sizeof(inkomendeData));
 
-  Serial.printf("[RECV] Paal %d, %d spelers\n",
-    inkomendeData.paal_id, inkomendeData.aantalGevonden);
+  Serial.printf("[RECV] Paal %d, %d spelers, batt %.2fV\n",
+    inkomendeData.paal_id, inkomendeData.aantalGevonden, inkomendeData.batterij_v);
 
   for (int i = 0; i < inkomendeData.aantalGevonden; i++) {
     Serial.printf("{\"paal\":%d,\"mac\":\"%s\",\"rssi\":%d}\n",
       inkomendeData.paal_id,
       inkomendeData.spelers[i].speler_mac,
       inkomendeData.spelers[i].rssi);
+  }
+
+  // Batterij-regel per batch, óók bij 0 spelers — zo blijft de batterij-status
+  // in Node-RED actueel zelfs in een leeg vak. 0.0V = "niet gemeten", overslaan.
+  if (inkomendeData.batterij_v > 0.0f) {
+    Serial.printf("{\"paal\":%d,\"batt\":%.2f}\n",
+      inkomendeData.paal_id, inkomendeData.batterij_v);
   }
 }
 

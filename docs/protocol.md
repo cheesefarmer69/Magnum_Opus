@@ -24,6 +24,7 @@ Het systeem heeft **3 masters**, elk met **8 slaves** (palen). Totaal 24 palen.
 typedef struct __attribute__((packed)) {
     int paal_id;              // 1, 2, 3, ... (uniek per slave, hardcoded)
     int aantalGevonden;       // aantal gedetecteerde spelers in deze batch
+    float batterij_v;         // gemeten batterijspanning in volt (0.0 = onbekend)
     struct {
         char speler_mac[18];  // formaat: "aa:bb:cc:dd:ee:ff" (lowercase)
         int rssi;             // signaalsterkte in dBm (typisch -30 tot -90)
@@ -37,6 +38,8 @@ typedef struct __attribute__((packed)) {
 - MAC-adressen lowercase — NimBLE returnt ze lowercase
 - `spelers[9]` is een vaste array, niet dynamisch; ongebruikte slots
   hebben `aantalGevonden` als afsluiting
+- `batterij_v` wordt elke batch meegestuurd. De slave meet via een
+  spanningsdeler op `BATTERY_ADC_PIN`. Waarde `0.0` betekent "niet gemeten".
 
 ### Frequentie en timing
 
@@ -98,6 +101,17 @@ Master stuurt detecties door naar de Pi, één JSON-bericht per regel.
 
 Eén JSON-object per gedetecteerde speler. Bij een batch met 5 spelers
 stuurt master 5 aparte regels.
+
+### Formaat: batterij
+
+```json
+{"paal":1,"batt":3.87}
+```
+
+Eén regel per ontvangen batch — onafhankelijk van of er spelers in zaten.
+Zo blijft de batterij-status van een paal up-to-date óók als er niemand
+in de buurt is. Node-RED bewaart de laatste waarde per paal in
+`global.status_batterijPaal`.
 
 ### Debug-output
 
@@ -169,6 +183,9 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-20: `batch_message` uitgebreid met `float batterij_v`. Master
+  stuurt per batch één extra JSON-regel `{"paal":N,"batt":3.87}` naar de Pi.
+  Node-RED toont dit in de Spelstatus-tabel onder een toggle "Toon batterij".
 - 2026-05-20: master filtert binnenkomende ESP-NOW pakketten op afzender-MAC
   tegen `slaveAdressen[]`. Vreemde slaves worden gelogd als `[GATE]` en niet
   doorgezet naar de Pi. Maakt 1 master → 8 slaves segmentatie mogelijk in

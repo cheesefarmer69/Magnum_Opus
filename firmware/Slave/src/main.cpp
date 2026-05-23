@@ -11,7 +11,7 @@
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 1;
+const int PAAL_ID        = 3;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
@@ -94,6 +94,7 @@ uint8_t masterAddress[] = { 0xF0, 0x24, 0xF9, 0x5A, 0x01, 0x90 };
 typedef struct __attribute__((packed)) batch_message {
   int32_t paal_id;
   int32_t aantalGevonden;
+  float   batterij_v;       // gemeten batterijspanning (0.0 = niet gemeten)
   struct {
     char speler_mac[18];
     int32_t rssi;
@@ -392,6 +393,7 @@ void loop() {
 
   batchData.paal_id = PAAL_ID;
   batchData.aantalGevonden = 0;
+  batchData.batterij_v = leesBatterijSpanning();
   commandoOntvangen = false;
   ontvangenActie = ACTIE_NIETS;
 
@@ -401,7 +403,8 @@ void loop() {
   pBLEScan->clearResults();
   delay(20);
 
-  Serial.printf("[SCAN] Klaar, %d whitelisted gevonden\n", batchData.aantalGevonden);
+  Serial.printf("[SCAN] Klaar, %d whitelisted gevonden (batt %.2fV)\n",
+                batchData.aantalGevonden, batchData.batterij_v);
 
   // Random backoff: ontkoppelt de zendmomenten van meerdere slaves zodat ze
   // niet elke cyclus in fase blijven en elkaar wegdrukken. esp_random() is

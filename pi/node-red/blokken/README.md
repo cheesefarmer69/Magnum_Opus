@@ -31,7 +31,8 @@ pi/node-red/
     ├── 00_configuratie/README.md
     ├── 01_locatiebepaling/README.md
     ├── 02_spelstatus/README.md
-    └── 03_bediening/README.md
+    ├── 03_bediening/README.md
+    └── 04_puntensysteem/README.md
 ```
 
 ## De flows
@@ -42,6 +43,7 @@ pi/node-red/
 | 01 | Locatiebepaling | Bepaalt op welke paal elke speler zich bevindt.                       |
 | 02 | Spelstatus      | Toont de gezondheid van het spel; moet OK zijn vóór de start.         |
 | 03 | Bediening       | Interactief dashboard om het spel te starten/pauzeren/herstarten.     |
+| 04 | Puntensysteem   | Houdt levensuren/levensdagen per speler bij (score middagspel).       |
 
 ## Communicatie tussen blokken
 
@@ -61,13 +63,14 @@ Blokken wisselen op drie manieren gegevens uit:
 |-----------------------|-------------------|--------------------|------------------------------------|
 | `spelersLijst`        | `{mac: naam}`     | 00 Configuratie    | 01 Locatiebepaling, 02 Spelstatus  |
 | `paaltjesLijst`       | `[id, ...]`       | 00 Configuratie    | 02 Spelstatus                      |
-| `spelerLocaties`      | `{naam: paalId}`  | 01 Locatiebepaling | toekomstige spel-flows             |
+| `spelerLocaties`      | `{naam: paalId}`  | 01 Locatiebepaling | 04 Puntensysteem, toekomstige flows |
+| `spelerStats`         | `{naam: {totaalUren, tijdTerug, huidigePaal}}` | 04 Puntensysteem | 04 Puntensysteem, 01 (radar-tabel) |
 | `status_lastSeenMac`  | `{mac: ts}`       | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_lastSeenPaal` | `{id: ts}`        | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_lastDataTs`   | `ts`              | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_ok`           | `boolean`         | 02 Spelstatus      | 03 Bediening                       |
 | `status_fouten`       | `[{Code, ...}]`   | 02 Spelstatus      | toekomstig error-blok              |
-| `spelToestand`        | `string`          | 03 Bediening       | toekomstige spel-flows             |
+| `spelToestand`        | `string`          | 03 Bediening       | 04 Puntensysteem, toekomstige flows |
 
 ## Serie vs. parallel
 

@@ -118,8 +118,9 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 |--------|-----------|
 | `[GATE] Genegeerd: AC:A7:...` | Pakket van een slave die NIET in `slaveAdressen[]` staat — gedropt |
 | `[RECV] 124 bytes van paal 2 (AC:A7:...)` | Batch ontvangen van een geregistreerde slave |
-| `[RECV] Paal 2, 3 spelers` | Batch inhoud |
-| `{"paal":2,"mac":"...","rssi":-65}` | JSON doorgestuurd naar Pi |
+| `[RECV] Paal 2, 3 spelers, batt 3.87V` | Batch inhoud + gerapporteerde batterij-spanning slave |
+| `{"paal":2,"mac":"...","rssi":-65}` | JSON doorgestuurd naar Pi (per gevonden speler) |
+| `{"paal":2,"batt":3.87}` | JSON met batterij-spanning, één regel per batch (`batt > 0`) |
 | `[RECV] Te kort: 10 < 206, genegeerd` | Corrupt/kort pakket ontvangen (206 = sizeof batch_message) |
 | `[SEND] Status: OK` | ESP-NOW commando succesvol verzonden naar slave |
 | `[SEND] Status: MISLUKT` | Slave niet bereikbaar |

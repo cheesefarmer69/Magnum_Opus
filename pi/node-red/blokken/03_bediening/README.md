@@ -43,12 +43,18 @@ zie `docs/todo.md`.
 ## Koppeling met de Spelstatus
 
 De Spelstatus-flow (02) moet OK zijn vóór een spel begint. De knop `Start spel`
-leest `global.status_ok`:
+leest `global.status_ok` en `global.status_override`:
 
-- is die `true`, dan meldt het tekstveld "Spel gestart.";
-- is die `false`, dan start het spel toch, maar met de waarschuwing dat de
-  spelstatus **niet** OK was. Zo blokkeert het dashboard je niet tijdens het
-  testen, maar zie je het risico wel.
+| `status_ok` | `status_override` | Resultaat                                                              |
+|-------------|-------------------|------------------------------------------------------------------------|
+| `true`      | (n.v.t.)          | Spel start, melding "Spel gestart."                                    |
+| `false`     | `false`           | Spel start **NIET**, melding "NO-GO - kan niet starten…"               |
+| `false`     | `true`            | Spel start tóch, melding "Spel GESTART met OVERRIDE - spelstatus was NIET OK" |
+
+De override-switch staat in de Spelstatus-pagina van het dashboard. Het is
+een bewuste actie van de operator: aanzetten als je weet wat je doet, en
+weer uitzetten als je klaar bent. Zolang hij aanstaat verschijnt
+`OVERRIDE actief` in de spelstatus-tekst.
 
 ## Outputs
 

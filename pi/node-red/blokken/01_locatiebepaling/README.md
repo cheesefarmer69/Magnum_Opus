@@ -44,10 +44,17 @@ Beide constanten staan bovenaan de functie `Locatiebepaling Spelers`.
 
 ## Outputs
 
-| Bestemming               | Beschrijving                                          |
-|--------------------------|-------------------------------------------------------|
-| `global.spelerLocaties`  | `{ naam: paalId }` — huidige paal per speler.         |
-| Dashboard "Live Radar"   | Tabel met speler, actieve paal en signaalsterkte.     |
+| Bestemming               | Beschrijving                                                            |
+|--------------------------|-------------------------------------------------------------------------|
+| `global.spelerLocaties`  | `{ naam: paalId }` — huidige paal per speler.                           |
+| Dashboard "Live Radar"   | Tabel met speler, actieve paal, signaalsterkte, levensdagen en levensuren. |
+| Beweging-event (2e output)| `{ speler, vanPaal, naarPaal }` bij een paal-wissel → via `link out` naar flow 04 Puntensysteem. |
+
+> **2e output:** de functie heeft sinds het puntensysteem twee outputs. Output 1
+> levert (zoals voorheen) de tabeldata; output 2 vuurt **alleen** bij een echte
+> paal-wissel met een beweging-event. Flow 04 rekent daaruit de levensuren uit.
+> De radar-tabel toont de levensdagen/levensuren die flow 04 in
+> `global.spelerStats` bijhoudt.
 
 ## Afhankelijkheid
 
