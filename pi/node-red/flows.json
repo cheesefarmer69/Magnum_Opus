@@ -197,7 +197,7 @@
         "type": "function",
         "z": "124aa052f3987c33",
         "name": "Locatiebepaling Spelers",
-        "func": "// --- CONSTANTEN ---\nconst HYSTERESIS_DBM = 5;\nconst MAX_METINGEN = 3;\n\n// --- 0. SMOELENBOEK ---\nlet spelersLijst = global.get(\"spelersLijst\") || {};\nlet ruweMac = msg.payload.mac;\nlet spelerNaam = spelersLijst[ruweMac];\nif (!spelerNaam) return null; // Onbekende beacon negeren\n\nlet paal = msg.payload.paal;\nlet rssi = msg.payload.rssi;\n\n// --- 1. GEHEUGENS OPHALEN ---\nlet geschiedenis = context.get(\"geschiedenis\") || {};\nlet spelerLocaties = global.get(\"spelerLocaties\") || {};\n\n// --- 2. DATA OPSLAAN ---\nif (!geschiedenis[spelerNaam]) {\n    geschiedenis[spelerNaam] = { huidigePaal: paal, metingen: {} };\n}\nif (!geschiedenis[spelerNaam].metingen[paal]) {\n    geschiedenis[spelerNaam].metingen[paal] = [];\n}\n\ngeschiedenis[spelerNaam].metingen[paal].push(rssi);\nif (geschiedenis[spelerNaam].metingen[paal].length > MAX_METINGEN) {\n    geschiedenis[spelerNaam].metingen[paal].shift();\n}\n\nfunction berekenGemiddelde(array) {\n    if (!array || array.length === 0) return -1000;\n    return array.reduce((a, b) => a + b, 0) / array.length;\n}\n\n// --- 3. HYSTERESIS ---\nlet bekendePaal = geschiedenis[spelerNaam].huidigePaal;\nlet huidigGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[bekendePaal]);\nlet nieuwGemiddelde = berekenGemiddelde(geschiedenis[spelerNaam].metingen[paal]);\n\n// Beweging-event voor het puntensysteem (flow 04). Alleen bij een ECHTE\n// paal-wissel (na hysteresis), zodat ruis geen levensuren toekent.\nlet bewegingEvent = null;\nif (paal !== bekendePaal && nieuwGemiddelde > (huidigGemiddelde + HYSTERESIS_DBM)) {\n    bewegingEvent = { payload: { speler: spelerNaam, vanPaal: bekendePaal, naarPaal: paal } };\n    geschiedenis[spelerNaam].huidigePaal = paal;\n    bekendePaal = paal;\n}\n\ncontext.set(\"geschiedenis\", geschiedenis);\n\n// --- 4. CENTRALE WAARHEID ---\nspelerLocaties[spelerNaam] = bekendePaal;\nglobal.set(\"spelerLocaties\", spelerLocaties);\n\n// --- 5. TABELDATA (incl. levensuren/levensdagen uit flow 04) ---\nlet stats = global.get(\"spelerStats\") || {};\nlet tabelData = [];\nfor (let speler in spelerLocaties) {\n    let totaalUren = (stats[speler] && stats[speler].totaalUren) || 0;\n    tabelData.push({\n        \"Speler\": speler,\n        \"Locatie\": \"Paal \" + spelerLocaties[speler],\n        \"RSSI\": geschiedenis[speler]?.metingen[spelerLocaties[speler]]?.slice(-1)[0] || \"?\",\n        \"Levensdagen\": Math.floor(totaalUren / 24),\n        \"Levensuren\": totaalUren % 24\n    });\n}\n\nmsg.payload = tabelData;\n// Output 1: radar-tabel  |  Output 2: beweging-event naar puntensysteem\nreturn [msg, bewegingEvent];",
+        "func": "// ============================================================\n// Locatiebepaling: tijd-gevensterde argmax met hysteresis\n// ============================================================\n// Per speler houden we per paal recente RSSI-samples (met timestamp) bij.\n// Samples ouder dan VENSTER_MS vervallen, zodat een verlaten paal vanzelf\n// uit beeld raakt (geen 'kleven' meer aan een oude sterke meting).\n// De speler staat bij de paal met het sterkste recente gemiddelde (argmax);\n// wisselen gebeurt pas als die duidelijk sterker is dan de huidige paal.\n\n// --- TUNING (pas aan na veldtest) ---\nconst VENSTER_MS     = 4000;  // alleen samples jonger dan dit tellen mee\nconst MAX_SAMPLES    = 6;     // max bewaarde samples per paal\nconst HYSTERESE_DBM  = 4;     // nieuwe paal moet huidige met >= dit verslaan\nconst MIN_SAMPLES    = 1;     // min. recente samples om kandidaat te zijn\n\n// --- 0. SMOELENBOEK ---\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst ruweMac = msg.payload.mac;\nconst spelerNaam = spelersLijst[ruweMac];\nif (!spelerNaam) return null; // Onbekende beacon negeren\n\nconst paal = msg.payload.paal;\nconst rssi = msg.payload.rssi;\nconst nu = Date.now();\n\n// --- 1. GEHEUGEN ---\nlet geschiedenis = context.get(\"geschiedenis\") || {};\nlet spelerLocaties = global.get(\"spelerLocaties\") || {};\n\nif (!geschiedenis[spelerNaam] || !geschiedenis[spelerNaam].samples) {\n    geschiedenis[spelerNaam] = { huidigePaal: null, samples: {} };\n}\nlet g = geschiedenis[spelerNaam];\n\n// --- 2. NIEUWE SAMPLE + PRUNE ---\nif (!g.samples[paal]) g.samples[paal] = [];\ng.samples[paal].push({ rssi: rssi, ts: nu });\n\nfor (const p in g.samples) {\n    // verouderde samples weggooien\n    g.samples[p] = g.samples[p].filter(s => (nu - s.ts) <= VENSTER_MS);\n    // lengte begrenzen (laatste MAX_SAMPLES houden)\n    if (g.samples[p].length > MAX_SAMPLES) {\n        g.samples[p] = g.samples[p].slice(-MAX_SAMPLES);\n    }\n    // lege palen verwijderen zodat ze geen kandidaat meer zijn\n    if (g.samples[p].length === 0) delete g.samples[p];\n}\n\n// --- 3. GEMIDDELDE RSSI PER PAAL (recente samples) ---\nfunction gem(arr) {\n    return arr.reduce((a, b) => a + b.rssi, 0) / arr.length;\n}\nlet gemiddelden = {};\nfor (const p in g.samples) {\n    gemiddelden[p] = gem(g.samples[p]);\n}\n\n// --- 4. ARGMAX: sterkste paal met genoeg recente samples ---\nlet bestePaal = null;\nlet besteRssi = -Infinity;\nfor (const p in g.samples) {\n    if (g.samples[p].length < MIN_SAMPLES) continue;\n    if (gemiddelden[p] > besteRssi) {\n        besteRssi = gemiddelden[p];\n        bestePaal = parseInt(p, 10);\n    }\n}\n\n// --- 5. BESLISSING MET HYSTERESIS ---\nconst vorigePaal = g.huidigePaal;\nif (bestePaal !== null) {\n    if (vorigePaal === null || vorigePaal === undefined) {\n        // eerste lokalisatie van deze speler\n        g.huidigePaal = bestePaal;\n    } else if (!(vorigePaal in gemiddelden)) {\n        // huidige paal heeft geen recente data meer -> direct loslaten\n        g.huidigePaal = bestePaal;\n    } else if (bestePaal !== vorigePaal &&\n               gemiddelden[bestePaal] > gemiddelden[vorigePaal] + HYSTERESE_DBM) {\n        // nieuwe paal duidelijk sterker -> wisselen\n        g.huidigePaal = bestePaal;\n    }\n}\n\n// Beweging-event ALLEEN bij een echte wissel (niet bij eerste lokalisatie),\n// zodat het puntensysteem geen levensuur toekent op de allereerste detectie.\nlet bewegingEvent = null;\nif (g.huidigePaal !== vorigePaal &&\n    vorigePaal !== null && vorigePaal !== undefined) {\n    bewegingEvent = { payload: { speler: spelerNaam, vanPaal: vorigePaal, naarPaal: g.huidigePaal } };\n}\n\ncontext.set(\"geschiedenis\", geschiedenis);\n\n// --- 6. CENTRALE WAARHEID ---\nif (g.huidigePaal !== null && g.huidigePaal !== undefined) {\n    spelerLocaties[spelerNaam] = g.huidigePaal;\n    global.set(\"spelerLocaties\", spelerLocaties);\n}\n\n// --- 7. TABELDATA (incl. levensuren/levensdagen uit flow 04) ---\nconst stats = global.get(\"spelerStats\") || {};\nlet tabelData = [];\nfor (let speler in spelerLocaties) {\n    const totaalUren = (stats[speler] && stats[speler].totaalUren) || 0;\n    const huidige = spelerLocaties[speler];\n    // toon het gemiddelde RSSI over het venster voor de actieve paal\n    let rssiTekst = \"?\";\n    const sg = geschiedenis[speler] && geschiedenis[speler].samples;\n    if (sg && sg[huidige] && sg[huidige].length) {\n        rssiTekst = Math.round(gem(sg[huidige]));\n    }\n    tabelData.push({\n        \"Speler\": speler,\n        \"Locatie\": \"Paal \" + huidige,\n        \"RSSI\": rssiTekst,\n        \"Levensdagen\": Math.floor(totaalUren / 24),\n        \"Levensuren\": totaalUren % 24\n    });\n}\n\nmsg.payload = tabelData;\n// Output 1: radar-tabel  |  Output 2: beweging-event naar puntensysteem\nreturn [msg, bewegingEvent];",
         "outputs": 2,
         "timeout": 0,
         "noerr": 0,
@@ -1785,6 +1785,263 @@
         "wires": [
             [
                 "c4a000000000000a"
+            ]
+        ]
+    },
+    {
+        "id": "c5a0000000000001",
+        "type": "tab",
+        "label": "05 Admin",
+        "disabled": false,
+        "info": "Admin-paneel: levensjaren resetten achter twee-staps verificatie. Zie pi/node-red/blokken/05_admin/README.md",
+        "env": []
+    },
+    {
+        "id": "c5a0000000000010",
+        "type": "ui-page",
+        "name": "Admin",
+        "ui": "2560e15da2c4a046",
+        "path": "/admin",
+        "icon": "shield-lock",
+        "layout": "grid",
+        "theme": "f4af76d3be7f4001",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 4,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "c5a0000000000011",
+        "type": "ui-group",
+        "name": "Levensjaren beheer",
+        "page": "c5a0000000000010",
+        "width": 6,
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "c5a0000000000002",
+        "type": "ui-switch",
+        "z": "c5a0000000000001",
+        "name": "Admin ontgrendelen",
+        "label": "Admin ontgrendelen (stap 1)",
+        "group": "c5a0000000000011",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "",
+        "topicType": "str",
+        "style": "",
+        "className": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "x": 200,
+        "y": 120,
+        "wires": [
+            [
+                "c5a0000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "c5a0000000000003",
+        "type": "change",
+        "z": "c5a0000000000001",
+        "name": "Sla admin_unlocked op",
+        "rules": [
+            {
+                "t": "set",
+                "p": "admin_unlocked",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 480,
+        "y": 120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c5a0000000000004",
+        "type": "ui-button",
+        "z": "c5a0000000000001",
+        "group": "c5a0000000000011",
+        "name": "Reset Levensdagen",
+        "label": "Levensdagen → 0 (stap 2)",
+        "order": 2,
+        "width": 6,
+        "height": 1,
+        "emulateClick": false,
+        "tooltip": "Zet de levensdagen van alle spelers op 0 (uren blijven)",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "calendar-remove",
+        "iconPosition": "left",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "payload": "go",
+        "payloadType": "str",
+        "topic": "reset_dagen",
+        "topicType": "str",
+        "x": 200,
+        "y": 200,
+        "wires": [
+            [
+                "c5a0000000000006"
+            ]
+        ]
+    },
+    {
+        "id": "c5a0000000000005",
+        "type": "ui-button",
+        "z": "c5a0000000000001",
+        "group": "c5a0000000000011",
+        "name": "Reset Levensuren",
+        "label": "Levensuren → 0 (stap 2)",
+        "order": 3,
+        "width": 6,
+        "height": 1,
+        "emulateClick": false,
+        "tooltip": "Zet de losse levensuren van alle spelers op 0 (hele dagen blijven)",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "clock-remove",
+        "iconPosition": "left",
+        "enableClick": true,
+        "enablePointerdown": false,
+        "pointerdownPayload": "",
+        "pointerdownPayloadType": "str",
+        "enablePointerup": false,
+        "pointerupPayload": "",
+        "pointerupPayloadType": "str",
+        "payload": "go",
+        "payloadType": "str",
+        "topic": "reset_uren",
+        "topicType": "str",
+        "x": 200,
+        "y": 260,
+        "wires": [
+            [
+                "c5a0000000000006"
+            ]
+        ]
+    },
+    {
+        "id": "c5a0000000000006",
+        "type": "function",
+        "z": "c5a0000000000001",
+        "name": "Admin reset",
+        "func": "// Admin-reset met twee-staps verificatie.\n// Stap 1: 'Admin ontgrendelen' moet AAN staan (global.admin_unlocked).\n// Stap 2: een resetknop indrukken. Na uitvoeren vergrendelt het paneel weer.\nconst topic = msg.topic;\nconst unlocked = global.get(\"admin_unlocked\") === true;\n\nif (!unlocked) {\n    // Vergrendeld: niets resetten, alleen waarschuwen. Output 2 (switch) blijft leeg.\n    msg.payload = \"VERGRENDELD - zet eerst 'Admin ontgrendelen' aan (stap 1).\";\n    return [msg, null];\n}\n\nlet stats = global.get(\"spelerStats\") || {};\nlet aantal = 0;\nlet wat;\n\nif (topic === \"reset_dagen\") {\n    for (let naam in stats) {\n        const t = stats[naam].totaalUren || 0;\n        stats[naam].totaalUren = t % 24;            // dagen weg, uren-rest blijft\n        aantal++;\n    }\n    wat = \"Levensdagen\";\n} else if (topic === \"reset_uren\") {\n    for (let naam in stats) {\n        const t = stats[naam].totaalUren || 0;\n        stats[naam].totaalUren = Math.floor(t / 24) * 24;  // uren-rest weg, dagen blijven\n        aantal++;\n    }\n    wat = \"Levensuren\";\n} else {\n    msg.payload = \"Onbekende reset-actie: \" + topic;\n    return [msg, null];\n}\n\nglobal.set(\"spelerStats\", stats);\nglobal.set(\"admin_unlocked\", false);   // automatisch hervergrendelen\n\nmsg.payload = wat + \" op 0 gezet voor \" + aantal + \" speler(s). Paneel weer vergrendeld.\";\n// Output 1: melding (notificatie)  |  Output 2: switch visueel terug op UIT\nreturn [msg, { payload: false }];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 230,
+        "wires": [
+            [
+                "c5a0000000000007"
+            ],
+            [
+                "c5a0000000000002"
+            ]
+        ]
+    },
+    {
+        "id": "c5a0000000000007",
+        "type": "ui-notification",
+        "z": "c5a0000000000001",
+        "ui": "2560e15da2c4a046",
+        "name": "Admin melding",
+        "position": "center",
+        "colorDefault": true,
+        "color": "#0094CE",
+        "displayTime": "4",
+        "showCountdown": true,
+        "outputs": 0,
+        "allowConfirm": false,
+        "confirmText": "",
+        "allowDismiss": true,
+        "dismissText": "OK",
+        "raw": false,
+        "className": "",
+        "x": 720,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "c5a0000000000008",
+        "type": "inject",
+        "z": "c5a0000000000001",
+        "name": "Init: vergrendeld bij opstart",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.5,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 220,
+        "y": 60,
+        "wires": [
+            [
+                "c5a0000000000003"
             ]
         ]
     },

@@ -32,7 +32,8 @@ pi/node-red/
     ├── 01_locatiebepaling/README.md
     ├── 02_spelstatus/README.md
     ├── 03_bediening/README.md
-    └── 04_puntensysteem/README.md
+    ├── 04_puntensysteem/README.md
+    └── 05_admin/README.md
 ```
 
 ## De flows
@@ -44,6 +45,7 @@ pi/node-red/
 | 02 | Spelstatus      | Toont de gezondheid van het spel; moet OK zijn vóór de start.         |
 | 03 | Bediening       | Interactief dashboard om het spel te starten/pauzeren/herstarten.     |
 | 04 | Puntensysteem   | Houdt levensuren/levensdagen per speler bij (score middagspel).       |
+| 05 | Admin           | Beheerpaneel: levensjaren resetten achter twee-staps verificatie.     |
 
 ## Communicatie tussen blokken
 
@@ -64,7 +66,8 @@ Blokken wisselen op drie manieren gegevens uit:
 | `spelersLijst`        | `{mac: naam}`     | 00 Configuratie    | 01 Locatiebepaling, 02 Spelstatus  |
 | `paaltjesLijst`       | `[id, ...]`       | 00 Configuratie    | 02 Spelstatus                      |
 | `spelerLocaties`      | `{naam: paalId}`  | 01 Locatiebepaling | 04 Puntensysteem, toekomstige flows |
-| `spelerStats`         | `{naam: {totaalUren, tijdTerug, huidigePaal}}` | 04 Puntensysteem | 04 Puntensysteem, 01 (radar-tabel) |
+| `spelerStats`         | `{naam: {totaalUren, tijdTerug, huidigePaal}}` | 04 Puntensysteem | 04 Puntensysteem, 05 Admin, 01 (radar-tabel) |
+| `admin_unlocked`      | `boolean`         | 05 Admin           | 05 Admin                           |
 | `status_lastSeenMac`  | `{mac: ts}`       | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_lastSeenPaal` | `{id: ts}`        | 02 Spelstatus      | 02 Spelstatus                      |
 | `status_lastDataTs`   | `ts`              | 02 Spelstatus      | 02 Spelstatus                      |

@@ -22,18 +22,40 @@ De master stuurt per gedetecteerde speler een bericht op het MQTT-topic
 | `[TEST] Detectie ...`      | inject-nodes om zonder hardware een detectie te simuleren     |
 | debug-nodes                | tonen de ruwe data en de berekende locaties                   |
 
-### Hysteresis
+### Lokalisatiemethode: tijd-gevensterde argmax + hysteresis
 
 Een speler staat zelden exact op één paal — naburige palen vangen hetzelfde
-signaal op. Om te voorkomen dat een speler "knippert" tussen twee palen, wisselt
-de flow pas van paal als het nieuwe signaal duidelijk sterker is:
+signaal op. De flow bepaalt de actieve paal zo:
 
-- `MAX_METINGEN` (3) — er wordt een voortschrijdend gemiddelde over de laatste
-  3 RSSI-metingen per paal bijgehouden.
-- `HYSTERESIS_DBM` (5) — de nieuwe paal moet gemiddeld minstens 5 dBm sterker
-  zijn dan de huidige paal voor er gewisseld wordt.
+1. **Samples met timestamp.** Per speler/paal worden recente RSSI-metingen
+   bijgehouden, elk met het tijdstip van binnenkomst.
+2. **Venster.** Samples ouder dan `VENSTER_MS` (4 s) vervallen. Hierdoor raakt
+   een paal die de speler niet meer ziet vanzelf "uit beeld" — er kleeft geen
+   verouderde sterke meting meer aan een verlaten paal.
+3. **Argmax.** De speler hoort bij de paal met het sterkste gemiddelde over de
+   recente samples.
+4. **Hysteresis.** Er wordt pas gewisseld als de beste paal de huidige met
+   minstens `HYSTERESE_DBM` (4 dBm) verslaat — behalve wanneer de huidige paal
+   géén recente data meer heeft; dan wordt direct losgelaten.
 
-Beide constanten staan bovenaan de functie `Locatiebepaling Spelers`.
+**Tuning-constanten** bovenaan de functie `Locatiebepaling Spelers`:
+
+| Constante       | Standaard | Betekenis                                            |
+|-----------------|-----------|------------------------------------------------------|
+| `VENSTER_MS`    | 4000      | leeftijd waarna een RSSI-sample vervalt              |
+| `MAX_SAMPLES`   | 6         | max bewaarde samples per paal                        |
+| `HYSTERESE_DBM` | 4         | drempel (dBm) om naar een sterkere paal te wisselen  |
+| `MIN_SAMPLES`   | 1         | min. recente samples voordat een paal kandidaat is   |
+
+> **Waarom dit het "speler kleeft aan verkeerde paal"-probleem oplost:** de
+> vorige versie bewaarde een gemiddelde dat nooit verviel. Een paal die een
+> speler ooit sterk zag, bleef die waarde eeuwig houden, waardoor de speler
+> aan die paal bleef hangen. Met het venster verdwijnt verouderde data en
+> "snapt" de speler naar de paal die hem nú het sterkst ziet.
+
+> **Te traag/te gevoelig?** Verhoog `HYSTERESE_DBM` tegen flikkeren, verlaag het
+> als de speler te lang aan een paal blijft hangen. Een groter `VENSTER_MS`
+> maakt de bepaling stabieler maar trager.
 
 ## Inputs
 
@@ -86,11 +108,15 @@ mosquitto_pub -h 192.168.1.43 -t plaatjes/data \
 ```
 
 Stuur een paar berichten met dezelfde `mac` en stijgende `rssi` op een andere
-`paal` om de hysteresis-wissel te zien gebeuren.
+`paal` om de wissel te zien gebeuren.
 
-### Hysteresis controleren
+### Lokalisatie controleren
 
-1. Stuur 3× een detectie voor paal 1 (`rssi` rond -60).
-2. Stuur 1× een detectie voor paal 2 met een nauwelijks sterker signaal
-   (`rssi` -58) → de speler blijft op paal 1 (verschil < 5 dBm).
-3. Stuur 3× paal 2 met `rssi` -50 → nu wisselt de speler naar paal 2.
+1. Stuur een paar detecties voor paal 1 (`rssi` rond -60) → speler op paal 1.
+2. Stuur 1× paal 2 met nauwelijks sterker signaal (`rssi` -58) → speler blijft
+   op paal 1 (verschil < `HYSTERESE_DBM`).
+3. Stuur paal 2 met `rssi` -50 → speler wisselt naar paal 2 (verschil ≥ drempel).
+4. **Stop met paal 2 sturen** en stuur alleen paal 1 (`rssi` -60). Binnen
+   `VENSTER_MS` (4 s) vervallen paal 2's samples en springt de speler terug
+   naar paal 1 — ook zonder dat paal 1 sterker is dan paal 2 ooit was. Dit is
+   precies het gedrag dat de vorige versie miste.
