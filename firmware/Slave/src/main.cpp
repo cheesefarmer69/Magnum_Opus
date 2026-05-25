@@ -11,7 +11,7 @@
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 3;
+const int PAAL_ID        = 1;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
@@ -39,7 +39,7 @@ CRGB leds[NUM_LEDS];
 // piezo is het luidst rond zijn resonantiefrequentie (typisch 2-4 kHz). 1000 Hz
 // is ver onder resonantie -> stil. Zet dit op de resonantiefrequentie uit het
 // datasheet van jouw buzzer voor maximaal volume.
-const int BUZZER_FREQ = 2700;   // Hz
+const int BUZZER_FREQ = 2060;   // Hz
 volatile bool buzzerActief = false;
 
 // ====================================================================

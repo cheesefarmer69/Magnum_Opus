@@ -45,6 +45,17 @@ en waarom het nodig is.
 - [ ] **Minigames + cyclusbeheer** — afwisseling Plates of Fate ↔ minigame ↔
   herstart (levensjaren-reset), zoals beschreven in `docs/spel.md`.
 
+## Hardware / firmware
+
+- [ ] **Buzzer-resonantiefrequentie per paal kalibreren**
+  Buzzers uit dezelfde batch verschillen in volume op dezelfde frequentie
+  (productiespreiding op de resonantiefrequentie). Per buzzer de luidste
+  frequentie opmeten en die per slave instellen, zodat alle palen even
+  hoorbaar zijn. Nu staat `BUZZER_FREQ` als één globale constante in
+  `firmware/Slave/src/main.cpp`; dit moet een per-paal waarde worden
+  (bv. naast `PAAL_ID`, of een kleine kalibratietabel). Zie de aanpak in
+  het antwoord/handleiding hieronder.
+
 ## Spelontwerp
 
 - Zie `docs/spel.md` → sectie "Open vragen / nog uit te werken" voor openstaande

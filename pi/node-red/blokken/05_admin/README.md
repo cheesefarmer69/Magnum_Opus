@@ -14,6 +14,8 @@ ongeluk op drukt.
 | Switch **Admin ontgrendelen** | Stap 1. Moet AAN staan voordat een resetknop iets doet.              |
 | Knop **Levensdagen → 0**      | Stap 2. Zet de levensdagen van alle spelers op 0 (uren blijven).     |
 | Knop **Levensuren → 0**       | Stap 2. Zet de losse levensuren op 0 (hele dagen blijven).           |
+| Knop **Achterstand → 0**      | Stap 2. Zet de `achterstand` van alle spelers op 0.                  |
+| Knop **Paal-effecten → 0**    | Stap 2. Wist alle blijvende effecten op de palen (`bordStaat`).      |
 | Notificatie                   | Bevestiging of waarschuwing ("vergrendeld") na elke klik.            |
 
 ## Twee-staps verificatie

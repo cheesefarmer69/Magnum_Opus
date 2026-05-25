@@ -21,6 +21,8 @@ kan niets uit sync raken.
 | `[CONFIG] Paaltjeslijst`   | inject-node met de paaltjeslijst als JSON                    |
 | `Sla op als paaltjesLijst` | schrijft die naar `global.paaltjesLijst`                     |
 | `paaltjesLijst (controle)` | debug-node die de actieve lijst toont                        |
+| `[TEST] Buzzer paal N AAN/UIT` | inject-nodes die de buzzer van paal 1/2/3 aan/uit zetten |
+| `commando/master1`         | MQTT-out die de buzzer-testcommando's naar de master stuurt  |
 
 Beide inject-nodes staan op "inject once": ze vuren automatisch bij elke deploy
 en bij het herstarten van Node-RED. Je kan ze ook handmatig aanklikken.
@@ -80,6 +82,16 @@ gebruikt die om te controleren of elke paal data stuurt.
    heeft 24 palen (3 masters × 8 slaves, zie `docs/protocol.md`); tijdens het
    testen zet je hier enkel de palen die je echt aangesloten hebt.
 4. **Done** → **Deploy** → inject-node één keer aanklikken.
+
+## Buzzer-test (palen 1–3)
+
+Onderaan de tab staan inject-nodes om de buzzer van elk testbordje te testen:
+`[TEST] Buzzer paal 1 AAN` … `paal 3 UIT`. Ze publiceren een commando op
+`commando/master1` (`{"paal":N,"actie":3}` = aan, `actie:4` = uit; zie
+`docs/protocol.md`). Handig om per paal het buzzervolume/-gedrag te controleren
+zonder de Plates-of-Fate engine te starten.
+
+> AAN blijft klinken tot je op de bijbehorende UIT-node drukt.
 
 ## Controleren of de configuratie geladen is
 

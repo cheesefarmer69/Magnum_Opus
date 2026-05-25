@@ -16,7 +16,9 @@ testen.
 ## Bron van waarheid
 
 `pi/node-red/flows.json` is het **enige** bestand met de echte flows. Dat is wat
-je in Node-RED importeert/deployt en wat je als backup exporteert.
+je in Node-RED deployt en wat je als backup exporteert. Deployen doe je **niet**
+via handmatig importeren in de browser, maar met `pi/node-red/deploy-flows.ps1`
+(Windows) of `deploy-flows.sh` (Pi) — zie `pi/node-red/DEPLOY.md`.
 
 Elke map hieronder bevat een `README.md` — de **handleiding** van dat blok
 (wat het doet, hoe je het gebruikt, hoe je test). Er staan bewust geen losse
@@ -74,6 +76,10 @@ Blokken wisselen op drie manieren gegevens uit:
 | `pofActief`           | `boolean`         | 06 Plates of Fate  | 06 Plates of Fate                  |
 | `pofHuidigEvent`      | `{event}`         | 06 Plates of Fate  | 06 Plates of Fate (dashboard)      |
 | `pofRegels`           | `{maxVerplaatsing, ...}` | 06 Plates of Fate | 04 Puntensysteem              |
+| `pofManueel`          | `boolean`         | 06 Plates of Fate  | 06 (engine/manueel-modus)          |
+| `pofFase`             | `string`          | 06 Plates of Fate  | 06 (toestandsmachine)              |
+| `pofTeller`           | `number`          | 06 Plates of Fate  | 06 (countdown)                     |
+| `pofVerificatie`      | `{voorwaarde, getal, doelwit, startPosities}` | 06 Plates of Fate | 06 (controle) |
 | `bordStaat`           | `{uur: {effecten:[...]}}` | 06 Plates of Fate | 06 (visualisatie)             |
 | `spelerEffecten`      | `{naam: [effecten]}`     | 06 Plates of Fate | 06, 04 (`mag_niet_bewegen`)   |
 | `wereldEffecten`      | `[effecten]`             | 06 Plates of Fate | 06 (`events_sneller`)         |

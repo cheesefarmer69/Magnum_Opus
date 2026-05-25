@@ -20,14 +20,17 @@ Events worden bewaard in `global.pofEvents`, gezet door de inject
 
   doelwit: {                          // VERPLICHT (mag type "geen" zijn)
     type: "speler",                   // "speler" | "uur" | "geen"
-    selectie: "rang",                 // "rang" | "willekeurig" | "alle"
+    selectie: "willekeurig",          // "rang" | "willekeurig" | "alle"
     veld: "levensuren",               // alleen bij selectie "rang"
     richting: "laagste",              // alleen bij rang: "hoogste" | "laagste"
-    aantal: 1                         // aantal doelwitten (rang/willekeurig)
+    aantal: "laag"                    // OPTIE: "enkel"|"laag"|"midden"|"hoog" (of vast getal)
   },
 
+  getal: "midden",                    // OPTIONEEL: rolt een getal en vult 'x' in tekst in
+  voorwaarde: "min",                  // OPTIONEEL: "min" | "max" | "geen" (beweging-controle)
+
   gevolgen: [                         // VERPLICHT: array van één of meer gevolgen
-    { type: "score", delta: 3 }
+    { type: "geen" }
   ]
 }
 ```
@@ -38,11 +41,49 @@ Events worden bewaard in `global.pofEvents`, gezet door de inject
 |-----------------|-----------|------------------------------------------------------------------|
 | `id`            | ja        | Unieke sleutel.                                                  |
 | `naam`          | ja        | Weergavenaam (dashboard "Huidig event", debug).                 |
-| `categorie`     | ja        | `speler` / `uur` / `wereld`. Stuurt ook de test-injects (Deel D).|
+| `categorie`     | ja        | `speler` / `uur` / `wereld`. Bepaalt in welke `[CONFIG]`-inject het hoort.|
 | `tekst`         | ja        | Tekst die wordt voorgelezen (gepubliceerd op `audio/afspelen`). |
-| `reactietijd_s` | ja        | Seconden pauze ná dit event vóór het volgende.                  |
+| `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle.        |
 | `doelwit`       | ja        | Wie/wat geraakt wordt — zie hieronder.                          |
+| `getal`         | nee       | Optie die een getal rolt en `x` in de tekst invult — zie "Getallen". |
+| `voorwaarde`    | nee       | `min` / `max` / `geen` — beweging-controle na de reactietijd.   |
 | `gevolgen`      | ja        | Eén of meer gevolgen — zie hieronder.                           |
+
+### Opties: `enkel` / `laag` / `midden` / `hoog`
+
+`doelwit.aantal` en `getal` worden opgegeven als optie; de engine rolt er een
+getal uit binnen het bereik:
+
+| Optie    | Bereik (willekeurig) |
+|----------|----------------------|
+| `enkel`  | 1                    |
+| `laag`   | 1 – 3                |
+| `midden` | 4 – 6                |
+| `hoog`   | 7 – 10               |
+
+`doelwit.aantal` bepaalt zo het aantal gekozen spelers/uren; `getal` bepaalt het
+getal dat `x` in de tekst vervangt (zie hieronder).
+
+### Getallen in de tekst (`x`)
+
+Zet je `getal` op een optie, dan rolt de engine één getal en vervangt elke losse
+`x` in `tekst` erdoor (eenmalig, net vóór dit event). Voorbeeld: `tekst:
+"Minimum x uur vooruit."` met `getal:"midden"` wordt bv. "Minimum 5 uur vooruit."
+Datzelfde getal is meteen de waarde waartegen de `voorwaarde` controleert.
+
+### Beweging-controle (`voorwaarde`)
+
+Na de reactietijd vergelijkt de engine elke speler zijn **netto vooruit**-verplaatsing
+(start→eind paal, met de klok mee) met het gerolde `getal`:
+
+| `voorwaarde` | Doelwit-speler slaagt als…           | Niet-doelwit slaagt als… |
+|--------------|--------------------------------------|--------------------------|
+| `min`        | netto ≥ getal (genoeg vooruit)       | niet bewogen (netto 0)   |
+| `max`        | netto ≤ getal (niet te ver)          | niet bewogen (netto 0)   |
+| `geen`       | geen controle                        | geen controle            |
+
+Het resultaat (✅/❌ per speler) verschijnt in de tabel **Controle** op de
+Bediening-pagina. (Voorlopig enkel tonen — straffen volgen later.)
 
 ### `doelwit` — wie/wat wordt geraakt
 
@@ -72,6 +113,7 @@ Elk gevolg is één object in de array. Je mag er meerdere combineren.
 | `commando`  | `actie` (0–4)                           | Stuurt `{paal, actie}` naar elk doel-uur via `commando/master1` (LED/buzzer). Bij speler-doelwit: de paal waar die speler staat. |
 | `score`     | `delta` (geheel, +/-)                   | Past direct de levensuren van de doel-spelers aan (clamp ≥ 0).|
 | `effect`    | `niveau`, `effect`, `duurRondes`, `data`| Plaatst een **blijvend effect** (zie hieronder).             |
+| `geen`      | —                                       | Geen neveneffect. Gebruik dit voor pure beweging-opdrachten (met `voorwaarde`). |
 
 `actie`-waarden (commando): `0` uit · `1` rood · `2` groen · `3` buzzer aan ·
 `4` buzzer uit (zie `docs/protocol.md`).
@@ -93,18 +135,45 @@ loopt daarna vanzelf af. Het wordt opgeslagen in een van drie registers:
 
 ## Stap voor stap een nieuw event
 
-1. **Kies de categorie** (`speler` / `uur` / `wereld`) — dit bepaalt ook met
-   welke test-inject je het straks forceert.
+1. **Kies de categorie** (`speler` / `uur` / `wereld`) — dit bepaalt in welke
+   `[CONFIG] <categorie>-events`-inject je het event zet.
 2. **Schrijf `naam` en `tekst`** — de tekst is wat de spelers horen.
 3. **Bepaal het doelwit** — wie of wat raakt het? Kies `type` en `selectie`
    (rang voor "de hoogste/laagste", willekeurig voor toeval, alle voor iedereen).
 4. **Koppel één of meer gevolgen** — commando (LED/buzzer), score (levensuren),
    en/of effect (blijvend).
-5. **Zet `reactietijd_s`** — hoeveel rust krijgen de spelers erna?
-6. **Voeg het object toe** aan de array in `[CONFIG] POF events` (flow 06) en
-   deploy. Test met de bijbehorende `[TEST] <categorie>-event`-inject.
+5. **Zet `reactietijd_s`** — hoeveel reactietijd krijgen de spelers?
+6. **Voeg het object toe** aan de juiste `[CONFIG] <categorie>-events`-inject
+   (flow 06) en deploy.
+
+## De ronde-cyclus (engine)
+
+Per event doorloopt de engine (zie flow 06) deze fasen, zichtbaar op de
+Bediening-pagina:
+
+1. **Aanloop** — 5 s countdown ("Volgend event over: Ns"). In manueel-modus
+   wacht de engine in plaats daarvan op de knop **Volgende event**.
+2. **Event gekozen** — als het event een `getal` heeft, wordt dat nu gerold en
+   `x` in de tekst ingevuld (eenmalig).
+3. **Voorlezen** — de (ingevulde) tekst gaat naar `audio/afspelen` en de
+   getroffen spelers/uren worden bepaald en voorgelezen.
+4. **Reactietijd** — `reactietijd_s` countdown waarin spelers bewegen.
+5. **Controle** — als `voorwaarde` gezet is, wordt elke speler gecontroleerd
+   (zie hierboven) en het resultaat getoond in de tabel **Controle**.
 
 ## Voorbeelden
+
+### Beweging-event (min/max, getal, controle)
+
+```js
+{ id:"verplaatsing1", naam:"verplaatsingMin", categorie:"speler",
+  tekst:"Minimum x uur vooruit.", reactietijd_s:15,
+  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
+  getal:"midden", voorwaarde:"min", gevolgen:[{ type:"geen" }] }
+```
+De engine kiest 1–3 spelers (`aantal:"laag"`), rolt een getal 4–6 (`getal:"midden"`)
+in plaats van `x`, en controleert na 15 s of die spelers minstens dat aantal palen
+vooruit zijn. Niet-gekozen spelers moeten stil blijven.
 
 ### Speler-event (rang + score)
 
@@ -113,7 +182,7 @@ loopt daarna vanzelf af. Het wordt opgeslagen in een van drie registers:
   id: "kosmische_gift", naam: "Kosmische gift", categorie: "speler",
   tekst: "Een gulle ster schenkt de speler met de minste levensuren een gift.",
   reactietijd_s: 15,
-  doelwit: { type: "speler", selectie: "rang", veld: "levensuren", richting: "laagste", aantal: 1 },
+  doelwit: { type: "speler", selectie: "rang", veld: "levensuren", richting: "laagste", aantal: "enkel" },
   gevolgen: [ { type: "score", delta: 3 } ]
 }
 ```

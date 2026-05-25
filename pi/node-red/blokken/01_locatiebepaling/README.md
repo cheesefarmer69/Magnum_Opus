@@ -42,9 +42,9 @@ signaal op. De flow bepaalt de actieve paal zo:
 
 | Constante       | Standaard | Betekenis                                            |
 |-----------------|-----------|------------------------------------------------------|
-| `VENSTER_MS`    | 4000      | leeftijd waarna een RSSI-sample vervalt              |
-| `MAX_SAMPLES`   | 6         | max bewaarde samples per paal                        |
-| `HYSTERESE_DBM` | 4         | drempel (dBm) om naar een sterkere paal te wisselen  |
+| `VENSTER_MS`    | 5500      | leeftijd waarna een RSSI-sample vervalt              |
+| `MAX_SAMPLES`   | 65        | max bewaarde samples per paal                        |
+| `HYSTERESE_DBM` | 25        | drempel (dBm) om naar een sterkere paal te wisselen  |
 | `MIN_SAMPLES`   | 1         | min. recente samples voordat een paal kandidaat is   |
 
 > **Waarom dit het "speler kleeft aan verkeerde paal"-probleem oplost:** de

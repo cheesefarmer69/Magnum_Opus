@@ -8,7 +8,11 @@ speler-specifieke spelinformatie.
 
 ## De regels (uit `docs/spel.md`)
 
-Het speelveld is een 24-hoekige klok: elke paal stelt één uur voor.
+Het speelveld is een **cirkel** van palen. De beweging wordt gemeten op de ring
+van **aanwezige** palen (`global.paaltjesLijst`, gesorteerd): van de hoogste naar
+de laagste aanwezige paal is daardoor **1 stap vooruit** (de cirkel sluit), niet
+een grote sprong achteruit. Met alle 24 palen aanwezig komt dit overeen met de
+24-uurs klok; tijdens het testen met bv. palen 1-2-3 vormen die drie de hele ring.
 
 - Elk uur dat een speler **vooruit in de tijd** (met de klok mee) reist
   levert **+1 levensuur** op.
