@@ -39,7 +39,7 @@ CRGB leds[NUM_LEDS];
 // piezo is het luidst rond zijn resonantiefrequentie (typisch 2-4 kHz). 1000 Hz
 // is ver onder resonantie -> stil. Zet dit op de resonantiefrequentie uit het
 // datasheet van jouw buzzer voor maximaal volume.
-const int BUZZER_FREQ = 2060;   // Hz
+const int BUZZER_FREQ = 2060;   // Hz — continue toon (ACTIE_BUZZER_AAN)
 volatile bool buzzerActief = false;
 
 // ====================================================================
@@ -69,11 +69,129 @@ bool vorigeLaserStatus = false;
 // ====================================================================
 // ACTION IDs
 // ====================================================================
-const uint8_t ACTIE_NIETS       = 0;
-const uint8_t ACTIE_ROOD        = 1;
-const uint8_t ACTIE_GROEN       = 2;
-const uint8_t ACTIE_BUZZER_AAN  = 3;
-const uint8_t ACTIE_BUZZER_UIT  = 4;
+//
+// ID  | Constante                  | Type      | Beschrijving
+// ----|----------------------------|-----------|-----------------------------------
+//  0  | ACTIE_NIETS               | stop      | Alles uit, MOSFET laag
+//  1  | ACTIE_ROOD                | kleur     | Alle 7 LEDs rood
+//  2  | ACTIE_GROEN               | kleur     | Alle 7 LEDs groen
+//  3  | ACTIE_BUZZER_AAN          | buzzer    | Continue toon 2060 Hz
+//  4  | ACTIE_BUZZER_UIT          | buzzer    | Buzzer uit
+//  5  | ACTIE_BLAUW               | kleur     | Alle 7 LEDs blauw
+//  6  | ACTIE_WIT                 | kleur     | Alle 7 LEDs wit
+//  7  | ACTIE_GEEL                | kleur     | Alle 7 LEDs geel
+//  8  | ACTIE_PAARS               | kleur     | Alle 7 LEDs paars
+//  9  | ACTIE_CYAAN               | kleur     | Alle 7 LEDs cyaan
+// 10  | ACTIE_ORANJE              | kleur     | Alle 7 LEDs oranje
+// 11  | ACTIE_KNIPPEREN_SNEL      | animatie  | Wit aan/uit, 4 Hz
+// 12  | ACTIE_KNIPPEREN_TRAAG     | animatie  | Wit aan/uit, 1 Hz
+// 13  | ACTIE_PULSEREN_ROOD       | animatie  | Rood breathing, 0-255-0, ~2s cyclus
+// 14  | ACTIE_PULSEREN_BLAUW      | animatie  | Blauw breathing, 0-255-0, ~2s cyclus
+// 15  | ACTIE_REGENBOOG           | animatie  | Hue rotatie, alle LEDs zelfde kleur, 3s
+// 16  | ACTIE_POLITIE             | animatie  | Links rood / rechts blauw, afwisselend 8 Hz
+// 17  | ACTIE_MELODIE_EEN_PIEP    | melodie   | 1x 1000 Hz, 200 ms
+// 18  | ACTIE_MELODIE_TWEE_PIEP   | melodie   | 2x 1000 Hz, 100 ms aan / 100 ms pauze
+// 19  | ACTIE_MELODIE_OPLOPEND    | melodie   | 3 noten oplopend: 500-750-1000 Hz, 150 ms elk
+// 20  | ACTIE_MELODIE_AFLOPEND    | melodie   | 3 noten aflopend: 1000-750-500 Hz, 150 ms elk
+// 21  | ACTIE_MELODIE_ALARM       | melodie   | 5x afwisselend 400/800 Hz, 100 ms per noot
+// 22  | ACTIE_MELODIE_FANFARE     | melodie   | C4-E4-G4-E4-C4, 120 ms per noot
+//
+const uint8_t ACTIE_NIETS             =  0;
+const uint8_t ACTIE_ROOD              =  1;
+const uint8_t ACTIE_GROEN             =  2;
+const uint8_t ACTIE_BUZZER_AAN        =  3;
+const uint8_t ACTIE_BUZZER_UIT        =  4;
+const uint8_t ACTIE_BLAUW             =  5;
+const uint8_t ACTIE_WIT               =  6;
+const uint8_t ACTIE_GEEL              =  7;
+const uint8_t ACTIE_PAARS             =  8;
+const uint8_t ACTIE_CYAAN             =  9;
+const uint8_t ACTIE_ORANJE            = 10;
+const uint8_t ACTIE_KNIPPEREN_SNEL    = 11;
+const uint8_t ACTIE_KNIPPEREN_TRAAG   = 12;
+const uint8_t ACTIE_PULSEREN_ROOD     = 13;
+const uint8_t ACTIE_PULSEREN_BLAUW    = 14;
+const uint8_t ACTIE_REGENBOOG         = 15;
+const uint8_t ACTIE_POLITIE           = 16;
+const uint8_t ACTIE_MELODIE_EEN_PIEP  = 17;
+const uint8_t ACTIE_MELODIE_TWEE_PIEP = 18;
+const uint8_t ACTIE_MELODIE_OPLOPEND  = 19;
+const uint8_t ACTIE_MELODIE_AFLOPEND  = 20;
+const uint8_t ACTIE_MELODIE_ALARM     = 21;
+const uint8_t ACTIE_MELODIE_FANFARE   = 22;
+
+// ====================================================================
+// ANIMATIE STATE
+// ====================================================================
+// type = 0 betekent geen actieve animatie. De animatietaak doet niets.
+// Tijdsberekening op basis van millis() — geen stap-teller nodig.
+struct AnimatieState {
+    uint8_t type;   // 0 = inactief, anders het actie-ID
+};
+AnimatieState animatie = {0};
+
+// ====================================================================
+// MELODIE STATE + NOTEN TABELLEN
+// ====================================================================
+struct Noot {
+    uint16_t freq;   // Hz; 0 = pauze (noTone)
+    uint16_t duur;   // ms; freq=0 EN duur=0 markeren het einde
+};
+
+// Einde-markering: {0, 0}
+static const Noot MELODIE_EEN_PIEP[] = {
+    {1000, 200},
+    {   0,   0}
+};
+static const Noot MELODIE_TWEE_PIEP[] = {
+    {1000, 100},
+    {   0, 100},
+    {1000, 100},
+    {   0,   0}
+};
+static const Noot MELODIE_OPLOPEND[] = {
+    { 500, 150},
+    { 750, 150},
+    {1000, 150},
+    {   0,   0}
+};
+static const Noot MELODIE_AFLOPEND[] = {
+    {1000, 150},
+    { 750, 150},
+    { 500, 150},
+    {   0,   0}
+};
+static const Noot MELODIE_ALARM[] = {
+    { 400, 100}, {800, 100},
+    { 400, 100}, {800, 100},
+    { 400, 100}, {800, 100},
+    { 400, 100}, {800, 100},
+    { 400, 100}, {800, 100},
+    {   0,   0}
+};
+// C4=523 E4=659 G4=784
+static const Noot MELODIE_FANFARE[] = {
+    {523, 120},
+    {659, 120},
+    {784, 120},
+    {659, 120},
+    {523, 120},
+    {  0,   0}
+};
+
+struct MelodieState {
+    uint8_t       type;     // 0 = inactief
+    uint8_t       noot;     // huidige noot-index
+    unsigned long startMs;  // millis() bij start huidige noot
+};
+MelodieState melodie = {0, 0, 0};
+
+// ====================================================================
+// FREERTOS MUTEX — beschermt FastLED.show() aanroepen
+// ====================================================================
+// Animatietaak en voerActieUit() schrijven allebei naar de LED-strip.
+// De mutex zorgt dat ze niet tegelijk FastLED.show() aanroepen.
+SemaphoreHandle_t xLedMutex = NULL;
 
 // ====================================================================
 // WHITELIST
@@ -256,48 +374,232 @@ void checkLichtSensor() {
 }
 
 // ====================================================================
-// ACTIE UITVOEREN
+// LED ANIMATIES (aanroepen vanuit animatieTask met mutex genomen)
 // ====================================================================
-void voerActieUit(uint8_t actie) {
-  switch (actie) {
-    case ACTIE_ROOD:
-      Serial.println("[ACTIE] LED strip ROOD");
-      digitalWrite(MOSFET_PIN, HIGH);
-      delay(5);
-      fill_solid(leds, NUM_LEDS, CRGB::Red);
+// Alle berekeningen zijn tijdsgebaseerd via millis(). Er is geen stap-teller
+// nodig — de juiste frame volgt direct uit de absolute tijdspositie in de cyclus.
+// FastLED.show() mag ALLEEN worden aangeroepen vanuit code die de xLedMutex
+// houdt of vanuit setup() (voor de taak gestart is).
+void updateAnimatie() {
+  if (animatie.type == 0) return;
+
+  switch (animatie.type) {
+
+    case ACTIE_KNIPPEREN_SNEL: {
+      // 4 Hz = 250 ms periode, 125 ms halve periode
+      bool aan = (millis() % 250) < 125;
+      fill_solid(leds, NUM_LEDS, aan ? CRGB::White : CRGB::Black);
       FastLED.show();
       break;
+    }
 
-    case ACTIE_GROEN:
-      Serial.println("[ACTIE] LED strip GROEN");
-      digitalWrite(MOSFET_PIN, HIGH);
-      delay(5);
-      fill_solid(leds, NUM_LEDS, CRGB::Green);
+    case ACTIE_KNIPPEREN_TRAAG: {
+      // 1 Hz = 1000 ms periode, 500 ms halve periode
+      bool aan = (millis() % 1000) < 500;
+      fill_solid(leds, NUM_LEDS, aan ? CRGB::White : CRGB::Black);
       FastLED.show();
       break;
+    }
 
-    case ACTIE_NIETS:
-      Serial.println("[ACTIE] LEDs uit");
-      fill_solid(leds, NUM_LEDS, CRGB::Black);
+    case ACTIE_PULSEREN_ROOD: {
+      // Lineaire breathing: helderheid 0->255->0 in 2 s
+      const uint16_t PERIODE_MS = 2000;
+      uint16_t pos = (uint16_t)(millis() % PERIODE_MS);
+      uint8_t bri = (pos < PERIODE_MS / 2)
+                    ? (uint8_t)((pos * 255UL) / (PERIODE_MS / 2))
+                    : (uint8_t)(((PERIODE_MS - pos) * 255UL) / (PERIODE_MS / 2));
+      fill_solid(leds, NUM_LEDS, CRGB(bri, 0, 0));
       FastLED.show();
-      delay(5);
-      digitalWrite(MOSFET_PIN, LOW);
       break;
+    }
 
-    case ACTIE_BUZZER_AAN:
-      Serial.println("[ACTIE] Buzzer AAN");
-      buzzerActief = true;
-      tone(BUZZER_PIN, BUZZER_FREQ);
+    case ACTIE_PULSEREN_BLAUW: {
+      const uint16_t PERIODE_MS = 2000;
+      uint16_t pos = (uint16_t)(millis() % PERIODE_MS);
+      uint8_t bri = (pos < PERIODE_MS / 2)
+                    ? (uint8_t)((pos * 255UL) / (PERIODE_MS / 2))
+                    : (uint8_t)(((PERIODE_MS - pos) * 255UL) / (PERIODE_MS / 2));
+      fill_solid(leds, NUM_LEDS, CRGB(0, 0, bri));
+      FastLED.show();
       break;
+    }
 
-    case ACTIE_BUZZER_UIT:
-      Serial.println("[ACTIE] Buzzer UIT");
-      buzzerActief = false;
-      noTone(BUZZER_PIN);
+    case ACTIE_REGENBOOG: {
+      // Hue roteert 0-255 in 3 s, alle LEDs zelfde kleur
+      const uint16_t PERIODE_MS = 3000;
+      uint8_t hue = (uint8_t)((millis() % PERIODE_MS) * 256UL / PERIODE_MS);
+      fill_solid(leds, NUM_LEDS, CHSV(hue, 255, 255));
+      FastLED.show();
       break;
+    }
+
+    case ACTIE_POLITIE: {
+      // 8 Hz = 125 ms periode, 62 ms halve periode
+      // Fase 0: LEDs 0-2 rood, LED 3 uit, LEDs 4-6 blauw
+      // Fase 1: LEDs 0-2 blauw, LED 3 uit, LEDs 4-6 rood
+      bool fase = (millis() % 125) < 62;
+      for (int i = 0; i < NUM_LEDS; i++) {
+        if (i < 3)      leds[i] = fase ? CRGB::Red  : CRGB::Blue;
+        else if (i > 3) leds[i] = fase ? CRGB::Blue : CRGB::Red;
+        else            leds[i] = CRGB::Black;
+      }
+      FastLED.show();
+      break;
+    }
 
     default:
       break;
+  }
+}
+
+// ====================================================================
+// ANIMATIE TAAK (FreeRTOS, ~33 FPS)
+// ====================================================================
+void animatieTask(void *pvParameters) {
+  while (true) {
+    if (xSemaphoreTake(xLedMutex, portMAX_DELAY)) {
+      updateAnimatie();
+      xSemaphoreGive(xLedMutex);
+    }
+    vTaskDelay(pdMS_TO_TICKS(30));
+  }
+}
+
+// ====================================================================
+// MELODIE SPELER (aanroepen vanuit wacht-loop, niet ISR-veilig)
+// ====================================================================
+// tone() is interrupt-gestuurd: de toon speelt door ook tijdens BLE-scan.
+// updateMelodie() hoeft alleen de nootovergangen bij te houden.
+// Roep het aan vanuit de wacht-loop (elke ~1 ms) en op andere geschikte punten.
+static const Noot* getMelodieSequentie(uint8_t type) {
+  switch (type) {
+    case ACTIE_MELODIE_EEN_PIEP:   return MELODIE_EEN_PIEP;
+    case ACTIE_MELODIE_TWEE_PIEP:  return MELODIE_TWEE_PIEP;
+    case ACTIE_MELODIE_OPLOPEND:   return MELODIE_OPLOPEND;
+    case ACTIE_MELODIE_AFLOPEND:   return MELODIE_AFLOPEND;
+    case ACTIE_MELODIE_ALARM:      return MELODIE_ALARM;
+    case ACTIE_MELODIE_FANFARE:    return MELODIE_FANFARE;
+    default:                        return nullptr;
+  }
+}
+
+void updateMelodie() {
+  if (melodie.type == 0) return;
+
+  const Noot* seq = getMelodieSequentie(melodie.type);
+  if (!seq) { melodie.type = 0; noTone(BUZZER_PIN); return; }
+
+  // Huidige noot klaar?
+  if (millis() - melodie.startMs < seq[melodie.noot].duur) return;
+
+  // Volgende noot
+  melodie.noot++;
+  const Noot& n = seq[melodie.noot];
+
+  // Einde-markering: freq=0 EN duur=0
+  if (n.freq == 0 && n.duur == 0) {
+    melodie.type = 0;
+    noTone(BUZZER_PIN);
+    return;
+  }
+
+  melodie.startMs = millis();
+  if (n.freq == 0) {
+    noTone(BUZZER_PIN);   // pauze-noot
+  } else {
+    tone(BUZZER_PIN, n.freq);
+  }
+}
+
+// ====================================================================
+// ACTIE UITVOEREN
+// ====================================================================
+// Vaste kleuren en ACTIE_NIETS: neem mutex, teken direct, geef mutex.
+// Animaties: sla type op; updateAnimatie() in de taak doet de rest.
+// Melodieën: start eerste noot direct; updateMelodie() doet de rest.
+void voerActieUit(uint8_t actie) {
+
+  // --- Vaste kleuren (0, 1, 2, 5-10) -----------------------------------
+  if (actie == ACTIE_NIETS ||
+      actie == ACTIE_ROOD || actie == ACTIE_GROEN ||
+      (actie >= ACTIE_BLAUW && actie <= ACTIE_ORANJE)) {
+
+    animatie.type = 0;   // stop lopende animatie
+
+    CRGB kleur;
+    switch (actie) {
+      case ACTIE_NIETS:   kleur = CRGB::Black;                 break;
+      case ACTIE_ROOD:    kleur = CRGB::Red;                   break;
+      case ACTIE_GROEN:   kleur = CRGB::Green;                 break;
+      case ACTIE_BLAUW:   kleur = CRGB::Blue;                  break;
+      case ACTIE_WIT:     kleur = CRGB::White;                 break;
+      case ACTIE_GEEL:    kleur = CRGB(255, 200, 0);           break;
+      case ACTIE_PAARS:   kleur = CRGB(128, 0, 255);           break;
+      case ACTIE_CYAAN:   kleur = CRGB::Cyan;                  break;
+      case ACTIE_ORANJE:  kleur = CRGB(255, 80, 0);            break;
+      default:            kleur = CRGB::Black;                 break;
+    }
+
+    Serial.printf("[ACTIE] LED kleur %d\n", actie);
+
+    if (actie == ACTIE_NIETS) {
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
+        FastLED.show();
+        xSemaphoreGive(xLedMutex);
+      }
+      delay(5);
+      digitalWrite(MOSFET_PIN, LOW);
+    } else {
+      digitalWrite(MOSFET_PIN, HIGH);
+      delay(5);   // wacht op stabiele voedingsspanning voor WS2812B
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
+        fill_solid(leds, NUM_LEDS, kleur);
+        FastLED.show();
+        xSemaphoreGive(xLedMutex);
+      }
+    }
+    return;
+  }
+
+  // --- Animaties (11-16) -----------------------------------------------
+  if (actie >= ACTIE_KNIPPEREN_SNEL && actie <= ACTIE_POLITIE) {
+    Serial.printf("[ACTIE] Animatie %d gestart\n", actie);
+    digitalWrite(MOSFET_PIN, HIGH);
+    delay(5);
+    animatie.type = actie;   // animatieTask pakt dit op
+    return;
+  }
+
+  // --- Buzzer (3-4) ----------------------------------------------------
+  if (actie == ACTIE_BUZZER_AAN) {
+    Serial.println("[ACTIE] Buzzer AAN");
+    buzzerActief = true;
+    tone(BUZZER_PIN, BUZZER_FREQ);
+    return;
+  }
+  if (actie == ACTIE_BUZZER_UIT) {
+    Serial.println("[ACTIE] Buzzer UIT");
+    buzzerActief = false;
+    noTone(BUZZER_PIN);
+    return;
+  }
+
+  // --- Melodieën (17-22) -----------------------------------------------
+  if (actie >= ACTIE_MELODIE_EEN_PIEP && actie <= ACTIE_MELODIE_FANFARE) {
+    const Noot* seq = getMelodieSequentie(actie);
+    if (!seq) return;
+
+    Serial.printf("[ACTIE] Melodie %d gestart\n", actie);
+    melodie.type    = actie;
+    melodie.noot    = 0;
+    melodie.startMs = millis();
+
+    // Eerste noot direct starten
+    if (seq[0].freq > 0) {
+      tone(BUZZER_PIN, seq[0].freq);
+    }
+    return;
   }
 }
 
@@ -393,6 +695,11 @@ void setup() {
     masterAddress[0], masterAddress[1], masterAddress[2],
     masterAddress[3], masterAddress[4], masterAddress[5]);
 
+  // FreeRTOS mutex aanmaken en animatietaak starten
+  xLedMutex = xSemaphoreCreateMutex();
+  xTaskCreate(animatieTask, "anim", 2048, NULL, 1, NULL);
+  Serial.println("[SETUP] Animatietaak gestart");
+
   Serial.println("=== Slave klaar, Paal ID: " + String(PAAL_ID) + " ===");
 }
 
@@ -400,8 +707,7 @@ void setup() {
 // LOOP
 // ====================================================================
 void loop() {
-  // Monitor sensoren (niet-blokkerend)
- 
+  updateMelodie();   // nootovergangen bijhouden voor BLE-scan start
 
   batchData.paal_id = PAAL_ID;
   batchData.aantalGevonden = 0;
@@ -414,6 +720,8 @@ void loop() {
   BLEScanResults results = pBLEScan->start(SCAN_DUUR_S, false);
   pBLEScan->clearResults();
   delay(20);
+
+  updateMelodie();   // inhaal na BLE-scan (max ~1 s vertraging op nootovergang)
 
   Serial.printf("[SCAN] Klaar, %d whitelisted gevonden (batt %.2fV)\n",
                 batchData.aantalGevonden, batchData.batterij_v);
@@ -442,6 +750,7 @@ void loop() {
   while (!commandoOntvangen && (millis() - startWacht < WACHT_TIMEOUT)) {
     checkBatterij();
     checkLichtSensor();
+    updateMelodie();
     delay(1);
   }
 
