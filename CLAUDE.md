@@ -23,11 +23,15 @@ de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
                                                                               ^                         |
                                                                               |                         |
                                                                               +-------MQTT--------------+
+                                                                              ^
+                                                              [pi/simulator/ — browser, MQTT-over-WS poort 9001]
 ```
 
 - **Slaves**: één per paal, scannen BLE-beacons van spelers en uitvoeren commando's
 - **Master**: ontvangt batches van alle slaves via ESP-NOW, communiceert seriëel met Pi
 - **Pi**: vertaalt seriëel ↔ MQTT, draait Node-RED voor spellogica en MQTT-broker
+- **Simulator** (`pi/simulator/`): browser-app, verbindt via MQTT-over-WebSocket (poort 9001).
+  Monitor-modus: passief meekijken. Simulatie-modus: publiceert `plaatjes/data` als hardware-vervanger.
 
 ## Hardware
 
@@ -113,6 +117,7 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 - `esp_now_peer_info_t` als static declareren in setup om stack-corruption te vermijden.
 - Container `serial-bridge` draait in `--network host` mode. Andere containers (Node-RED) in default bridge mode.
 - Docker image tags zijn nog `latest` voor Mosquitto en Node-RED. Aandachtspunt: pin naar specifieke versies wanneer projecten stabiel zijn.
+- Mosquitto WebSocket-listener op poort 9001 vereist `log_dest stdout` in `config/mqtt/mosquitto.conf`. Bij `log_dest file ...` crasht de container omdat `/mosquitto/log/` niet bestaat in het Docker-image.
 
 
 ## Voor Claude Code — werkstijl

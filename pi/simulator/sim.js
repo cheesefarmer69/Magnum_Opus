@@ -23,9 +23,10 @@ const HOEK_PER_PAAL = (2 * Math.PI) / AANTAL_PALEN;  // 15° in radialen
 const M_TO_PX = 22;  // 11.50 m * 22 = 253 px straal -> past binnen 300 marge
 
 function paalPositie(n) {
-    // Paal 1 staat op hoek 0 (rechts); paal 7 onderaan, 13 links, 19 boven.
+    // Paal n staat op het MIDDEN van de n-de buitenzijde (niet op een hoekpunt).
+    // De hoek is (n - 0.5) × 15°: halverwege tussen hoekpunt n-1 en hoekpunt n.
     // Index 0 ongebruikt zodat paal_id 1..24 rechtstreeks aansluit.
-    const hoek = (n - 1) * HOEK_PER_PAAL;
+    const hoek = (n - 0.5) * HOEK_PER_PAAL;
     return { x: R_BUITEN_M * Math.cos(hoek), y: R_BUITEN_M * Math.sin(hoek) };
 }
 
@@ -55,7 +56,7 @@ const ACTIE_NAAM = {
     20: "MEL_AFLOPEND",21: "MEL_ALARM", 22: "MEL_FANFARE"
 };
 const SOLID_KLEUR = {
-    0: "#000000", 1: "#ff0000", 2: "#00ff00", 5: "#0000ff", 6: "#ffffff",
+    0: "#cccccc", 1: "#ff0000", 2: "#00ff00", 5: "#0000ff", 6: "#dddddd",
     7: "#ffff00", 8: "#9c27b0", 9: "#00ffff", 10: "#ff9800"
 };
 
@@ -201,11 +202,11 @@ function tekenVeld() {
         spaken.appendChild(line);
     }
 
-    // Paaltjes (op de hoekpunten van de buitenpolygoon — wij hebben gekozen voor "paal n = hoekpunt n-1"
-    // zodat paal_id 1..24 een eenduidige plek heeft op het veld)
+    // Paaltjes op het midden van elke buitenzijde (paal_id 1..24 direct bruikbaar)
     for (let n = 1; n <= AANTAL_PALEN; n++) {
         const p = paalPositie(n);
         const px = p.x * M_TO_PX, py = p.y * M_TO_PX;
+        const paalHoek = Math.atan2(p.y, p.x);  // radiale richting centrum→paal
 
         const r = document.createElementNS(NS, "rect");
         r.setAttribute("x", px - 3); r.setAttribute("y", py - 3);
@@ -218,10 +219,10 @@ function tekenVeld() {
         });
         paaltjes.appendChild(r);
 
-        // LED-bolletje een eindje buiten de paal
+        // LED-bolletje een eindje buiten de paal (radiaal naar buiten)
         const ledOffset = 1.25;  // 1.25 m verder dan de paal naar buiten
-        const lx = (p.x + Math.cos((n - 1) * HOEK_PER_PAAL) * ledOffset) * M_TO_PX;
-        const ly = (p.y + Math.sin((n - 1) * HOEK_PER_PAAL) * ledOffset) * M_TO_PX;
+        const lx = (p.x + Math.cos(paalHoek) * ledOffset) * M_TO_PX;
+        const ly = (p.y + Math.sin(paalHoek) * ledOffset) * M_TO_PX;
         const led = document.createElementNS(NS, "circle");
         led.setAttribute("cx", lx); led.setAttribute("cy", ly);
         led.setAttribute("r", 2.5);
@@ -229,11 +230,11 @@ function tekenVeld() {
         led.id = "led-paal-" + n;
         ledBolletjes.appendChild(led);
 
-        // Label
+        // Label net binnen de paal (radiaal naar binnen)
         const lbl = document.createElementNS(NS, "text");
-        const lblOffset = 2.5;  // labels net binnen de paalpositie
-        lbl.setAttribute("x", (p.x - Math.cos((n - 1) * HOEK_PER_PAAL) * lblOffset) * M_TO_PX);
-        lbl.setAttribute("y", (p.y - Math.sin((n - 1) * HOEK_PER_PAAL) * lblOffset) * M_TO_PX + 1.5);
+        const lblOffset = 2.5;
+        lbl.setAttribute("x", (p.x - Math.cos(paalHoek) * lblOffset) * M_TO_PX);
+        lbl.setAttribute("y", (p.y - Math.sin(paalHoek) * lblOffset) * M_TO_PX + 1.5);
         lbl.setAttribute("class", "paal-label");
         lbl.textContent = n;
         paalLabels.appendChild(lbl);
@@ -253,10 +254,10 @@ function renderLeds() {
             // Solid kleur (0,1,2,5-10)
             led.style.fill = SOLID_KLEUR[actie];
         } else if (actie === 3) {
-            // BUZZER_AAN: kleur niet veranderd, maar markeer
-            led.style.fill = "#444";
+            // BUZZER_AAN: geel bolletje als indicator
+            led.style.fill = "#ffeb3b";
         } else if (actie === 4) {
-            led.style.fill = "#444";
+            led.style.fill = "#cccccc";
         } else if (actie >= 11 && actie <= 16) {
             // Animaties via CSS-class
             led.setAttribute("class", "led actie-" + actie);
@@ -264,7 +265,7 @@ function renderLeds() {
             // Melodieën: korte flash (laatste 1.5s na commando)
             const sinceMs = Date.now() - state.paalLaatsteCmd[n];
             if (sinceMs < 1500) led.setAttribute("class", "led melodie-flash");
-            led.style.fill = "#444";
+            led.style.fill = "#cccccc";
         }
     }
 }

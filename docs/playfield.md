@@ -79,17 +79,31 @@ per segment.
 
 ### Hoekpositie per paal
 
-Paal *n* (met *n* = 0 … 23) staat op hoek `θ = n × 15°` rond het middelpunt.
-Cartesische positie t.o.v. het middelpunt (radius R = 11.50 m):
+Palen staan op het **midden van elke buitenzijde**, niet op de hoekpunten van
+de polygoon. Paal *n* (met *n* = 1 … 24) staat halverwege de *n*-de zijde,
+op hoek:
 
 ```
-x_n = R · cos(n · 15°)
-y_n = R · sin(n · 15°)
+θ_n = (n − 0.5) × 15°
 ```
+
+Cartesische positie t.o.v. het middelpunt (R = 11.50 m, apothem van de
+buitenpolygoon):
+
+```
+x_n = R · cos(θ_n)
+y_n = R · sin(θ_n)
+```
+
+De **hoekpunten** van de buitenpolygoon (waar spaken en ribbetjes samenkomen)
+staan op hoek `k × 15°` (met k = 0 … 23) en op straal
+R_hoekpunt = R / cos(7.5°) ≈ 11.57 m. Het verschil is klein (0.6%) maar
+geometrisch relevant: palen zitten nooit op een spaak.
 
 Dit geeft een vaste, voorspelbare mapping tussen een paal-index en zijn fysieke
 locatie, bruikbaar voor afstandsberekeningen, buur-detectie en
-spelmechanieken.
+spelmechanieken. De simulator (`pi/simulator/sim.js`) gebruikt dezelfde
+formule in `paalPositie(n)`.
 
 ## Aannames / open punten
 
