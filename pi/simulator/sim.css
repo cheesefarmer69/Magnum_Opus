@@ -5,6 +5,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 header {
     display: flex; flex-wrap: wrap; gap: 1.5em; align-items: center;
     padding: 8px 16px; background: #f0f0f0; border-bottom: 1px solid #ccc;
+    position: sticky; top: 0; z-index: 100;
 }
 .hdr-group { display: flex; gap: 0.5em; align-items: center; }
 header input[type=text], header input[type=number] {
@@ -51,7 +52,7 @@ main { display: flex; flex: 1; min-height: 600px; }
 .spaak { stroke: #ff6200; stroke-width: 0.3; }
 .paal { fill: #ff6200; stroke: #cc4e00; stroke-width: 0.3; cursor: pointer; }
 .paal.geselecteerd { fill: #ffeb3b; }
-.paal-label { fill: #444; font-size: 4.5px; text-anchor: middle; pointer-events: none; }
+.paal-label { fill: #222; font-size: 6.5px; font-weight: bold; text-anchor: middle; pointer-events: none; }
 .led { stroke: #bbb; stroke-width: 0.3; }
 .speler { stroke: #333; stroke-width: 0.4; cursor: grab; }
 .speler.dragging { cursor: grabbing; }
@@ -77,3 +78,8 @@ main { display: flex; flex: 1; min-height: 600px; }
 
 /* Buzzer-symbool */
 .buzzer { fill: #cc7700; font-size: 4.5px; text-anchor: middle; pointer-events: none; }
+
+/* PoF event-paneel */
+.pof-paneel { background: #e8f4ff; border-radius: 6px; padding: 8px 10px; margin-top: 4px; }
+.pof-timer  { font-size: 2em; font-weight: bold; text-align: center; color: #0277bd; margin-bottom: 4px; }
+.pof-meta   { color: #333; padding: 2px 0; font-size: 0.85em; }

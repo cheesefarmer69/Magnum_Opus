@@ -479,7 +479,7 @@
         "type": "function",
         "z": "a1b2c3d4e5f60101",
         "name": "Evalueer spelstatus",
-        "func": "// === Spelstatus evaluatie ===\nconst nu = Date.now();\n\n// Instelbare drempels\nconst SPELER_TIMEOUT_MS = 15000;\nconst SLAVE_STALE_MS = 60000;\nconst GEEN_DATA_MS = 10000;\n\n// Bronnen\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst paaltjesLijst = global.get(\"paaltjesLijst\") || [];\nconst macSeen = global.get(\"status_lastSeenMac\") || {};\nconst paalSeen = global.get(\"status_lastSeenPaal\") || {};\nconst lastDataTs = global.get(\"status_lastDataTs\") || 0;\nconst batterijPaal = global.get(\"status_batterijPaal\") || {};\nconst toonBatterij = global.get(\"status_toonBatterij\") === true;\nconst override = global.get(\"status_override\") === true;\n\nlet fouten = [];\n\n// 1. SPELERS\nlet spelersTabel = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const t = macSeen[mac];\n    let status, ouderdom;\n    if (!t) {\n        status = \"NIET GEZIEN\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler nog niet gedetecteerd in het veld\" });\n    } else if (nu - t > SPELER_TIMEOUT_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VERLOREN\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler al \" + ouderdom + \" niet meer gezien\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    spelersTabel.push({ Speler: naam, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 2. SLAVES / PALEN\nlet palenTabel = [];\nfor (const paal of paaltjesLijst) {\n    const t = paalSeen[paal];\n    let status, ouderdom;\n    if (!t) {\n        status = \"GEEN CONTACT\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"FOUT\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave heeft nog geen data gestuurd\" });\n    } else if (nu - t > SLAVE_STALE_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VEROUDERD\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"WAARSCHUWING\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave al \" + ouderdom + \" stil\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    // Batterij-kolom: gevuld als toggle aan staat, anders \"-\"\n    let batterijTekst = \"-\";\n    if (toonBatterij) {\n        const b = batterijPaal[paal];\n        batterijTekst = (b && typeof b.volt === \"number\")\n            ? b.volt.toFixed(2) + \" V\"\n            : \"?\";\n    }\n    palenTabel.push({ Paal: paal, Status: status, \"Laatst gezien\": ouderdom, \"Batterij\": batterijTekst });\n}\n\n// 3. DATASTROOM\nif (lastDataTs === 0) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Nog geen enkel bericht ontvangen op plaatjes/data\" });\n} else if (nu - lastDataTs > GEEN_DATA_MS) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Al \" + Math.round((nu - lastDataTs) / 1000) + \"s geen data - controleer master/bridge\" });\n}\n\n// 4. ONBEKENDE BEACONS (informatief)\nfor (const mac in macSeen) {\n    if (!spelersLijst[mac] && (nu - macSeen[mac] < SPELER_TIMEOUT_MS)) {\n        fouten.push({ Code: \"ST-004\", Niveau: \"INFO\", Onderdeel: mac, Omschrijving: \"Onbekende beacon gedetecteerd (niet geregistreerd)\" });\n    }\n}\n\n// SAMENVATTING\nconst aantalFout = fouten.filter(f => f.Niveau === \"FOUT\").length;\nconst spelOk = aantalFout === 0 && spelersTabel.length > 0 && palenTabel.length > 0;\n\nglobal.set(\"status_ok\", spelOk);\nglobal.set(\"status_fouten\", fouten);\n\nlet statusTekst;\nif (spelOk) {\n    statusTekst = override\n        ? \"GO - spelstatus OK (override actief)\"\n        : \"GO - spelstatus OK, klaar om te starten\";\n} else if (override) {\n    statusTekst = \"NO-GO - \" + aantalFout + \" fout(en) - OVERRIDE actief, Start spel mogelijk\";\n} else {\n    statusTekst = \"NO-GO - \" + aantalFout + \" fout(en), zie foutcodes\";\n}\n\nconst foutenTabel = fouten.length > 0\n    ? fouten\n    : [{ Code: \"-\", Niveau: \"INFO\", Onderdeel: \"-\", Omschrijving: \"Geen fouten\" }];\n\nreturn [\n    { payload: spelersTabel },\n    { payload: palenTabel },\n    { payload: foutenTabel },\n    { payload: statusTekst }\n];",
+        "func": "// Spel gestopt: stop evaluatie en toon gestopt-status\nif (global.get(\"spelToestand\") === \"gestopt\") {\n    return [\n        { payload: [] },\n        { payload: [] },\n        { payload: [{ Code: \"-\", Niveau: \"INFO\", Onderdeel: \"-\", Omschrijving: \"Spel is gestopt\" }] },\n        { payload: \"GESTOPT — spel is beëindigd\" }\n    ];\n}\n// === Spelstatus evaluatie ===\nconst nu = Date.now();\n\n// Instelbare drempels\nconst SPELER_TIMEOUT_MS = 15000;\nconst SLAVE_STALE_MS = 60000;\nconst GEEN_DATA_MS = 10000;\n\n// Bronnen\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst paaltjesLijst = global.get(\"paaltjesLijst\") || [];\nconst macSeen = global.get(\"status_lastSeenMac\") || {};\nconst paalSeen = global.get(\"status_lastSeenPaal\") || {};\nconst lastDataTs = global.get(\"status_lastDataTs\") || 0;\nconst batterijPaal = global.get(\"status_batterijPaal\") || {};\nconst toonBatterij = global.get(\"status_toonBatterij\") === true;\nconst override = global.get(\"status_override\") === true;\n\nlet fouten = [];\n\n// 1. SPELERS\nlet spelersTabel = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const t = macSeen[mac];\n    let status, ouderdom;\n    if (!t) {\n        status = \"NIET GEZIEN\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler nog niet gedetecteerd in het veld\" });\n    } else if (nu - t > SPELER_TIMEOUT_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VERLOREN\";\n        fouten.push({ Code: \"ST-001\", Niveau: \"FOUT\", Onderdeel: naam, Omschrijving: \"Speler al \" + ouderdom + \" niet meer gezien\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    spelersTabel.push({ Speler: naam, Status: status, \"Laatst gezien\": ouderdom });\n}\n\n// 2. SLAVES / PALEN\nlet palenTabel = [];\nfor (const paal of paaltjesLijst) {\n    const t = paalSeen[paal];\n    let status, ouderdom;\n    if (!t) {\n        status = \"GEEN CONTACT\";\n        ouderdom = \"-\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"WAARSCHUWING\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave heeft nog geen data gestuurd\" });\n    } else if (nu - t > SLAVE_STALE_MS) {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"VEROUDERD\";\n        fouten.push({ Code: \"ST-002\", Niveau: \"WAARSCHUWING\", Onderdeel: \"Paal \" + paal, Omschrijving: \"Slave al \" + ouderdom + \" stil\" });\n    } else {\n        ouderdom = (nu - t > 300000) ? \">300s\" : Math.round((nu - t) / 1000) + \"s\";\n        status = \"OK\";\n    }\n    // Batterij-kolom: gevuld als toggle aan staat, anders \"-\"\n    let batterijTekst = \"-\";\n    if (toonBatterij) {\n        const b = batterijPaal[paal];\n        batterijTekst = (b && typeof b.volt === \"number\")\n            ? b.volt.toFixed(2) + \" V\"\n            : \"?\";\n    }\n    palenTabel.push({ Paal: paal, Status: status, \"Laatst gezien\": ouderdom, \"Batterij\": batterijTekst });\n}\n\n// 3. DATASTROOM\nif (lastDataTs === 0) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Nog geen enkel bericht ontvangen op plaatjes/data\" });\n} else if (nu - lastDataTs > GEEN_DATA_MS) {\n    fouten.push({ Code: \"ST-003\", Niveau: \"FOUT\", Onderdeel: \"Datastroom\", Omschrijving: \"Al \" + Math.round((nu - lastDataTs) / 1000) + \"s geen data - controleer master/bridge\" });\n}\n\n// 4. ONBEKENDE BEACONS (informatief)\nfor (const mac in macSeen) {\n    if (!spelersLijst[mac] && (nu - macSeen[mac] < SPELER_TIMEOUT_MS)) {\n        fouten.push({ Code: \"ST-004\", Niveau: \"INFO\", Onderdeel: mac, Omschrijving: \"Onbekende beacon gedetecteerd (niet geregistreerd)\" });\n    }\n}\n\n// SAMENVATTING\nconst aantalFout = fouten.filter(f => f.Niveau === \"FOUT\").length;\nconst spelOk = aantalFout === 0 && spelersTabel.length > 0 && palenTabel.length > 0;\n\nglobal.set(\"status_ok\", spelOk);\nglobal.set(\"status_fouten\", fouten);\n\nlet statusTekst;\nif (spelOk) {\n    statusTekst = override\n        ? \"GO - spelstatus OK (override actief)\"\n        : \"GO - spelstatus OK, klaar om te starten\";\n} else if (override) {\n    statusTekst = \"NO-GO - \" + aantalFout + \" fout(en) - OVERRIDE actief, Start spel mogelijk\";\n} else {\n    statusTekst = \"NO-GO - \" + aantalFout + \" fout(en), zie foutcodes\";\n}\n\nconst foutenTabel = fouten.length > 0\n    ? fouten\n    : [{ Code: \"-\", Niveau: \"INFO\", Onderdeel: \"-\", Omschrijving: \"Geen fouten\" }];\n\nreturn [\n    { payload: spelersTabel },\n    { payload: palenTabel },\n    { payload: foutenTabel },\n    { payload: statusTekst }\n];",
         "outputs": 4,
         "timeout": 0,
         "noerr": 0,
@@ -1347,7 +1347,7 @@
         "finalize": "",
         "libs": [],
         "x": 430,
-        "y": 60,
+        "y": 160,
         "wires": [
             []
         ]
@@ -1702,7 +1702,7 @@
         "payload": "false",
         "payloadType": "bool",
         "x": 220,
-        "y": 60,
+        "y": 160,
         "wires": [
             [
                 "c5a0000000000003"
@@ -1739,7 +1739,7 @@
         "payload": "[{\"id\": \"verplaatsing1\", \"naam\": \"verplaatsingMin\", \"tag\": \"\", \"categorie\": \"speler\", \"tekst\": \"Minimum x uur vooruit.\", \"reactietijd_s\": 15, \"doelwit\": {\"type\": \"speler\", \"selectie\": \"willekeurig\", \"aantal\": \"laag\"}, \"getal\": \"midden\", \"voorwaarde\": \"min\", \"gevolgen\": [{\"type\": \"geen\"}]}, {\"id\": \"verplaatsing2\", \"naam\": \"verplaatsingMax\", \"tag\": \"\", \"categorie\": \"speler\", \"tekst\": \"Maximum x uur.\", \"reactietijd_s\": 15, \"doelwit\": {\"type\": \"speler\", \"selectie\": \"willekeurig\", \"aantal\": \"laag\"}, \"getal\": \"midden\", \"voorwaarde\": \"max\", \"gevolgen\": [{\"type\": \"geen\"}]}]",
         "payloadType": "json",
         "x": 200,
-        "y": 80,
+        "y": 200,
         "wires": [
             [
                 "c6a0000000000003"
@@ -1752,7 +1752,7 @@
         "z": "c6a0000000000001",
         "name": "Sla pofEvents op (merge per categorie)",
         "x": 480,
-        "y": 80,
+        "y": 200,
         "wires": [
             []
         ],
@@ -3352,8 +3352,8 @@
         "type": "function",
         "z": "b3d1000000000001",
         "name": "Verwerk noodstop",
-        "func": "const bevestigd = global.get(\"stop_bevestigd\") === true;\nif (!bevestigd) {\n    msg.payload = \"GEBLOKKEERD - zet eerst 'Bevestig stop' aan (stap 1).\";\n    return [msg, null];\n}\nglobal.set(\"spelToestand\", \"gestopt\");\nglobal.set(\"pofActief\", false);\nglobal.set(\"pofFase\", \"idle\");\nglobal.set(\"stop_bevestigd\", false);\nmsg.payload = \"Spel GESTOPT. Levensuren en levensdagen blijven bewaard.\";\nreturn [msg, { payload: false }];",
-        "outputs": 2,
+        "func": "const bevestigd = global.get(\"stop_bevestigd\") === true;\nif (!bevestigd) {\n    msg.payload = \"GEBLOKKEERD - zet eerst 'Bevestig stop' aan (stap 1).\";\n    return [msg, null];\n}\nglobal.set(\"spelToestand\", \"gestopt\");\nglobal.set(\"pofActief\", false);\nglobal.set(\"pofFase\", \"idle\");\nglobal.set(\"stop_bevestigd\", false);\nmsg.payload = \"Spel GESTOPT. Levensuren en levensdagen blijven bewaard.\";\nreturn [msg, { payload: false }, { payload: \"Gestopt\" }];",
+        "outputs": 3,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -3363,7 +3363,8 @@
         "y": 460,
         "wires": [
             ["b3d1000000000015"],
-            ["b3d1000000000011"]
+            ["b3d1000000000011"],
+            ["b3d1000000000007"]
         ]
     },
     {
@@ -3412,5 +3413,56 @@
         "modules": {
             "@flowfuse/node-red-dashboard": "1.30.2"
         }
+    },
+    {
+        "id": "c6a000000000ff01",
+        "type": "inject",
+        "z": "c6a0000000000001",
+        "name": "pof/status ticker",
+        "props": [{ "p": "payload" }],
+        "repeat": "1",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 900,
+        "y": 400,
+        "wires": [["c6a000000000ff02"]]
+    },
+    {
+        "id": "c6a000000000ff02",
+        "type": "function",
+        "z": "c6a0000000000001",
+        "name": "Bouw pof/status",
+        "func": "const actief = global.get(\"pofActief\") === true;\nconst fase   = global.get(\"pofFase\") || \"idle\";\nconst event  = global.get(\"pofHuidigEvent\") || {};\nconst teller = global.get(\"pofTeller\") ?? null;\nconst maxT   = global.get(\"pofTellerMax\") ?? null;\nconst ver    = global.get(\"pofVerificatie\") || {};\n\nmsg.payload = {\n    actief,\n    fase,\n    eventNaam:   event.naam || \"\",\n    eventTekst:  event.tekstIngevuld || \"\",\n    doelwit:     ver.doelwit || [],\n    getalWaarde: event.getalWaarde ?? null,\n    teller,\n    maxTeller: maxT\n};\nmsg.topic = \"pof/status\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 400,
+        "wires": [["c6a000000000ff03"]]
+    },
+    {
+        "id": "c6a000000000ff03",
+        "type": "mqtt out",
+        "z": "c6a0000000000001",
+        "name": "pof/status",
+        "topic": "pof/status",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "0f3c274c3514a5f8",
+        "x": 1290,
+        "y": 400,
+        "wires": []
     }
 ]

@@ -141,6 +141,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
 | `audio/afspelen`   | Node-RED → box     | `{"tekst":"...","fase":"event","prioriteit":"normaal"}` |
+| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","doelwit":[],"getalWaarde":2,"teller":7,"maxTeller":10}` |
 
 ### MQTT-config in Node-RED
 

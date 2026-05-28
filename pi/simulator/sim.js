@@ -104,7 +104,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data"]);
+        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status"]);
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
     state.client.on("offline",   () => { state.verbonden = false; zetStatus("offline"); log("err", "Offline."); });
@@ -125,6 +125,23 @@ function verwerkBericht(topic, raw) {
         log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
+    } else if (topic === "pof/status") {
+        const el = document.getElementById("pof-paneel");
+        if (!el) return;
+        const timerEl = document.getElementById("pof-timer");
+        const naamEl  = document.getElementById("pof-event-naam");
+        const doelEl  = document.getElementById("pof-doelwit");
+        if (!data.actief || data.fase === "idle" || data.fase === "aanloop") {
+            timerEl.textContent = "—";
+            naamEl.textContent  = "";
+            doelEl.textContent  = "";
+        } else {
+            timerEl.textContent = (data.teller !== null && data.teller !== undefined) ? data.teller + "s" : "…";
+            const getal = (data.getalWaarde !== null && data.getalWaarde !== undefined) ? " (" + data.getalWaarde + ")" : "";
+            naamEl.textContent  = data.eventNaam ? "⚡ " + data.eventNaam + getal : (data.eventTekst || "");
+            const doel = Array.isArray(data.doelwit) ? data.doelwit.join(", ") : (data.doelwit || "");
+            doelEl.textContent  = doel ? "🎯 " + doel : "";
+        }
     } else if (topic === "plaatjes/data") {
         // Alleen tonen in monitor-modus (in sim-modus zijn we zelf de bron en zou loggen overkill zijn)
         if (state.modus === "monitor") {
@@ -225,16 +242,16 @@ function tekenVeld() {
         const ly = (p.y + Math.sin(paalHoek) * ledOffset) * M_TO_PX;
         const led = document.createElementNS(NS, "circle");
         led.setAttribute("cx", lx); led.setAttribute("cy", ly);
-        led.setAttribute("r", 2.5);
+        led.setAttribute("r", 4.5);
         led.setAttribute("class", "led");
         led.id = "led-paal-" + n;
         ledBolletjes.appendChild(led);
 
         // Label net binnen de paal (radiaal naar binnen)
         const lbl = document.createElementNS(NS, "text");
-        const lblOffset = 2.5;
+        const lblOffset = 1.0;
         lbl.setAttribute("x", (p.x - Math.cos(paalHoek) * lblOffset) * M_TO_PX);
-        lbl.setAttribute("y", (p.y - Math.sin(paalHoek) * lblOffset) * M_TO_PX + 1.5);
+        lbl.setAttribute("y", (p.y - Math.sin(paalHoek) * lblOffset) * M_TO_PX + 2);
         lbl.setAttribute("class", "paal-label");
         lbl.textContent = n;
         paalLabels.appendChild(lbl);
@@ -424,7 +441,7 @@ function zetStatus(s) {
 function laadDefaultSpelers() {
     state.spelers = DEFAULT_SPELERS.map((s, i) => {
         // Plaats op een halve ring zodat ze niet overlappen
-        const hoek = (i / DEFAULT_SPELERS.length) * 2 * Math.PI;
+        const hoek = ((i + 0.5) / DEFAULT_SPELERS.length) * 2 * Math.PI;
         const r = (R_BUITEN_M + R_BINNEN_M) / 2;
         return { naam: s.naam, mac: s.mac, kleur: s.kleur, x: r * Math.cos(hoek), y: r * Math.sin(hoek), auto: false, drag: false };
     });
@@ -432,7 +449,7 @@ function laadDefaultSpelers() {
 
 function resetPosities() {
     state.spelers.forEach((s, i) => {
-        const hoek = (i / state.spelers.length) * 2 * Math.PI;
+        const hoek = ((i + 0.5) / state.spelers.length) * 2 * Math.PI;
         const r = (R_BUITEN_M + R_BINNEN_M) / 2;
         s.x = r * Math.cos(hoek); s.y = r * Math.sin(hoek);
     });
