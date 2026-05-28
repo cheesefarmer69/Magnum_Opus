@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <title>Magnum Opus — Simulator</title>
+    <link rel="stylesheet" href="sim.css">
+    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="hdr-group">
+            <label>Broker: <input id="broker-host" type="text" value="192.168.1.43"></label>
+            <label>:<input id="broker-port" type="number" value="9001" style="width:5em"></label>
+            <button id="btn-connect">Connect</button>
+            <span id="conn-status" class="conn-off">offline</span>
+        </div>
+        <div class="hdr-group">
+            <span>Modus:</span>
+            <label><input type="radio" name="modus" value="monitor" checked> Monitor</label>
+            <label><input type="radio" name="modus" value="sim"> Simulatie</label>
+        </div>
+        <div class="hdr-group">
+            <button id="btn-pause">Pause</button>
+            <span class="tick-label">Tick: 250 ms</span>
+        </div>
+    </header>
+
+    <main>
+        <section id="veld-wrapper">
+            <svg id="veld" viewBox="-300 -300 600 600" xmlns="http://www.w3.org/2000/svg">
+                <g id="ringen"></g>
+                <g id="spaken"></g>
+                <g id="paaltjes"></g>
+                <g id="led-bolletjes"></g>
+                <g id="spelers"></g>
+                <g id="paal-labels"></g>
+            </svg>
+        </section>
+
+        <aside id="zijbalk">
+            <h3>Spelers</h3>
+            <ul id="speler-lijst"></ul>
+            <div class="aside-actions">
+                <button id="btn-add-speler">+ Speler</button>
+                <button id="btn-reset-spelers">Reset posities</button>
+            </div>
+            <h3>RSSI-model</h3>
+            <div class="model-info">
+                <div>RSSI0: <span id="rssi-rssi0">-45</span> dBm @ 1 m</div>
+                <div>n: <span id="rssi-n">2.5</span> (path loss)</div>
+                <div>σ: <span id="rssi-sigma">3</span> dBm ruis</div>
+                <div>drempel: <span id="rssi-drempel">-85</span> dBm</div>
+            </div>
+        </aside>
+    </main>
+
+    <section id="log-paneel">
+        <div class="log-header">
+            <h3>Log</h3>
+            <label><input type="checkbox" id="filter-cmd-only"> Alleen commando's</label>
+            <label><input type="checkbox" id="auto-scroll" checked> Auto-scroll</label>
+            <button id="btn-clear-log">Wis</button>
+        </div>
+        <div id="log"></div>
+    </section>
+
+    <script src="sim.js"></script>
+</body>
+</html>

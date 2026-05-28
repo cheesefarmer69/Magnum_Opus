@@ -154,6 +154,36 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 - **Server**: `127.0.0.1` (bridge draait in host-netwerk, dus localhost = Pi)
 - **Port**: 1883
 
+### MQTT WebSocket-listener (poort 9001)
+
+Naast de standaard TCP-listener op 1883 luistert Mosquitto óók op poort 9001
+voor het **WebSocket**-protocol. Dit is bedoeld voor browser-gebaseerde
+deelnemers (zoals de simulator in `pi/simulator/`) die geen rauwe TCP
+kunnen openen.
+
+```
+listener 9001
+protocol websockets
+```
+
+Topics en payloads zijn identiek aan de TCP-listener — alleen de transport-
+laag verschilt. Een browser-client verbindt via `ws://192.168.1.43:9001`.
+
+### Simulator als legitieme MQTT-deelnemer
+
+`pi/simulator/` is een browser-app die zich op precies dezelfde naad in het
+systeem (`plaatjes/data` en `commando/master1`) gedraagt als de echte
+hardware. Twee modi:
+
+- **Monitor**: subscribe-only — kijkt passief mee met een echt spel.
+- **Simulatie**: publiceert `plaatjes/data` op basis van virtuele speler-
+  posities (RSSI berekend via een log-distance path-loss model). Vervangt
+  daarmee `bridge.py` als bron; zet die laatste uit om dubbele detecties
+  te voorkomen.
+
+Node-RED en de firmware worden voor de simulator niet aangepast — hij
+houdt zich aan dit protocol.
+
 ### Audio-abstractie (`audio/afspelen`)
 
 De Plates-of-Fate engine (Node-RED flow 06) publiceert audio-verzoeken op
@@ -204,6 +234,9 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-28: Mosquitto-broker extra listener op poort 9001 (WebSocket) voor
+  browser-clients zoals `pi/simulator/`. TCP 1883 voor bridge.py + Node-RED
+  blijft ongewijzigd.
 - 2026-05-23: nieuw MQTT-topic `audio/afspelen` (Node-RED → geluidsbox) als
   abstractie voor de Plates-of-Fate engine. Engine-gevolgen voor LED/buzzer
   hergebruiken `commando/master1`.
