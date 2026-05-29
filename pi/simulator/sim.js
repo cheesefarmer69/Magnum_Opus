@@ -137,13 +137,17 @@ function verwerkBericht(topic, raw) {
         const timerEl = document.getElementById("pof-timer");
         const naamEl  = document.getElementById("pof-event-naam");
         const doelEl  = document.getElementById("pof-doelwit");
-        if (!data.actief || data.fase === "idle" || data.fase === "aanloop") {
+        if (!data.actief || data.fase === "idle") {
             timerEl.textContent = "—";
             naamEl.textContent  = "";
             doelEl.textContent  = "";
+        } else if (data.fase === "aanloop") {
+            timerEl.textContent = (data.teller != null) ? data.teller + "s" : "…";
+            if (!naamEl.textContent) naamEl.textContent = "Aanloop…";
+            // doelEl bewaard — toont vorig doelwit
         } else {
-            timerEl.textContent = (data.teller !== null && data.teller !== undefined) ? data.teller + "s" : "…";
-            const getal = (data.getalWaarde !== null && data.getalWaarde !== undefined) ? " (" + data.getalWaarde + ")" : "";
+            timerEl.textContent = (data.teller != null) ? data.teller + "s" : "…";
+            const getal = (data.getalWaarde != null) ? " (" + data.getalWaarde + ")" : "";
             naamEl.textContent  = data.eventNaam ? "⚡ " + data.eventNaam + getal : (data.eventTekst || "");
             const doel = Array.isArray(data.doelwit) ? data.doelwit.join(", ") : (data.doelwit || "");
             doelEl.textContent  = doel ? "🎯 " + doel : "";
@@ -293,11 +297,46 @@ function renderLeds() {
     }
 }
 
+function berekenGroepsOffsets(spelers) {
+    const perUur = {};
+    spelers.forEach(sp => {
+        const u = welkUur(sp.x, sp.y);
+        (perUur[u] = perUur[u] || []).push(sp);
+    });
+    const offsets = new Map();
+    const STAP = 0.46;  // m tussen spelercirkels (iets meer dan diameter 0.36m)
+    for (const groep of Object.values(perUur)) {
+        const n = groep.length;
+        if (n === 1) { offsets.set(groep[0], { dx: 0, dy: 0 }); continue; }
+        const kolommen = Math.min(3, Math.ceil(Math.sqrt(n)));
+        const rijen    = Math.ceil(n / kolommen);
+        const uur = welkUur(groep[0].x, groep[0].y);
+        const midHoek = (uur - 0.5) * HOEK_PER_PAAL;
+        const tx = -Math.sin(midHoek), ty = Math.cos(midHoek);  // tangentieel
+        const rx =  Math.cos(midHoek), ry = Math.sin(midHoek);  // radiaal
+        groep.forEach((sp, i) => {
+            const rij = Math.floor(i / kolommen);
+            const kol = i % kolommen;
+            const kolsInRij = (rij === rijen - 1 && n % kolommen) ? n % kolommen : kolommen;
+            const dTang = (kol - (kolsInRij - 1) / 2) * STAP;
+            const dRad  = (rij - (rijen   - 1) / 2) * STAP;
+            offsets.set(sp, {
+                dx: (dTang * tx + dRad * rx) * M_TO_PX,
+                dy: (dTang * ty + dRad * ry) * M_TO_PX
+            });
+        });
+    }
+    return offsets;
+}
+
 function renderSpelers() {
     const grp = document.getElementById("spelers");
     grp.innerHTML = "";
+    const offsets = berekenGroepsOffsets(state.spelers);
     for (const sp of state.spelers) {
-        const cx = sp.x * M_TO_PX, cy = sp.y * M_TO_PX;
+        const off = offsets.get(sp) || { dx: 0, dy: 0 };
+        const cx = sp.x * M_TO_PX + off.dx;
+        const cy = sp.y * M_TO_PX + off.dy;
         const c = document.createElementNS(NS, "circle");
         c.setAttribute("cx", cx); c.setAttribute("cy", cy);
         c.setAttribute("r", 4);

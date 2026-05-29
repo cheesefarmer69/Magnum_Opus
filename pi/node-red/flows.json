@@ -1900,8 +1900,8 @@
         "type": "function",
         "z": "c6a0000000000001",
         "name": "Kies doelwit",
-        "func": "// Kies doelwitten + snapshot beginposities voor de controle.\nconst event = msg.event;\nconst d = event.doelwit || { type: \"geen\" };\nconst OPTIE={enkel:[1,1],laag:[1,3],midden:[1,6],hoog:[3,10]};\nfunction rol(o){const r=OPTIE[o]||[1,1];return r[0]+Math.floor(Math.random()*(r[1]-r[0]+1));}\nfunction steekproef(arr,n){const k=arr.slice(),u=[];while(u.length<n&&k.length)u.push(k.splice(Math.floor(Math.random()*k.length),1)[0]);return u;}\n\n// aantal kan een optie-string zijn (\"enkel\"/\"laag\"/...) of een vast getal.\nlet aantal = (typeof d.aantal === \"string\") ? rol(d.aantal) : (d.aantal || 1);\n\nlet doelwit = [];\nif (d.type === \"speler\") {\n    const lijst = global.get(\"spelersLijst\") || {};\n    let namen = Object.keys(lijst).map(k => lijst[k]);\n    const _gp = global.get(\"gespauzeerdePlayers\") || {};\n    namen = namen.filter(n => !_gp[n]);\n    if (d.selectie === \"rang\") {\n        const stats = global.get(\"spelerStats\") || {};\n        const w = (naam) => { const s = stats[naam] || {}; return d.veld === \"achterstand\" ? (s.achterstand||0) : (s.totaalUren||0); };\n        namen.sort((a,b) => d.richting === \"laagste\" ? w(a)-w(b) : w(b)-w(a));\n        doelwit = namen.slice(0, aantal);\n    } else if (d.selectie === \"alle\") { doelwit = namen; }\n    else { doelwit = steekproef(namen, aantal); }\n} else if (d.type === \"uur\") {\n    let palen = (global.get(\"paaltjesLijst\")||[]).slice();\n    if (d.selectie === \"rang\") {\n        const loc = global.get(\"spelerLocaties\")||{};\n        const bez = (u)=>Object.keys(loc).filter(n=>loc[n]===u).length;\n        const w = (u)=> d.veld===\"bezetting\"? bez(u): u;\n        palen.sort((a,b)=> d.richting===\"laagste\"? w(a)-w(b): w(b)-w(a));\n        doelwit = palen.slice(0, aantal);\n    } else if (d.selectie === \"alle\") { doelwit = palen; }\n    else { doelwit = steekproef(palen, aantal); }\n}\nmsg.doelwit = doelwit;\n\n// Snapshot beginposities van ALLE spelers (niet-doelwit moet stil blijven).\nconst loc = global.get(\"spelerLocaties\") || {};\nconst spelers = global.get(\"spelersLijst\") || {};\nlet startPosities = {};\nfor (const mac in spelers) { const naam = spelers[mac]; startPosities[naam] = (loc[naam] !== undefined ? loc[naam] : null); }\nglobal.set(\"pofVerificatie\", {\n    voorwaarde: event.voorwaarde || \"geen\",\n    getal: msg.getalWaarde,\n    doelwit: doelwit,\n    startPosities: startPosities\n});\n\nlet tekst;\nif (!doelwit.length) tekst = \"Dit raakt niemand in het bijzonder.\";\nelse if (d.type === \"uur\") tekst = \"Getroffen uren: \" + doelwit.join(\", \") + \".\";\nelse tekst = \"Getroffen spelers: \" + doelwit.join(\", \") + \".\";\nconst audio = { payload: { fase: \"doelwit\", tekst: tekst, prioriteit: \"normaal\" } };\n// Typewriter-duur: elke naam heeft 1.6s animatietijd + 1.5s buffer na de laatste\nconst typewriterDuur = Math.max(1500, doelwit.length * 1600 + 1500);\nmsg.delay = typewriterDuur;\nconst twMsg = { payload: { actief: true, eventNaam: event.naam, getalWaarde: msg.getalWaarde || null, doelwit: doelwit } };\nconst manueel = global.get(\"pofManueel\") === true;\nif (manueel) {\n    global.set(\"pofPendingEvent\", msg);\n    global.set(\"pofFase\", \"wacht_uitvoer\");\n    global.set(\"pofTeller\", 0);\n    return [null, audio, twMsg];\n}\nreturn [msg, audio, twMsg];",
-        "outputs": 3,
+        "func": "// Kies doelwitten + snapshot beginposities voor de controle.\nconst event = msg.event;\nconst d = event.doelwit || { type: \"geen\" };\nconst OPTIE={enkel:[1,1],laag:[1,3],midden:[1,6],hoog:[3,10]};\nfunction rol(o){const r=OPTIE[o]||[1,1];return r[0]+Math.floor(Math.random()*(r[1]-r[0]+1));}\nfunction steekproef(arr,n){const k=arr.slice(),u=[];while(u.length<n&&k.length)u.push(k.splice(Math.floor(Math.random()*k.length),1)[0]);return u;}\n\n// aantal kan een optie-string zijn (\"enkel\"/\"laag\"/...) of een vast getal.\nlet aantal = (typeof d.aantal === \"string\") ? rol(d.aantal) : (d.aantal || 1);\n\nlet doelwit = [];\nif (d.type === \"speler\") {\n    const lijst = global.get(\"spelersLijst\") || {};\n    let namen = Object.keys(lijst).map(k => lijst[k]);\n    const _gp = global.get(\"gespauzeerdePlayers\") || {};\n    namen = namen.filter(n => !_gp[n]);\n    if (d.selectie === \"rang\") {\n        const stats = global.get(\"spelerStats\") || {};\n        const w = (naam) => { const s = stats[naam] || {}; return d.veld === \"achterstand\" ? (s.achterstand||0) : (s.totaalUren||0); };\n        namen.sort((a,b) => d.richting === \"laagste\" ? w(a)-w(b) : w(b)-w(a));\n        doelwit = namen.slice(0, aantal);\n    } else if (d.selectie === \"alle\") { doelwit = namen; }\n    else { doelwit = steekproef(namen, aantal); }\n} else if (d.type === \"uur\") {\n    let palen = (global.get(\"paaltjesLijst\")||[]).slice();\n    if (d.selectie === \"rang\") {\n        const loc = global.get(\"spelerLocaties\")||{};\n        const bez = (u)=>Object.keys(loc).filter(n=>loc[n]===u).length;\n        const w = (u)=> d.veld===\"bezetting\"? bez(u): u;\n        palen.sort((a,b)=> d.richting===\"laagste\"? w(a)-w(b): w(b)-w(a));\n        doelwit = palen.slice(0, aantal);\n    } else if (d.selectie === \"alle\") { doelwit = palen; }\n    else { doelwit = steekproef(palen, aantal); }\n}\nmsg.doelwit = doelwit;\n\n// Snapshot beginposities van ALLE spelers (niet-doelwit moet stil blijven).\nconst loc = global.get(\"spelerLocaties\") || {};\nconst spelers = global.get(\"spelersLijst\") || {};\nlet startPosities = {};\nfor (const mac in spelers) { const naam = spelers[mac]; startPosities[naam] = (loc[naam] !== undefined ? loc[naam] : null); }\nglobal.set(\"pofVerificatie\", {\n    voorwaarde: event.voorwaarde || \"geen\",\n    getal: msg.getalWaarde,\n    doelwit: doelwit,\n    startPosities: startPosities\n});\n\nlet tekst;\nif (!doelwit.length) tekst = \"Dit raakt niemand in het bijzonder.\";\nelse if (d.type === \"uur\") tekst = \"Getroffen uren: \" + doelwit.join(\", \") + \".\";\nelse tekst = \"Getroffen spelers: \" + doelwit.join(\", \") + \".\";\nconst audio = { payload: { fase: \"doelwit\", tekst: tekst, prioriteit: \"normaal\" } };\n// Typewriter-duur: elke naam heeft 1.6s animatietijd + 1.5s buffer na de laatste\nconst typewriterDuur = Math.max(1500, doelwit.length * 1600 + 1500);\nmsg.delay = typewriterDuur;\nconst twMsg = { payload: { actief: true, eventNaam: event.naam, getalWaarde: msg.getalWaarde || null, doelwit: doelwit } };\nconst manueel = global.get(\"pofManueel\") === true;\nif (manueel) {\n    global.set(\"pofPendingEvent\", msg);\n    global.set(\"pofFase\", \"wacht_uitvoer\");\n    global.set(\"pofTeller\", 0);\n    return [null, audio, twMsg, twMsg];\n}\nreturn [msg, audio, twMsg, twMsg];",
+        "outputs": 4,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -1918,6 +1918,9 @@
             ],
             [
                 "c6a000000000fd02"
+            ],
+            [
+                "c6a000000000fe01"
             ]
         ]
     },
@@ -3355,8 +3358,8 @@
         "type": "function",
         "z": "b3d1000000000001",
         "name": "Verwerk noodstop",
-        "func": "const bevestigd = global.get(\"stop_bevestigd\") === true;\nif (!bevestigd) {\n    msg.payload = \"GEBLOKKEERD - zet eerst 'Bevestig stop' aan (stap 1).\";\n    return [msg, null];\n}\nglobal.set(\"spelToestand\", \"gestopt\");\nglobal.set(\"pofActief\", false);\nglobal.set(\"pofFase\", \"idle\");\nglobal.set(\"stop_bevestigd\", false);\nmsg.payload = \"Spel GESTOPT. Levensuren en levensdagen blijven bewaard.\";\nreturn [msg, { payload: false }, { payload: \"Gestopt\" }];",
-        "outputs": 3,
+        "func": "const bevestigd = global.get(\"stop_bevestigd\") === true;\nif (!bevestigd) {\n    msg.payload = \"GEBLOKKEERD - zet eerst 'Bevestig stop' aan (stap 1).\";\n    return [msg, null];\n}\nglobal.set(\"spelToestand\", \"gestopt\");\nglobal.set(\"pofActief\", false);\nglobal.set(\"pofFase\", \"idle\");\nglobal.set(\"stop_bevestigd\", false);\nglobal.set(\"pofEventenRonde\", 0);\nmsg.payload = \"Spel GESTOPT. Levensuren en levensdagen blijven bewaard.\";\nreturn [msg, { payload: false }, { payload: \"Gestopt\" }, { payload: \"Events deze ronde: 0\" }, { payload: \"—\" }];",
+        "outputs": 5,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -3367,7 +3370,9 @@
         "wires": [
             ["b3d1000000000015"],
             ["b3d1000000000011"],
-            ["b3d1000000000007"]
+            ["b3d1000000000007"],
+            ["c6a000000000002d"],
+            ["c6a000000000fe02"]
         ]
     },
     {
@@ -3504,5 +3509,39 @@
         "x": 980,
         "y": 460,
         "wires": [[]]
+    },
+    {
+        "id": "c6a000000000fe01",
+        "type": "function",
+        "z": "c6a0000000000001",
+        "name": "Formatteer doelwit",
+        "func": "const p = msg.payload;\nif (!p || !Array.isArray(p.doelwit)) return null;\nmsg.payload = p.doelwit.length\n    ? p.doelwit.map(d => \"• \" + d).join(\"\\n\")\n    : \"(niemand)\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1160,
+        "y": 360,
+        "wires": [["c6a000000000fe02"]]
+    },
+    {
+        "id": "c6a000000000fe02",
+        "type": "ui-text",
+        "z": "c6a0000000000001",
+        "group": "c6a0000000000021",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Doelwit",
+        "label": "Doelwit",
+        "format": "{{msg.payload}}",
+        "layout": "col-center",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#717171",
+        "wires": []
     }
 ]
