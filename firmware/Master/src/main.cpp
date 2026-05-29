@@ -32,6 +32,27 @@ uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
   
 };
 
+// ---- COMMANDO-QUEUE MET RETRIES ----
+// Elk commando blijft in de queue tot OnDataSent met SUCCESS terugkomt
+// (= MAC-laag ACK van slave-radio). Bij FAIL of timeout retries automatisch
+// tot MAX_POGINGEN, daarna opgegeven met een log-regel.
+struct PendingCmd {
+  uint8_t  doelMac[6];
+  commando_message cmd;
+  uint8_t  pogingen;
+  uint32_t laatstVerstuurd;
+  bool     wachtOpAck;
+};
+
+static const uint8_t  MAX_POGINGEN    = 5;
+static const uint32_t RETRY_INTERVAL  = 250;   // ms
+static const uint8_t  QUEUE_SIZE      = 16;
+
+PendingCmd cmdQueue[QUEUE_SIZE];
+uint8_t    queueHead = 0;
+uint8_t    queueTail = 0;
+uint8_t    queueAantal = 0;
+
 // ---- HULPFUNCTIES ----
 // True als deze MAC-rij alleen uit nullen bestaat (placeholder-slot).
 static bool isPlaceholderMac(const uint8_t *mac) {
@@ -50,6 +71,56 @@ static int vindSlaveIndex(const uint8_t *mac) {
     if (memcmp(mac, slaveAdressen[i], 6) == 0) return i;
   }
   return -1;
+}
+
+// Voeg commando toe aan FIFO-queue. Wordt async verstuurd door verwerkQueue().
+static bool enqueueCommando(uint8_t paal, uint8_t actie) {
+  if (queueAantal >= QUEUE_SIZE) {
+    Serial.printf("{\"status\":\"queue_vol\",\"paal\":%d}\n", paal);
+    return false;
+  }
+  PendingCmd &pc = cmdQueue[queueTail];
+  memcpy(pc.doelMac, slaveAdressen[paal - 1], 6);
+  pc.cmd.paal_id  = paal;
+  pc.cmd.actie_id = actie;
+  pc.pogingen     = 0;
+  pc.laatstVerstuurd = 0;
+  pc.wachtOpAck   = false;
+  queueTail = (queueTail + 1) % QUEUE_SIZE;
+  queueAantal++;
+  return true;
+}
+
+// Drijft de queue: verstuurt het actieve commando, retried bij timeout,
+// geeft op na MAX_POGINGEN. Wordt elke loop()-tick aangeroepen.
+void verwerkQueue() {
+  if (queueAantal == 0) return;
+  PendingCmd &actief = cmdQueue[queueHead];
+  uint32_t nu = millis();
+
+  if (actief.wachtOpAck) return;  // wacht op OnDataSent
+
+  if (actief.pogingen > 0 && (nu - actief.laatstVerstuurd) < RETRY_INTERVAL) return;
+
+  if (actief.pogingen >= MAX_POGINGEN) {
+    Serial.printf("{\"status\":\"opgegeven\",\"paal\":%d,\"actie\":%d,\"pogingen\":%d}\n",
+                  actief.cmd.paal_id, actief.cmd.actie_id, actief.pogingen);
+    queueHead = (queueHead + 1) % QUEUE_SIZE;
+    queueAantal--;
+    return;
+  }
+
+  actief.pogingen++;
+  actief.laatstVerstuurd = nu;
+  actief.wachtOpAck = true;
+  esp_err_t r = esp_now_send(actief.doelMac,
+                             (uint8_t *)&actief.cmd,
+                             sizeof(actief.cmd));
+  if (r != ESP_OK) {
+    actief.wachtOpAck = false;
+    Serial.printf("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n",
+                  actief.cmd.paal_id, actief.pogingen);
+  }
 }
 
 // ---- CALLBACKS ----
@@ -94,8 +165,18 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 }
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.print("[SEND] Status: ");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "OK" : "MISLUKT");
+  if (queueAantal == 0) return;
+  PendingCmd &actief = cmdQueue[queueHead];
+  if (memcmp(actief.doelMac, mac_addr, 6) != 0) return;
+
+  actief.wachtOpAck = false;
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    Serial.printf("{\"status\":\"ack\",\"paal\":%d,\"actie\":%d,\"pogingen\":%d}\n",
+                  actief.cmd.paal_id, actief.cmd.actie_id, actief.pogingen);
+    queueHead = (queueHead + 1) % QUEUE_SIZE;
+    queueAantal--;
+  }
+  // Bij FAIL: blijft actief, verwerkQueue() retried na RETRY_INTERVAL.
 }
 
 // ---- SERIEEL COMMANDO VAN RASPBERRY PI ----
@@ -113,17 +194,11 @@ void verwerkSerieel() {
   int paal = lijn.substring(paalIndex + 7).toInt();
   uint8_t actie = lijn.substring(actieIndex + 8).toInt();
 
-  commando_message commando;
-  commando.paal_id = paal;
-  commando.actie_id = actie;
-
-  // Stuur commando naar de juiste slave
+  // In queue zetten — verwerkQueue() drijft hem af tot ack of opgegeven.
   if (paal >= 1 && paal <= AANTAL_SLAVES) {
-    esp_err_t result = esp_now_send(slaveAdressen[paal - 1],
-                                     (uint8_t *)&commando,
-                                     sizeof(commando));
-    Serial.printf("{\"status\":\"%s\",\"paal\":%d}\n",
-      (result == ESP_OK) ? "verstuurd" : "mislukt", paal);
+    if (enqueueCommando(paal, actie)) {
+      Serial.printf("{\"status\":\"queued\",\"paal\":%d,\"actie\":%d}\n", paal, actie);
+    }
   } else {
     Serial.printf("{\"status\":\"onbekende paal\",\"paal\":%d}\n", paal);
   }
@@ -194,4 +269,5 @@ void setup() {
 // ---- LOOP ----
 void loop() {
   verwerkSerieel();
+  verwerkQueue();
 }

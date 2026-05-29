@@ -2340,7 +2340,7 @@
         "once": true,
         "onceDelay": 0.4,
         "topic": "uur",
-        "payload": "[]",
+        "payload": "[{\"id\":\"test_uur_groen\",\"naam\":\"Test: uur groen\",\"categorie\":\"uur\",\"tekst\":\"Eén willekeurig uur wordt groen voor de test.\",\"reactietijd_s\":10,\"doelwit\":{\"type\":\"uur\",\"selectie\":\"willekeurig\",\"aantal\":\"enkel\"},\"gevolgen\":[{\"type\":\"commando\",\"actie\":2}]}]",
         "payloadType": "json",
         "x": 200,
         "y": 140,

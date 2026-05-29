@@ -84,6 +84,24 @@ Bij `ACTIE_ROOD` en `ACTIE_GROEN` wordt de MOSFET eerst HIGH gezet (5 ms
 delay) voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje
 op de LED-strip bij inschakelen.
 
+### Reliability: master retry-queue
+
+De master verstuurt commando's niet meer fire-and-forget. Elk commando gaat
+in een interne FIFO-queue. Het actieve commando wordt verzonden met
+`esp_now_send()` en wacht op `OnDataSent()`:
+
+- **`ESP_NOW_SEND_SUCCESS`** = slave-radio heeft het pakket ontvangen
+  (MAC-laag ACK). Commando is dan klaar, volgende uit de queue.
+- **`!SUCCESS`** of geen callback binnen 250 ms = retry. Tot max 5 pogingen.
+- Na 5 mislukte pogingen geeft de master het commando op met een
+  `opgegeven`-log-regel. Dit verschijnt op Serial → Pi → Node-RED.
+
+Dit lost het probleem op waarbij een commando soms gemist werd omdat de
+slave net aan het BLE-scannen of zelf aan het zenden was. Snel achter
+elkaar verstuurde commando's blijven in volgorde dankzij de queue.
+
+Queue-grootte: 16. Bij vol stuurt master `{"status":"queue_vol"}` terug.
+
 ## 3. Master → Pi (Serial USB)
 
 Master stuurt detecties door naar de Pi, één JSON-bericht per regel.
@@ -128,8 +146,18 @@ Pi stuurt commando's terug naar de master, doorgegeven vanuit Node-RED.
 {"paal":1,"actie":1}
 ```
 
-Master valideert dat `paal_id` binnen `AANTAL_SLAVES` valt en stuurt
-dan via ESP-NOW door naar de juiste slave.
+Master valideert dat `paal_id` binnen `AANTAL_SLAVES` valt en zet het
+commando in de retry-queue (zie sectie 2 "Reliability"). Master antwoordt
+per regel met een status-JSON:
+
+| Status         | Betekenis |
+|----------------|-----------|
+| `queued`       | Commando in queue gezet, wordt async verzonden. |
+| `ack`          | Slave-radio bevestigd. Bevat `pogingen` (1 = direct gelukt). |
+| `send_err`     | `esp_now_send()` gaf geen ESP_OK. Retry volgt automatisch. |
+| `opgegeven`    | Na 5 mislukte pogingen — commando verloren. |
+| `queue_vol`    | Queue zit aan max (16), commando geweigerd. |
+| `onbekende paal` | `paal_id` valt buiten `AANTAL_SLAVES`. |
 
 ## 5. Pi ↔ Node-RED (MQTT)
 
@@ -235,6 +263,11 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-05-29: master kreeg retry-queue voor commando's (max 5 pogingen per
+  commando, 250 ms tussen retries, FIFO-queue van 16). Statusantwoorden
+  uitgebreid: `queued`, `ack`, `send_err`, `opgegeven`, `queue_vol`. Lost
+  het probleem op waarbij een commando soms gemist werd door de slave
+  tijdens BLE-scannen of bij collision.
 - 2026-05-28: Mosquitto-broker extra listener op poort 9001 (WebSocket) voor
   browser-clients zoals `pi/simulator/`. TCP 1883 voor bridge.py + Node-RED
   blijft ongewijzigd.
