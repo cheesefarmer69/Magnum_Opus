@@ -30,6 +30,12 @@ function paalPositie(n) {
     return { x: R_BUITEN_M * Math.cos(hoek), y: R_BUITEN_M * Math.sin(hoek) };
 }
 
+// Geeft het uur (sectie 1-24) op basis van de hoek van positie (x,y).
+function welkUur(x, y) {
+    const deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    return (Math.floor(deg / 15) % AANTAL_PALEN) + 1;
+}
+
 // --- RSSI-MODEL (log-distance path loss) ---
 const RSSI0_DBM    = -45;   // signaal op d0=1m
 const PATH_LOSS_N  = 2.5;   // open buiten
@@ -323,6 +329,9 @@ function renderZijbalk() {
         const naam = document.createElement("span");
         naam.className = "naam";
         naam.textContent = sp.naam;
+        const uurEl = document.createElement("span");
+        uurEl.className = "speler-uur";
+        uurEl.textContent = "Uur " + welkUur(sp.x, sp.y);
         const btnAuto = document.createElement("button");
         btnAuto.textContent = "auto";
         btnAuto.className = sp.auto ? "actief" : "";
@@ -335,7 +344,7 @@ function renderZijbalk() {
             state.spelers = state.spelers.filter(x => x !== sp);
             renderZijbalk(); renderSpelers();
         });
-        li.append(kleur, naam, btnAuto, btnDel);
+        li.append(kleur, naam, uurEl, btnAuto, btnDel);
         ul.appendChild(li);
     }
 }
@@ -376,6 +385,7 @@ function endDrag() {
     if (drag) {
         drag.speler.drag = false;
         document.querySelectorAll(".speler.dragging").forEach(el => el.classList.remove("dragging"));
+        renderZijbalk();
     }
     drag = null;
     window.removeEventListener("pointermove", doDrag);
@@ -410,6 +420,7 @@ function tickAutoWalk() {
         }
     }
     renderSpelers();
+    renderZijbalk();
 }
 
 // ============================================================
@@ -438,22 +449,29 @@ function zetStatus(s) {
     el.className = s === "online" ? "conn-on" : "conn-off";
 }
 
+function spelerStartPositie(i, totaal) {
+    // Snap naar het midden van een sectie door paalPositie() te gebruiken voor
+    // een evenredig verdeeld paalnummer — zo valt de speler nooit op een spaak-grens.
+    const paalNum = (Math.round(((i + 0.5) / totaal) * AANTAL_PALEN) % AANTAL_PALEN) || AANTAL_PALEN;
+    const p = paalPositie(paalNum);
+    const f = (R_BUITEN_M - 2.5) / R_BUITEN_M;  // iets binnen de paal, duidelijk in sectie
+    return { x: p.x * f, y: p.y * f };
+}
+
 function laadDefaultSpelers() {
     state.spelers = DEFAULT_SPELERS.map((s, i) => {
-        // Plaats op een halve ring zodat ze niet overlappen
-        const hoek = ((i + 0.5) / DEFAULT_SPELERS.length) * 2 * Math.PI;
-        const r = (R_BUITEN_M + R_BINNEN_M) / 2;
-        return { naam: s.naam, mac: s.mac, kleur: s.kleur, x: r * Math.cos(hoek), y: r * Math.sin(hoek), auto: false, drag: false };
+        const pos = spelerStartPositie(i, DEFAULT_SPELERS.length);
+        return { naam: s.naam, mac: s.mac, kleur: s.kleur, x: pos.x, y: pos.y, auto: false, drag: false };
     });
 }
 
 function resetPosities() {
     state.spelers.forEach((s, i) => {
-        const hoek = ((i + 0.5) / state.spelers.length) * 2 * Math.PI;
-        const r = (R_BUITEN_M + R_BINNEN_M) / 2;
-        s.x = r * Math.cos(hoek); s.y = r * Math.sin(hoek);
+        const pos = spelerStartPositie(i, state.spelers.length);
+        s.x = pos.x; s.y = pos.y;
     });
     renderSpelers();
+    renderZijbalk();
 }
 
 function voegSpelerToe() {
@@ -502,6 +520,26 @@ window.addEventListener("DOMContentLoaded", () => {
             log("info", "Modus: " + state.modus);
             renderSpelers();
         });
+    });
+
+    // Log resize handle
+    const logPaneel = document.getElementById("log-paneel");
+    const resizeHandle = document.getElementById("log-resize-handle");
+    resizeHandle.addEventListener("mousedown", (e) => {
+        const startY = e.clientY;
+        const startH = logPaneel.getBoundingClientRect().height;
+        const onMove = (ev) => {
+            const delta = startY - ev.clientY;
+            const newH = Math.min(Math.max(80, startH + delta), window.innerHeight * 0.6);
+            logPaneel.style.maxHeight = newH + "px";
+        };
+        const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        e.preventDefault();
     });
 
     // Loops

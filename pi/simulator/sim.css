@@ -17,17 +17,32 @@ header button:hover { background: #00b0f0; }
 .conn-off { color: #c62828; font-weight: bold; }
 .tick-label { color: #666; font-size: 0.9em; }
 
-main { display: flex; flex: 1; min-height: 600px; }
-#veld-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; background: #f8f8f8; }
+main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* Veld — links tegen het scherm, geen padding-left */
+#veld-wrapper {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 8px 8px 8px 0; background: #f8f8f8; min-width: 0;
+}
 #veld { width: 100%; max-width: 700px; height: auto; aspect-ratio: 1; background: #ffffff; border-radius: 8px; border: 1px solid #ddd; }
 
-#zijbalk { width: 280px; background: #f5f5f5; border-left: 1px solid #ddd; padding: 12px; overflow-y: auto; }
+/* Event-balk naast het veld */
+#event-balk {
+    width: 360px; flex-shrink: 0;
+    background: #f0f7ff; border-left: 1px solid #ccd7e8;
+    padding: 12px; overflow-y: auto; display: flex; flex-direction: column;
+}
+#event-balk h3 { margin: 0 0 8px 0; font-size: 0.95em; color: #444; border-bottom: 1px solid #ccd7e8; padding-bottom: 4px; }
+
+/* Speler-zijbalk */
+#zijbalk { width: 260px; flex-shrink: 0; background: #f5f5f5; border-left: 1px solid #ddd; padding: 12px; overflow-y: auto; }
 #zijbalk h3 { margin: 0 0 8px 0; font-size: 0.95em; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
 #zijbalk h3:not(:first-child) { margin-top: 16px; }
 #speler-lijst { list-style: none; padding: 0; margin: 0; }
-#speler-lijst li { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
-#speler-lijst .kleur-blok { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
-#speler-lijst .naam { flex: 1; font-size: 0.9em; }
+#speler-lijst li { display: flex; align-items: center; gap: 5px; padding: 4px 0; flex-wrap: wrap; }
+#speler-lijst .kleur-blok { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+#speler-lijst .naam { font-size: 0.88em; font-weight: 500; }
+#speler-lijst .speler-uur { font-size: 0.75em; color: #666; background: #e0e0e0; border-radius: 3px; padding: 1px 4px; }
 #speler-lijst button { font-size: 0.75em; padding: 2px 6px; background: #ddd; color: #333; border: 0; border-radius: 3px; cursor: pointer; }
 #speler-lijst button.actief { background: #0094CE; color: white; }
 .aside-actions { margin-top: 8px; display: flex; gap: 6px; }
@@ -35,7 +50,10 @@ main { display: flex; flex: 1; min-height: 600px; }
 .model-info { font-size: 0.85em; color: #666; }
 .model-info div { padding: 2px 0; }
 
-#log-paneel { background: #f0f0f0; border-top: 1px solid #ccc; max-height: 240px; display: flex; flex-direction: column; }
+/* Log-paneel met resize-handle bovenaan */
+#log-paneel { background: #f0f0f0; border-top: 1px solid #ccc; max-height: 240px; display: flex; flex-direction: column; flex-shrink: 0; }
+#log-resize-handle { height: 6px; background: #bbb; cursor: ns-resize; flex-shrink: 0; }
+#log-resize-handle:hover { background: #999; }
 .log-header { display: flex; gap: 1em; align-items: center; padding: 6px 12px; border-bottom: 1px solid #ccc; }
 .log-header h3 { margin: 0; font-size: 0.95em; }
 .log-header button { margin-left: auto; padding: 2px 10px; background: #ccc; color: #333; border: 0; border-radius: 3px; cursor: pointer; font-size: 0.85em; }
@@ -80,6 +98,6 @@ main { display: flex; flex: 1; min-height: 600px; }
 .buzzer { fill: #cc7700; font-size: 4.5px; text-anchor: middle; pointer-events: none; }
 
 /* PoF event-paneel */
-.pof-paneel { background: #e8f4ff; border-radius: 6px; padding: 8px 10px; margin-top: 4px; }
-.pof-timer  { font-size: 2em; font-weight: bold; text-align: center; color: #0277bd; margin-bottom: 4px; }
-.pof-meta   { color: #333; padding: 2px 0; font-size: 0.85em; }
+.pof-paneel { background: #ddeeff; border-radius: 6px; padding: 10px 12px; margin-top: 4px; flex: 1; }
+.pof-timer  { font-size: 2.4em; font-weight: bold; text-align: center; color: #0277bd; margin-bottom: 8px; line-height: 1; }
+.pof-meta   { color: #1a1a1a; padding: 3px 0; font-size: 1em; line-height: 1.5; word-break: break-word; }
