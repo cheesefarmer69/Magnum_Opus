@@ -2384,8 +2384,8 @@
         "type": "function",
         "z": "c6a0000000000001",
         "name": "Verifieer beweging",
-        "func": "// Controleer na de reactietijd of aan de beweging-voorwaarden voldaan is.\nconst v = global.get(\"pofVerificatie\") || {};\nconst loc = global.get(\"spelerLocaties\") || {};\nconst se = global.get(\"spelerEffecten\") || {};\nconst we = global.get(\"wereldEffecten\") || [];\nconst bord = global.get(\"bordStaat\") || {};\nconst palen = (global.get(\"paaltjesLijst\") || []).slice().sort((a, b) => a - b);\nconst M = palen.length;\nfunction netto(start, eind) {\n    if (start == null || eind == null) return null;\n    const iVan = palen.indexOf(start), iNaar = palen.indexOf(eind);\n    if (M < 2 || iVan < 0 || iNaar < 0) return null;\n    const vooruit = (((iNaar - iVan) % M) + M) % M;\n    const achteruit = M - vooruit;\n    return (vooruit <= achteruit) ? vooruit : -achteruit;  // signed kortste op de ring\n}\nconst doelwitSet = new Set(v.doelwit || []);\nconst start = v.startPosities || {};\nlet rijen = [];\nfor (const naam in start) {\n    const n = netto(start[naam], (loc[naam] !== undefined ? loc[naam] : null));\n    let status;\n    if (n === null) status = \"onbekend\";\n    else if (doelwitSet.has(naam)) {\n        if (v.voorwaarde === \"min\") status = (n >= v.getal) ? \"OK\" : \"TE WEINIG\";\n        else if (v.voorwaarde === \"max\") status = (n <= v.getal) ? \"OK\" : \"TE VEEL\";\n        else status = \"OK\";\n    } else {\n        status = (n === 0) ? \"OK (stil)\" : \"BEWOOG (mocht niet)\";\n    }\n    const paalFX = ((bord[loc[naam]] || {}).effecten || []).map(e => e.naam);\n    const allFX = [...(se[naam] || []).map(e => e.naam), ...we.map(e => e.naam), ...paalFX];\n    const tag = allFX.length ? allFX.join(\", \") : \"-\";\n    rijen.push({ Speler: naam, Tag: tag,\n                 Verplaatst: (n === null ? \"?\" : n), Status: status });\n}\n\n// Volgende fase: automatisch nieuwe aanloop, of wachten in manueel-modus.\nconst manueel = global.get(\"pofManueel\") === true;\nglobal.set(\"pofFase\", manueel ? \"wacht\" : \"aanloop\");\nglobal.set(\"pofTeller\", manueel ? 0 : 5);\n\nmsg.payload = rijen.length ? rijen : [{ Speler:\"-\", Tag:\"-\", Verplaatst:\"-\", Status:\"geen spelers\" }];\nreturn msg;",
-        "outputs": 1,
+        "func": "// Controleer na de reactietijd of aan de beweging-voorwaarden voldaan is.\nconst v = global.get(\"pofVerificatie\") || {};\nconst loc = global.get(\"spelerLocaties\") || {};\nconst se = global.get(\"spelerEffecten\") || {};\nconst we = global.get(\"wereldEffecten\") || [];\nconst bord = global.get(\"bordStaat\") || {};\nconst palen = (global.get(\"paaltjesLijst\") || []).slice().sort((a, b) => a - b);\nconst M = palen.length;\nfunction netto(start, eind) {\n    if (start == null || eind == null) return null;\n    const iVan = palen.indexOf(start), iNaar = palen.indexOf(eind);\n    if (M < 2 || iVan < 0 || iNaar < 0) return null;\n    const vooruit = (((iNaar - iVan) % M) + M) % M;\n    const achteruit = M - vooruit;\n    return (vooruit <= achteruit) ? vooruit : -achteruit;  // signed kortste op de ring\n}\nconst doelwitSet = new Set(v.doelwit || []);\nconst start = v.startPosities || {};\nlet rijen = [];\nfor (const naam in start) {\n    const n = netto(start[naam], (loc[naam] !== undefined ? loc[naam] : null));\n    let status;\n    if (n === null) status = \"onbekend\";\n    else if (doelwitSet.has(naam)) {\n        if (v.voorwaarde === \"min\") status = (n >= v.getal) ? \"OK\" : \"TE WEINIG\";\n        else if (v.voorwaarde === \"max\") status = (n <= v.getal) ? \"OK\" : \"TE VEEL\";\n        else status = \"OK\";\n    } else {\n        status = (n === 0) ? \"OK (stil)\" : \"BEWOOG (mocht niet)\";\n    }\n    const paalFX = ((bord[loc[naam]] || {}).effecten || []).map(e => e.naam);\n    const allFX = [...(se[naam] || []).map(e => e.naam), ...we.map(e => e.naam), ...paalFX];\n    const tag = allFX.length ? allFX.join(\", \") : \"-\";\n    rijen.push({ Speler: naam, Tag: tag,\n                 Verplaatst: (n === null ? \"?\" : n), Status: status });\n}\n\n// Volgende fase: automatisch nieuwe aanloop, of wachten in manueel-modus.\nconst manueel = global.get(\"pofManueel\") === true;\nglobal.set(\"pofFase\", manueel ? \"wacht\" : \"aanloop\");\nglobal.set(\"pofTeller\", manueel ? 0 : 5);\n\nconst controleMsg = {\n    topic: \"pof/controle\",\n    payload: {\n        event: (global.get(\"pofHuidigEvent\") || {}).naam || \"\",\n        resultaten: rijen.map(r => ({ speler: r.Speler, status: r.Status, verplaatst: r.Verplaatst, tag: r.Tag }))\n    }\n};\nmsg.payload = rijen.length ? rijen : [{ Speler:\"-\", Tag:\"-\", Verplaatst:\"-\", Status:\"geen spelers\" }];\nreturn [msg, controleMsg];",
+        "outputs": 2,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -2397,6 +2397,9 @@
             [
                 "c6a0000000000029",
                 "c6a0000000000011"
+            ],
+            [
+                "c6a000000000ee01"
             ]
         ]
     },
@@ -3352,8 +3355,8 @@
         "type": "function",
         "z": "b3d1000000000001",
         "name": "Verwerk noodstop",
-        "func": "const bevestigd = global.get(\"stop_bevestigd\") === true;\nif (!bevestigd) {\n    msg.payload = \"GEBLOKKEERD - zet eerst 'Bevestig stop' aan (stap 1).\";\n    return [msg, null];\n}\nglobal.set(\"spelToestand\", \"gestopt\");\nglobal.set(\"pofActief\", false);\nglobal.set(\"pofFase\", \"idle\");\nglobal.set(\"stop_bevestigd\", false);\nglobal.set(\"pofEventenRonde\", 0);\nglobal.set(\"pofDoelwitReveal\", \"\");\nmsg.payload = \"Spel GESTOPT. Levensuren en levensdagen blijven bewaard.\";\nreturn [msg, { payload: false }, { payload: \"Gestopt\" }, { payload: \"Events deze ronde: 0\" }, { payload: \"—\" }];",
-        "outputs": 5,
+        "func": "const bevestigd = global.get(\"stop_bevestigd\") === true;\nif (!bevestigd) {\n    msg.payload = \"GEBLOKKEERD - zet eerst 'Bevestig stop' aan (stap 1).\";\n    return [msg, null];\n}\nglobal.set(\"spelToestand\", \"gestopt\");\nglobal.set(\"pofActief\", false);\nglobal.set(\"pofFase\", \"idle\");\nglobal.set(\"stop_bevestigd\", false);\nglobal.set(\"pofEventenRonde\", 0);\nglobal.set(\"pofDoelwitReveal\", \"\");\nglobal.set(\"bordStaat\", {});\nglobal.set(\"spelerEffecten\", {});\nglobal.set(\"wereldEffecten\", []);\nmsg.payload = \"Spel GESTOPT. Levensuren en levensdagen blijven bewaard.\";\nreturn [msg, { payload: false }, { payload: \"Gestopt\" }, { payload: \"Events deze ronde: 0\" }, { payload: \"—\" }, { payload: \"rebuild\" }];",
+        "outputs": 6,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -3366,7 +3369,8 @@
             ["b3d1000000000011"],
             ["b3d1000000000007"],
             ["c6a000000000002d"],
-            ["c6a000000000fe02"]
+            ["c6a000000000fe02"],
+            ["c6a0000000000013", "c6a000000000002f"]
         ]
     },
     {
@@ -3502,6 +3506,24 @@
         "font": "",
         "fontSize": 16,
         "color": "#717171",
+        "wires": []
+    },
+    {
+        "id": "c6a000000000ee01",
+        "type": "mqtt out",
+        "z": "c6a0000000000001",
+        "name": "pof/controle",
+        "topic": "pof/controle",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "0f3c274c3514a5f8",
+        "x": 1000,
+        "y": 540,
         "wires": []
     }
 ]

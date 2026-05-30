@@ -170,6 +170,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
 | `audio/afspelen`   | Node-RED → box     | `{"tekst":"...","fase":"event","prioriteit":"normaal"}` |
 | `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitReveal":"• Lilou","getalWaarde":2,"teller":7,"maxTeller":10}` |
+| `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"tag":"-"}]}` |
 
 ### Plates-of-Fate: doelwit-reveal en `pof/status`
 
@@ -188,6 +189,15 @@ reactietijd-aftelling (de sequencer triggert dan "Voer gevolg uit").
 
 Zo tonen het Node-RED dashboard (ui_text "Doelwit") én de browser-simulator
 identieke informatie zonder browser-specifieke scripting.
+
+### Plates-of-Fate controle-resultaten (`pof/controle`)
+
+Na de reactietijd controleert "Verifieer beweging" of elke speler aan de
+beweging-voorwaarde voldeed. Het resultaat wordt — naast de dashboard-tabel —
+ook gepubliceerd op `pof/controle`. Elke `status` (`OK`, `TE WEINIG`, `TE VEEL`,
+`OK (stil)`, `BEWOOG (mocht niet)`) is in feite een **foutcode** van het event
+na zijn controle. De browser-simulator logt deze regels onder de checkbox
+"Foutcodes".
 
 ### MQTT-config in Node-RED
 

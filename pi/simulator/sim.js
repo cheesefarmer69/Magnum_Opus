@@ -110,7 +110,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status"]);
+        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle"]);
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
     state.client.on("offline",   () => { state.verbonden = false; zetStatus("offline"); log("err", "Offline."); });
@@ -131,6 +131,11 @@ function verwerkBericht(topic, raw) {
         log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
+    } else if (topic === "pof/controle") {
+        const ev = data.event ? " [" + data.event + "]" : "";
+        (data.resultaten || []).forEach(r => {
+            log("foutcode", `${r.speler}: ${r.status} (Δ${r.verplaatst})${ev}`);
+        });
     } else if (topic === "pof/status") {
         const timerEl = document.getElementById("pof-timer");
         const naamEl  = document.getElementById("pof-event-naam");
@@ -469,6 +474,7 @@ function tickAutoWalk() {
 // LOG
 // ============================================================
 function log(soort, tekst) {
+    if (soort === "foutcode" && !document.getElementById("filter-foutcodes").checked) return;
     const filterCmdOnly = document.getElementById("filter-cmd-only").checked;
     if (filterCmdOnly && soort !== "cmd") return;
     const div = document.getElementById("log");

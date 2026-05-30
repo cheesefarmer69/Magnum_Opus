@@ -64,6 +64,7 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 #log .row.audio{ color: #e65100; }
 #log .row.info { color: #888; }
 #log .row.err  { color: #c62828; }
+#log .row.foutcode { color: #b71c1c; font-weight: 600; }
 
 /* Veld-elementen */
 .ring { fill: none; stroke: #ff6200; stroke-width: 0.5; }
