@@ -169,7 +169,25 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
 | `audio/afspelen`   | Node-RED → box     | `{"tekst":"...","fase":"event","prioriteit":"normaal"}` |
-| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","doelwit":[],"getalWaarde":2,"teller":7,"maxTeller":10}` |
+| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitReveal":"• Lilou","getalWaarde":2,"teller":7,"maxTeller":10}` |
+
+### Plates-of-Fate: doelwit-reveal en `pof/status`
+
+Wanneer een event gekozen is, kiest Node-RED de doelwitten (spelers of uren).
+Die worden **één-voor-één** onthuld door een server-side sequencer-function
+("Doelwit reveal"): elke ~1,2 s wordt een naam toegevoegd aan de global
+`pofDoelwitReveal`. Pas **nadat de laatste naam getoond is** start de
+reactietijd-aftelling (de sequencer triggert dan "Voer gevolg uit").
+
+`pof/status` (elke seconde gepubliceerd) draagt de actuele stand:
+- `eventNaam` / `eventTekst`: naam en ingevulde tekst van het huidige event.
+- `doelwit`: volledige array van gekozen doelwitten.
+- `doelwitReveal`: de progressief opgebouwde tekst (`• naam\n• naam`), zodat
+  de simulator dezelfde één-voor-één-onthulling toont als het dashboard.
+- `fase`: `idle` / `aanloop` / `bezig` / `reactie` / `wacht*`.
+
+Zo tonen het Node-RED dashboard (ui_text "Doelwit") én de browser-simulator
+identieke informatie zonder browser-specifieke scripting.
 
 ### MQTT-config in Node-RED
 

@@ -132,25 +132,28 @@ function verwerkBericht(topic, raw) {
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
     } else if (topic === "pof/status") {
-        const el = document.getElementById("pof-paneel");
-        if (!el) return;
         const timerEl = document.getElementById("pof-timer");
         const naamEl  = document.getElementById("pof-event-naam");
         const doelEl  = document.getElementById("pof-doelwit");
+        if (!timerEl) return;
         if (!data.actief || data.fase === "idle") {
             timerEl.textContent = "—";
             naamEl.textContent  = "";
-            doelEl.textContent  = "";
+            doelEl.textContent  = "—";
         } else if (data.fase === "aanloop") {
             timerEl.textContent = (data.teller != null) ? data.teller + "s" : "…";
-            if (!naamEl.textContent) naamEl.textContent = "Aanloop…";
-            // doelEl bewaard — toont vorig doelwit
+            naamEl.textContent  = "Aanloop…";
+            doelEl.textContent  = "—";
         } else {
-            timerEl.textContent = (data.teller != null) ? data.teller + "s" : "…";
+            timerEl.textContent = (data.fase === "bezig") ? "…"
+                : (data.teller != null) ? data.teller + "s" : "…";
             const getal = (data.getalWaarde != null) ? " (" + data.getalWaarde + ")" : "";
-            naamEl.textContent  = data.eventNaam ? "⚡ " + data.eventNaam + getal : (data.eventTekst || "");
-            const doel = Array.isArray(data.doelwit) ? data.doelwit.join(", ") : (data.doelwit || "");
-            doelEl.textContent  = doel ? "🎯 " + doel : "";
+            const txt = data.eventTekst ? " — " + data.eventTekst : "";
+            naamEl.textContent = (data.eventNaam || data.eventTekst)
+                ? "⚡ " + (data.eventNaam || "") + getal + txt : "";
+            const reveal = data.doelwitReveal
+                || (Array.isArray(data.doelwit) ? data.doelwit.map(d => "• " + d).join("\n") : "");
+            doelEl.textContent = reveal || "—";
         }
     } else if (topic === "plaatjes/data") {
         // Alleen tonen in monitor-modus (in sim-modus zijn we zelf de bron en zou loggen overkill zijn)
