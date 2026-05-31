@@ -168,7 +168,9 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 |--------------------|--------------------|----------------------------------------------|
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
-| `audio/afspelen`   | Node-RED → box     | `{"tekst":"...","fase":"event","prioriteit":"normaal"}` |
+| `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` |
+| `locatie/spelers`  | Node-RED → browser | `{"Lilou":5,"Maud":12}` — opgeloste paal per speler (algoritme-uitkomst) |
+| `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
 | `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitReveal":"• Lilou","getalWaarde":2,"teller":7,"maxTeller":10}` |
 | `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"tag":"-"}]}` |
 
@@ -255,17 +257,20 @@ houdt zich aan dit protocol.
 ### Audio-abstractie (`audio/afspelen`)
 
 De Plates-of-Fate engine (Node-RED flow 06) publiceert audio-verzoeken op
-`audio/afspelen`. Het is bewust een **abstractie**: de engine zegt alleen
-*wat* voorgelezen moet worden, niet *hoe*. Een aparte consument (op de
-geluidsbox/Pi) zet dit later om naar spraak (TTS) of speelt opgenomen
-bestanden af — die consument bestaat nog niet.
+`audio/afspelen`. Het is bewust een **abstractie**: de engine zegt *welke*
+audiosegmenten in *welke volgorde*, niet *hoe* ze klinken. De consument is de
+**`audio-player`** Pi-service (`pi/audio-player/`) die de WAV-segmenten
+sequentieel via `aplay` over de aux-jack speelt. Zie `docs/handleidingen/audio-player.md`.
 
 ```json
-{"tekst":"De zon staat hoog...","fase":"event","prioriteit":"normaal"}
+{"fase":"event","tekst":"Minimum 3 uur vooruit.","segments":["events/verplaatsing1_voor.wav","getallen/3.wav","events/verplaatsing1_na.wav"],"prioriteit":"normaal"}
 ```
 
-- `fase`: `"event"` (event wordt voorgelezen) of `"doelwit"` (getroffen
-  uren/spelers worden voorgelezen).
+- `fase`: `"event"` of `"doelwit"`.
+- `tekst`: leesbare tekst (simulator-log + fallback); de player gebruikt `segments`.
+- `segments`: lijst WAV-bestandsnamen relatief t.o.v. de audio-map, in afspeelvolgorde
+  (knip-en-plak: begin + getal + eind voor events; `doelwit/voor` + per doelwit een
+  clip + `doelwit/na`).
 - `prioriteit`: vrije tekst voor latere afspeel-volgorde.
 
 Plates-of-Fate **gevolgen** die LED's/buzzers aansturen hergebruiken het

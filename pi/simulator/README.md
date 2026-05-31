@@ -100,8 +100,13 @@ Kijk passief mee met een echt spel zonder enig risico.
 5. Selecteer modus **Monitor** (standaard).
 6. Wat je nu ziet:
    - **LED-bolletjes** naast de palen kleuren mee bij elk `commando/master1`-bericht.
-   - **Log-paneel** toont alle inkomende berichten met tijdstempel en type.
-   - **Audio**-aanvragen (geel in de log) verschijnen bij Plates-of-Fate events.
+   - **Speler-posities** volgen de **uitkomst van het locatie-algoritme** (topic
+     `locatie/spelers`), niet de ruwe paal-berichten — dus geen geflikker meer.
+   - **Log-paneel** toont alle inkomende berichten; vink "Foutcodes" aan voor
+     controle-resultaten, "Commando's" voor enkel LED-commando's.
+   - **Audio**-aanvragen (oranje in de log) verschijnen bij Plates-of-Fate events.
+   - **Historiek-paneel** (rechts, klik op de verticale "Historiek"-tab) toont de
+     events van het lopende spel chronologisch (topic `spel/historie`).
 
 ### Kleuren in de log
 

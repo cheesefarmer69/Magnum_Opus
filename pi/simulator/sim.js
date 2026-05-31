@@ -110,7 +110,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle"]);
+        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "locatie/spelers", "spel/historie"]);
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
     state.client.on("offline",   () => { state.verbonden = false; zetStatus("offline"); log("err", "Offline."); });
@@ -160,22 +160,47 @@ function verwerkBericht(topic, raw) {
                 || (Array.isArray(data.doelwit) ? data.doelwit.map(d => "• " + d).join("\n") : "");
             doelEl.textContent = reveal || "—";
         }
-    } else if (topic === "plaatjes/data") {
-        // Alleen tonen in monitor-modus (in sim-modus zijn we zelf de bron en zou loggen overkill zijn)
+    } else if (topic === "locatie/spelers") {
+        // Opgeloste locaties uit het Node-RED algoritme (NIET de ruwe paal-berichten).
+        // Dit is de enige bron van speler-posities in monitor-modus.
         if (state.modus === "monitor") {
-            log("data", `paal ${data.paal}: ${data.mac || ("batt=" + data.batt)} ${data.rssi !== undefined ? data.rssi + " dBm" : ""}`);
-            // Speler-positie bijwerken in monitor-modus: zet speler naar binnen voor zijn actieve paal.
-            if (data.mac) {
-                const sp = state.spelers.find(s => s.mac === data.mac);
-                if (sp && data.paal >= 1 && data.paal <= AANTAL_PALEN) {
-                    const p = paalPositie(data.paal);
-                    // iets naar binnen geprojecteerd zodat de stip niet over de paal valt
-                    const f = (R_BUITEN_M - 1.5) / R_BUITEN_M;
+            const f = (R_BUITEN_M - 2.5) / R_BUITEN_M;
+            for (const naam in data) {
+                const paal = data[naam];
+                const sp = state.spelers.find(s => s.naam === naam);
+                if (sp && paal >= 1 && paal <= AANTAL_PALEN) {
+                    const p = paalPositie(paal);
                     sp.x = p.x * f; sp.y = p.y * f;
                 }
             }
+            renderSpelers();
+        }
+    } else if (topic === "spel/historie") {
+        renderHistorie(data);
+    } else if (topic === "plaatjes/data") {
+        // Alleen loggen in monitor-modus; posities komen via 'locatie/spelers'.
+        if (state.modus === "monitor") {
+            log("data", `paal ${data.paal}: ${data.mac || ("batt=" + data.batt)} ${data.rssi !== undefined ? data.rssi + " dBm" : ""}`);
         }
     }
+}
+
+function renderHistorie(data) {
+    const lijst = document.getElementById("histo-lijst");
+    if (!lijst) return;
+    const events = (data && data.events) || [];
+    if (!events.length) {
+        lijst.innerHTML = '<div class="histo-leeg">Nog geen events in dit spel.</div>';
+        return;
+    }
+    lijst.innerHTML = "";
+    events.forEach(e => {
+        const div = document.createElement("div");
+        div.className = "histo-event";
+        const doel = (e.doelwit && e.doelwit.length) ? ` → ${e.doelwit.join(", ")}` : "";
+        div.innerHTML = `<b>${e.nr}.</b> ${e.tekst}<span class="histo-doel">${doel}</span>`;
+        lijst.appendChild(div);
+    });
 }
 
 function publishDetecties() {
@@ -561,6 +586,9 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-reset-spelers").addEventListener("click", resetPosities);
     document.getElementById("btn-clear-log").addEventListener("click", () => {
         document.getElementById("log").innerHTML = "";
+    });
+    document.getElementById("histo-toggle").addEventListener("click", () => {
+        document.getElementById("histo-paneel").classList.toggle("open");
     });
     document.querySelectorAll('input[name="modus"]').forEach(r => {
         r.addEventListener("change", (e) => {

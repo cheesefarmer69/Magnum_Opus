@@ -45,6 +45,8 @@ de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
 
 - **Firmware**: Arduino-framework via PlatformIO in VS Code
 - **Serial-bridge**: Python 3.11-slim in Docker container (network: host)
+- **Audio-player**: Python 3.11-slim + alsa-utils in Docker (network: host, `--device=/dev/snd`).
+  Subscribet `audio/afspelen` en speelt WAV-segmenten via `aplay` over de aux-jack. Zie `pi/audio-player/` en `docs/handleidingen/audio-player.md`.
 - **MQTT broker**: Eclipse Mosquitto in Docker
 - **Orchestratie**: Node-RED in Docker
 
@@ -106,7 +108,10 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 - `pi/serial-bridge/bridge.py` — Python bridge code
 - `pi/serial-bridge/Dockerfile` — bridge container definitie
 - `pi/serial-bridge/requirements.txt` — Python dependencies met pinned versions
-- `pi/deploy.sh` — deploy script voor op de Pi
+- `pi/audio-player/player.py` — audio-afspeelservice (WAV-segmenten via aplay)
+- `pi/audio-player/audio/` — gestructureerde WAV-map (volume-mount, geen rebuild nodig)
+- `pi/deploy.sh` — deploy script voor de serial-bridge
+- `pi/deploy-audio.sh` — deploy script voor de audio-player container
 - `config/mqtt/mosquitto.conf` — MQTT broker config (anonymous access toegestaan, lokaal netwerk)
 - `config/udev/99-esp-masters.rules` — udev rule voor stabiele /dev/ttyMaster1 symlink
 

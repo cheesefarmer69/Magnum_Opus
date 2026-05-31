@@ -98,6 +98,21 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 /* Buzzer-symbool */
 .buzzer { fill: #cc7700; font-size: 4.5px; text-anchor: middle; pointer-events: none; }
 
+/* Historiek-paneel (rechts, uitklapbaar) */
+#histo-paneel { display: flex; flex-shrink: 0; border-left: 1px solid #ddd; background: #fafafa; }
+#histo-toggle {
+    writing-mode: vertical-rl; text-orientation: mixed; cursor: pointer;
+    border: 0; background: #0094CE; color: #fff; padding: 12px 6px; font-size: 0.9em;
+    letter-spacing: 1px;
+}
+#histo-toggle:hover { background: #00b0f0; }
+#histo-inhoud { width: 0; overflow: hidden; transition: width 0.2s ease; }
+#histo-paneel.open #histo-inhoud { width: 320px; overflow-y: auto; padding: 12px; }
+#histo-inhoud h3 { margin: 0 0 8px 0; font-size: 0.95em; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.histo-event { padding: 5px 0; font-size: 0.9em; border-bottom: 1px solid #eee; }
+.histo-doel { color: #0277bd; }
+.histo-leeg { color: #888; font-size: 0.85em; padding: 8px 0; }
+
 /* PoF event-paneel */
 .pof-paneel { background: #ddeeff; border-radius: 6px; padding: 10px 12px; margin-top: 4px; flex: 1; }
 .pof-timer  { font-size: 2.4em; font-weight: bold; text-align: center; color: #0277bd; margin-bottom: 8px; line-height: 1; }
