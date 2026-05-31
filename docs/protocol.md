@@ -199,6 +199,17 @@ ook gepubliceerd op `pof/controle`. Elke `status` (`OK`, `TE WEINIG`, `TE VEEL`,
 na zijn controle. De browser-simulator logt deze regels onder de checkbox
 "Foutcodes".
 
+### Locatiebepaling-globals (Node-RED)
+
+De locatiebepaling en beacon-diagnose gebruiken enkele globals — details en
+afregeling staan in `docs/locatiebepaling.md`:
+
+- `locParams` — live tuning van venster/hysterese/vloer/grace/switch/min-samples
+  (instelbaar via de dashboard-pagina "Beacons & Locatie", geen redeploy nodig).
+- `beaconKalibratie` — `{ "<mac>": offsetDb }`, RSSI-offset per beacon.
+- `beaconBuf` — interne sample-buffer voor de stabiliteitsanalyse.
+- `spelerLocaties` — `{ spelerNaam: paalId }`, de centrale waarheid.
+
 ### MQTT-config in Node-RED
 
 - **Server**: `192.168.1.43` (NIET `127.0.0.1` — Node-RED draait in bridge-netwerk)
