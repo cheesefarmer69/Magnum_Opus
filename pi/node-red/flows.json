@@ -4209,5 +4209,40 @@
         "x": 700,
         "y": 860,
         "wires": []
+    },
+    {
+        "id": "e3a0000000000001",
+        "type": "inject",
+        "z": "124aa052f3987c33",
+        "name": "TEST: publiceer plaatjes/data",
+        "props": [{ "p": "payload" }],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"paal\":1,\"mac\":\"48:87:2d:9d:bb:7d\",\"rssi\":-60}",
+        "payloadType": "json",
+        "x": 240,
+        "y": 920,
+        "wires": [["e3a0000000000002"]]
+    },
+    {
+        "id": "e3a0000000000002",
+        "type": "mqtt out",
+        "z": "124aa052f3987c33",
+        "name": "TEST -> plaatjes/data",
+        "topic": "plaatjes/data",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "0f3c274c3514a5f8",
+        "x": 560,
+        "y": 920,
+        "wires": []
     }
 ]

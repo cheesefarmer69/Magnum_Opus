@@ -16,26 +16,45 @@ Arduino IDE, `screen`, ...). Die vergrendelt de poort, zodat `bridge.py` op de P
 hem niet kan openen — maar **één proces tegelijk** kan een seriële poort lezen.
 Je ziet de data dan wél in jouw monitor, maar de Pi krijgt niets.
 
-Diagnose, in volgorde:
+### Beslisboom
 
-1. **Sluit elke seriële monitor.** Zit de master in je **pc** (om te monitoren) in
-   plaats van in de **Pi**? Dan ontvangt de Pi sowieso niets — steek hem in de Pi.
-2. Draait de bridge? `docker ps` → staat `serial-bridge` erbij?
-   `docker logs serial-bridge` → verwacht "Verbonden met /dev/ttyMaster1" en
-   `[DATA] ...`-regels. Zie je "Fout op /dev/ttyMaster1: ... busy" → poort bezet
-   (stap 1). Geen `[DATA]` → master stuurt niets naar de Pi.
-3. Bestaat de poort? `ls -l /dev/ttyMaster1`. Geen symlink → master in de juiste
-   USB-poort (de udev-rule is gebonden aan poort 1-1.4) of udev herladen.
-4. Bereikt de data MQTT? Op de Pi:
-   `mosquitto_sub -h 192.168.1.43 -t plaatjes/data` → zie je JSON binnenkomen?
-   Zo ja, dan ligt het aan Node-RED; zo nee, aan bridge/serial.
-5. In Node-RED: open de pagina **Beacons & Locatie** → **Ruwe RSSI (diagnose)**,
-   zet de schakelaar **aan**. Verschijnen er rijen, dan stroomt de data tot in
-   Node-RED. Blijft de tabel leeg terwijl een beacon actief is → ingest is kapot,
-   ga terug naar stap 1–4.
+**1. Staat de Node-RED mqtt-in op groen "connected"?** (editor, bolletje onder
+"Ontvang Paal/MAC Data"). Groen → Node-RED is verbonden met de broker en zou élk
+bericht ontvangen; de fout zit dan **vóór de broker** (bridge/serieel). Geel/rood →
+Node-RED bereikt de broker niet (controleer broker-adres `192.168.1.43:1883` en de
+netwerk-mode van de Node-RED container).
+
+**2. Bewijs het MQTT↔Node-RED-pad met de zelftest.** In de editor staat een inject
+**"TEST: publiceer plaatjes/data"** (tab 01 Locatiebepaling) die via de broker een
+testdetectie publiceert. Klik hem:
+- Radar zet **Lilou op Paal 1** (en de debug toont het bericht) → MQTT + Node-RED
+  werken **100 %**. Het probleem zit gegarandeerd upstream → ga naar 3.
+- Niets → ondanks groen toch een broker/pad-probleem (zeldzaam) — check broker-logs.
+
+**3. Kijk wat de bridge doet:** `docker logs serial-bridge`. Sinds de heartbeat
+print hij elke 10 s:
+```
+[STATUS] 1234 berichten gepubliceerd (42 in 10s), seriële poorten: ['/dev/ttyMaster1']
+```
+- `seriële poorten: GEEN` → de bridge krijgt de poort niet: **sluit elke seriële
+  monitor**, en zit de master in de **Pi** (niet je pc)? Bestaat `/dev/ttyMaster1`?
+  (`ls -l /dev/ttyMaster1`; juiste USB-poort 1-1.4 / udev-rule). Of "Fout op
+  /dev/ttyMaster1: ... busy" → poort bezet.
+- poort verbonden maar teller blijft **0** → de master stuurt geen geldige
+  JSON-regels naar de Pi.
+- teller **loopt op** → de bridge publiceert; dan moet Node-RED het zien (stap 2
+  bevestigt dat het pad werkt).
+
+**4. Directe bus-test (optioneel).** Installeer de MQTT-tools en luister mee:
+```bash
+sudo apt install -y mosquitto-clients
+mosquitto_sub -h 192.168.1.43 -t plaatjes/data -v
+```
 
 > Node-RED leest MQTT op `192.168.1.43:1883`; `bridge.py` publiceert op
 > `127.0.0.1:1883`. Beide raken dezelfde Mosquitto — dat hoort te kloppen.
+> **Onthoud:** maar één proces kan een seriële poort lezen; een open
+> PlatformIO/Arduino-monitor blokkeert `bridge.py`.
 
 ## Hoe de locatiebepaling werkt
 

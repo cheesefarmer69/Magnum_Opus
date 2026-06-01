@@ -18,6 +18,24 @@ MEESTERS = [
 serieel_verbindingen = {}
 serieel_lock = threading.Lock()
 
+# Diagnose-teller: hoeveel berichten naar MQTT gepubliceerd
+publicaties = 0
+pub_lock = threading.Lock()
+
+
+def heartbeat():
+    """Print elke 10s of de bridge leest en publiceert — zichtbaar in docker logs."""
+    vorige = 0
+    while True:
+        time.sleep(10)
+        with pub_lock:
+            nu = publicaties
+        with serieel_lock:
+            poorten = list(serieel_verbindingen.keys())
+        print(f"[STATUS] {nu} berichten gepubliceerd ({nu - vorige} in 10s), "
+              f"seriële poorten: {poorten if poorten else 'GEEN'}")
+        vorige = nu
+
 # ---- MQTT SETUP ----
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
@@ -65,6 +83,7 @@ def on_mqtt_message(client, userdata, msg):
 
 # Lezen van Master -> doorsturen naar MQTT
 def lees_poort(config):
+    global publicaties
     while True:
         try:
             print(f"Verbinding maken met {config['poort']}...")
@@ -87,6 +106,8 @@ def lees_poort(config):
                 try:
                     data = json.loads(lijn)
                     client.publish(MQTT_DATA_TOPIC, json.dumps(data))
+                    with pub_lock:
+                        publicaties += 1
                     print(f"[DATA] {config['poort']}: {data}")
                 except json.JSONDecodeError:
                     # Debug output van de ESP, toon maar stuur niet door
@@ -100,6 +121,7 @@ def lees_poort(config):
 
 
 # ---- START ----
+print(f"Bridge -> MQTT {MQTT_BROKER}:{MQTT_PORT}, data-topic {MQTT_DATA_TOPIC}")
 client.on_connect = on_connect
 client.on_disconnect = on_disconnect
 client.on_message = on_mqtt_message
@@ -118,6 +140,9 @@ while True:
 for config in MEESTERS:
     thread = threading.Thread(target=lees_poort, args=(config,), daemon=True)
     thread.start()
+
+# Heartbeat-thread voor diagnose (publish-teller + poortstatus elke 10s)
+threading.Thread(target=heartbeat, daemon=True).start()
 
 # MQTT loop in main thread (handelt reconnect automatisch af)
 print("Serial bridge actief.")
