@@ -211,4 +211,10 @@ het wisselgedrag tussen palen eerlijk en stabiel maakt.
 | `beaconKalibratie` | `{ "<mac>": offsetDb }` |
 | `beaconBuf` | ruwe sample-buffer per MAC (intern; voedt stabiliteit + ruwe-RSSI-tabel) |
 | `rssiDiagAan` | `true/false` — schakelaar voor de ruwe-RSSI diagnose-tabel |
+| `palenActief` | actieve palen-ring voor uur-logica; = `paaltjesLijst`, of `1..24` als de simulator in sim-modus staat (`simVeld24`) |
+| `simVeld24` | `true` wanneer de simulator een 24-uur veld forceert (sim-modus) |
 | `spelerLocaties` | `{ spelerNaam: paalId }` — centrale waarheid |
+
+> De uur-logica (doelwit-keuze, verplaatsingscontrole, scoring) leest `palenActief`
+> (met fallback naar `paaltjesLijst`). Zo test de simulator op 24 uren zonder de
+> echte `paaltjesLijst` (gebouwde slaves) te wijzigen.

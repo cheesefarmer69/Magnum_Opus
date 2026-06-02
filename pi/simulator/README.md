@@ -34,17 +34,18 @@ het echte hardware is.
 | Speelveldbord visueel (bovenaanzicht) | ✓ | ✓ |
 | Audio-aanvragen zien in log | ✓ | ✓ |
 | Inkomende commando's loggen | ✓ | ✓ |
-| Detecties publiceren (`plaatjes/data`) | ✗ | ✓ |
-| Spelers verslepen op het veld | ✗ | ✓ |
+| Exacte posities doorsturen (`sim/locatie`) | ✗ | ✓ |
+| Spelers verslepen / toevoegen / verwijderen | ✗ | ✓ |
 | Automatische random walk per speler | ✗ | ✓ |
 | Meerdere virtuele spelers tegelijk | n.v.t. | ✓ |
-| RSSI-ruis simuleren (log-distance model) | n.v.t. | ✓ |
-| Locatiebepaling in Node-RED testen | ✗ | ✓ |
+| Deterministische positie (geen RSSI-model) | n.v.t. | ✓ |
+| 24-uur veld (onafhankelijk van paaltjesLijst) | ✗ | ✓ |
+| Verplaatsingscontrole testen (te veel / terug in tijd) | ✗ | ✓ |
+| Buzzer-piep per afgeroepen uur (🔔) | ✓ | ✓ |
 | LED-animaties testen (actie 11–16) | ✓ | ✓ |
 | Plates-of-Fate flow testen zonder hardware | ✗ | ✓ |
+| Foutcodes enkel bij echte overtreding | ✓ | ✓ |
 | Scenario opnemen/afspelen | ✗ (v2) | ✗ (v2) |
-| Log exporteren | ✗ (v2) | ✗ (v2) |
-| RSSI-drempel instellen via UI | ✗ | ✗ (code-edit) |
 
 ---
 
@@ -144,44 +145,42 @@ ssh pi@192.168.1.43
 docker stop serial-bridge
 ```
 
+De simulator is een **spelverloop- en conflict-tester**. De hardware wordt
+verondersteld te werken, dus er is **geen RSSI-model**: de simulator stuurt de
+exacte paal van elke speler direct door (topic `sim/locatie`) en werkt op een
+**24-uur veld** (via `sim/modus {sim24:true}`), onafhankelijk van `paaltjesLijst`.
+
+### Voorbereiding: stop de echte bridge
+
+Om dubbele bronnen te voorkomen, stop je `bridge.py` op de Pi:
+
+```bash
+ssh pi@192.168.1.43
+docker stop serial-bridge
+```
+
 ### Stap voor stap
 
 1. Open de simulator in je browser en verbind (zie Monitor stap 1–4).
-2. Selecteer modus **Simulatie**.
-3. Voeg spelers toe via **+ Speler** in de zijbalk.
-4. **Sleep** een speler naar een paal op het canvas — de simulator berekent
-   RSSI voor alle palen en publiceert detecties.
-5. Of zet een speler op **Auto** (knop naast de naam) voor random walk.
-6. **Node-RED Locatiebepaling** reageert: de tabel vult zich met paal en RSSI.
-7. Druk in Node-RED een Plates-of-Fate event aan en bekijk de LED-bolletjes.
-8. Druk **Pause** in de header om de simulatie-tick te bevriezen (spelers
-   stoppen met auto-bewegen, geen nieuwe detecties worden gepubliceerd).
+2. Selecteer modus **Simulatie** — Node-RED schakelt over op het 24-uur veld.
+3. Beheer spelers in de zijbalk: **+ Speler** toevoegen, **✕** (rood) verwijderen,
+   zo test je met het gewenste aantal.
+4. **Sleep** een speler naar een uur, of zet hem op **Auto**. De simulator stuurt
+   zijn exacte uur door — `spelerLocaties` volgt meteen, zonder ruis of vertraging.
+5. Druk in Node-RED een Plates-of-Fate event aan. Bij een **uur-event** klinkt per
+   afgeroepen uur de buzzer-piep (slave-actie 23) en toont de simulator 600 ms een
+   🔔 bij die paal.
+6. Na de reactietijd verschijnt in de log enkel een **foutcode** als er écht een
+   regel overtreden is (TE WEINIG / TE VEEL / TERUG IN TIJD / BEWOOG mocht niet);
+   bij een correcte ronde een groene "Controle OK".
+7. **Pause** in de header bevriest de tick (geen posities meer doorgestuurd).
 
-### RSSI-model
+### Verplaatsingscontrole
 
-De simulator berekent voor elke combinatie speler–paal een RSSI via het
-log-distance path-loss model:
-
-```
-RSSI(d) = RSSI0 − 10 · n · log10(d / 1m) + N(0, σ²)
-```
-
-Standaardwaarden (aanpasbaar bovenaan `sim.js`):
-
-| Parameter | Waarde | Betekenis |
-|-----------|--------|-----------|
-| `RSSI0_DBM` | −45 dBm | Signaalsterkte op 1 m |
-| `PATH_LOSS_N` | 2.5 | Dempingsexponent (buiten: 2.0–2.5) |
-| `RSSI_SIGMA` | 3 dBm | Ruis-standaardafwijking |
-| `RSSI_DREMPEL` | −85 dBm | Palen onder dit worden niet gerapporteerd |
-
-Palen boven de drempel worden gepubliceerd als `{"paal":N,"mac":"...","rssi":-67}`.
-Zo werkt de locatiebepaling in Node-RED identiek als bij echte hardware.
-
-### Tuning na veldtest
-
-Na een echte veldmeting pas je de constanten aan bovenaan `sim.js` zodat
-het simulatiemodel overeenkomt met de werkelijkheid.
+Op het 24-uur veld controleert Node-RED per doelwit-speler de netto verplaatsing:
+te weinig (`min`), te veel (`max`) of achteruit ("terug in tijd") worden geflagd;
+niet-doelwitten die toch bewegen ook. Omdat de simulator posities deterministisch
+doorstuurt, klopt deze controle exact met wat je op het veld plaatst.
 
 ### Foutzoeken (Simulatie)
 
@@ -212,6 +211,8 @@ bij het eerste laden (daarna gecached door de browser).
 
 - Geen scenario-opname of -replay (gepland voor v2).
 - Geen log-export naar bestand.
-- RSSI-tuning via code-edit (`sim.js`), niet via UI.
+- Geen RSSI-/signaalsimulatie: de simulator test het spelverloop, niet de
+  radioprestaties van de hardware. Voor RSSI-diagnose zie `docs/locatiebepaling.md`
+  (ruwe-RSSI-tabel met echte hardware).
 - LED-animaties in de browser benaderen de firmware-animaties maar zijn
   niet pixel-identiek aan de fysieke LED-strip.

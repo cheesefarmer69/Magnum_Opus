@@ -36,22 +36,11 @@ function welkUur(x, y) {
     return (Math.floor(deg / 15) % AANTAL_PALEN) + 1;
 }
 
-// --- RSSI-MODEL (log-distance path loss) ---
-const RSSI0_DBM    = -45;   // signaal op d0=1m
-const PATH_LOSS_N  = 2.5;   // open buiten
-const RSSI_SIGMA   = 3;     // gaussian noise stdev (dBm)
-const RSSI_DREMPEL = -85;   // palen onder deze drempel rapporteren niet
-
-function rssiVoorAfstand(d_m) {
-    if (d_m < 0.1) d_m = 0.1;
-    const ruis = gaussNoise(0, RSSI_SIGMA);
-    return RSSI0_DBM - 10 * PATH_LOSS_N * Math.log10(d_m) + ruis;
-}
-function gaussNoise(mu, sigma) {
-    // Box-Muller
-    const u1 = Math.random() || 1e-9, u2 = Math.random();
-    return mu + sigma * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-}
+// --- GEEN RSSI-MODEL ---
+// De simulator test het spelverloop, niet de hardware. In simulatiemodus
+// stuurt hij de exacte paal van elke speler direct door (topic sim/locatie),
+// zodat de locatie deterministisch is. Geen ruis, geen path-loss.
+const BUZZER_PIEP_MS = 600;   // moet overeenkomen met ACTIE_BUZZER_PIEP op de slave
 
 // --- ACTIE-ID TABEL (uit firmware/Slave/src/main.cpp) ---
 const ACTIE_NAAM = {
@@ -85,6 +74,7 @@ const state = {
     spelers: [],                // {naam, mac, kleur, x, y, auto, drag}
     paalActie: new Array(AANTAL_PALEN + 1).fill(0),  // actie-ID per paal
     paalLaatsteCmd: new Array(AANTAL_PALEN + 1).fill(0),  // ms
+    paalBuzzer: new Array(AANTAL_PALEN + 1).fill(0),  // buzzer-icoon actief tot (ms)
     geselecteerdePaal: null,
     tickMs: 250,
     publishMs: 250              // hoe vaak detecties publiceren in sim-modus
@@ -111,6 +101,7 @@ function connecteer() {
         zetStatus("online");
         log("info", "Verbonden.");
         state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "locatie/spelers", "spel/historie"]);
+        publishModus();   // laat Node-RED weten of het 24-uur veld actief is
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
     state.client.on("offline",   () => { state.verbonden = false; zetStatus("offline"); log("err", "Offline."); });
@@ -125,17 +116,28 @@ function verwerkBericht(topic, raw) {
     if (topic === "commando/master1") {
         const paal = data.paal, actie = data.actie;
         if (paal >= 1 && paal <= AANTAL_PALEN) {
-            state.paalActie[paal] = actie;
+            if (actie === 23) {
+                // buzzer-piep: toon icoon voor de duur van de piep, laat paalActie ongemoeid
+                state.paalBuzzer[paal] = Date.now() + BUZZER_PIEP_MS;
+            } else {
+                state.paalActie[paal] = actie;
+            }
             state.paalLaatsteCmd[paal] = Date.now();
         }
-        log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
+        log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || (actie === 23 ? "BUZZER_PIEP" : "?")} (${actie})`);
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
     } else if (topic === "pof/controle") {
         const ev = data.event ? " [" + data.event + "]" : "";
+        const FOUT = new Set(["TE WEINIG", "TE VEEL", "TERUG IN TIJD", "BEWOOG (mocht niet)"]);
+        let overtredingen = 0;
         (data.resultaten || []).forEach(r => {
-            log("foutcode", `${r.speler}: ${r.status} (Δ${r.verplaatst})${ev}`);
+            if (FOUT.has(r.status)) {
+                overtredingen++;
+                log("foutcode", `${r.speler}: ${r.status} (Δ${r.verplaatst})${ev}`);
+            }
         });
+        if (!overtredingen) log("info", `Controle OK${ev} — alle regels voldaan`);
     } else if (topic === "pof/status") {
         const timerEl = document.getElementById("pof-timer");
         const naamEl  = document.getElementById("pof-event-naam");
@@ -203,23 +205,16 @@ function renderHistorie(data) {
     });
 }
 
-function publishDetecties() {
+function publishLocaties() {
     if (!state.verbonden || state.modus !== "sim" || state.gepauzeerd) return;
-    for (const sp of state.spelers) {
-        for (let paal = 1; paal <= AANTAL_PALEN; paal++) {
-            const p = paalPositie(paal);
-            const d = Math.hypot(sp.x - p.x, sp.y - p.y);
-            const rssi = rssiVoorAfstand(d);
-            if (rssi > RSSI_DREMPEL) {
-                state.client.publish("plaatjes/data", JSON.stringify({
-                    paal: paal, mac: sp.mac, rssi: Math.round(rssi)
-                }));
-            }
-        }
-    }
-    // Heartbeat per paal (lichte rate: één random paal per tick) zodat Spelstatus ST-002 niet triggert
-    const paalH = 1 + Math.floor(Math.random() * AANTAL_PALEN);
-    state.client.publish("plaatjes/data", JSON.stringify({ paal: paalH, batt: 3.90 }));
+    // Deterministisch: elke speler exact op het uur waar hij staat.
+    const lijst = state.spelers.map(sp => ({ mac: sp.mac, paal: welkUur(sp.x, sp.y) }));
+    state.client.publish("sim/locatie", JSON.stringify(lijst));
+}
+
+function publishModus() {
+    if (!state.verbonden) return;
+    state.client.publish("sim/modus", JSON.stringify({ sim24: state.modus === "sim" }));
 }
 
 // ============================================================
@@ -328,6 +323,26 @@ function renderLeds() {
             led.style.fill = "#cccccc";
         }
     }
+    renderBuzzers();
+}
+
+function renderBuzzers() {
+    const grp = document.getElementById("buzzers");
+    if (!grp) return;
+    grp.innerHTML = "";
+    const nu = Date.now();
+    for (let n = 1; n <= AANTAL_PALEN; n++) {
+        if (state.paalBuzzer[n] > nu) {
+            const p = paalPositie(n);
+            const hoek = Math.atan2(p.y, p.x);
+            const t = document.createElementNS(NS, "text");
+            t.setAttribute("x", (p.x + Math.cos(hoek) * 2.4) * M_TO_PX);
+            t.setAttribute("y", (p.y + Math.sin(hoek) * 2.4) * M_TO_PX);
+            t.setAttribute("class", "buzzer-icoon");
+            t.textContent = "🔔";
+            grp.appendChild(t);
+        }
+    }
 }
 
 function berekenGroepsOffsets(spelers) {
@@ -411,7 +426,8 @@ function renderZijbalk() {
         btnAuto.addEventListener("click", () => { sp.auto = !sp.auto; renderZijbalk(); });
         const btnDel = document.createElement("button");
         btnDel.textContent = "✕";
-        btnDel.title = "Verwijder";
+        btnDel.className = "del-knop";
+        btnDel.title = "Verwijder speler";
         btnDel.addEventListener("click", () => {
             state.spelers = state.spelers.filter(x => x !== sp);
             renderZijbalk(); renderSpelers();
@@ -564,11 +580,6 @@ function voegSpelerToe() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("rssi-rssi0").textContent   = RSSI0_DBM;
-    document.getElementById("rssi-n").textContent       = PATH_LOSS_N;
-    document.getElementById("rssi-sigma").textContent   = RSSI_SIGMA;
-    document.getElementById("rssi-drempel").textContent = RSSI_DREMPEL;
-
     tekenVeld();
     laadDefaultSpelers();
     renderZijbalk();
@@ -594,6 +605,7 @@ window.addEventListener("DOMContentLoaded", () => {
         r.addEventListener("change", (e) => {
             state.modus = e.target.value;
             log("info", "Modus: " + state.modus);
+            publishModus();   // 24-uur veld aan/uit in Node-RED
             renderSpelers();
         });
     });
@@ -620,5 +632,5 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Loops
     setInterval(() => { tickAutoWalk(); renderLeds(); }, state.tickMs);
-    setInterval(publishDetecties, state.publishMs);
+    setInterval(publishLocaties, state.publishMs);
 });

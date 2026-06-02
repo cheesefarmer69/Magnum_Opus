@@ -95,6 +95,7 @@ bool vorigeLaserStatus = false;
 // 20  | ACTIE_MELODIE_AFLOPEND    | melodie   | 3 noten aflopend: 1000-750-500 Hz, 150 ms elk
 // 21  | ACTIE_MELODIE_ALARM       | melodie   | 5x afwisselend 400/800 Hz, 100 ms per noot
 // 22  | ACTIE_MELODIE_FANFARE     | melodie   | C4-E4-G4-E4-C4, 120 ms per noot
+// 23  | ACTIE_BUZZER_PIEP         | buzzer    | 1x 1500 Hz, 600 ms (uur-afroep)
 //
 const uint8_t ACTIE_NIETS             =  0;
 const uint8_t ACTIE_ROOD              =  1;
@@ -119,6 +120,7 @@ const uint8_t ACTIE_MELODIE_OPLOPEND  = 19;
 const uint8_t ACTIE_MELODIE_AFLOPEND  = 20;
 const uint8_t ACTIE_MELODIE_ALARM     = 21;
 const uint8_t ACTIE_MELODIE_FANFARE   = 22;
+const uint8_t ACTIE_BUZZER_PIEP       = 23;
 
 // ====================================================================
 // ANIMATIE STATE
@@ -177,6 +179,11 @@ static const Noot MELODIE_FANFARE[] = {
     {659, 120},
     {523, 120},
     {  0,   0}
+};
+// Buzzer-piep: één duidelijke toon bij het afroepen van een uur
+static const Noot MELODIE_PIEP[] = {
+    {1500, 600},
+    {   0,   0}
 };
 
 struct MelodieState {
@@ -479,6 +486,7 @@ static const Noot* getMelodieSequentie(uint8_t type) {
     case ACTIE_MELODIE_AFLOPEND:   return MELODIE_AFLOPEND;
     case ACTIE_MELODIE_ALARM:      return MELODIE_ALARM;
     case ACTIE_MELODIE_FANFARE:    return MELODIE_FANFARE;
+    case ACTIE_BUZZER_PIEP:        return MELODIE_PIEP;
     default:                        return nullptr;
   }
 }
@@ -585,8 +593,8 @@ void voerActieUit(uint8_t actie) {
     return;
   }
 
-  // --- Melodieën (17-22) -----------------------------------------------
-  if (actie >= ACTIE_MELODIE_EEN_PIEP && actie <= ACTIE_MELODIE_FANFARE) {
+  // --- Melodieën (17-22) + buzzer-piep (23) ----------------------------
+  if (actie >= ACTIE_MELODIE_EEN_PIEP && actie <= ACTIE_BUZZER_PIEP) {
     const Noot* seq = getMelodieSequentie(actie);
     if (!seq) return;
 

@@ -77,8 +77,12 @@ typedef struct __attribute__((packed)) {
 | 0  | `ACTIE_NIETS`       | LEDs uit (CRGB::Black), MOSFET uit |
 | 1  | `ACTIE_ROOD`        | LED strip rood, MOSFET aan |
 | 2  | `ACTIE_GROEN`       | LED strip groen, MOSFET aan |
-| 3  | `ACTIE_BUZZER_AAN`  | Buzzer 1 kHz aan (`tone()`) |
+| 3  | `ACTIE_BUZZER_AAN`  | Buzzer continu aan (2060 Hz, `tone()`) |
 | 4  | `ACTIE_BUZZER_UIT`  | Buzzer uit (`noTone()`) |
+| 5–10 | kleuren | BLAUW/WIT/GEEL/PAARS/CYAAN/ORANJE |
+| 11–16 | animaties | knipperen/pulseren/regenboog/politie |
+| 17–22 | melodieën | piepjes/oplopend/aflopend/alarm/fanfare |
+| 23 | `ACTIE_BUZZER_PIEP` | Eén duidelijke piep, 1500 Hz, 600 ms (niet-blokkend, auto-stop). Gebruikt om een afgeroepen **uur** hoorbaar te maken. |
 
 Bij `ACTIE_ROOD` en `ACTIE_GROEN` wordt de MOSFET eerst HIGH gezet (5 ms
 delay) voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje
@@ -171,6 +175,8 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` |
 | `locatie/spelers`  | Node-RED → browser | `{"Lilou":5,"Maud":12}` — opgeloste paal per speler (algoritme-uitkomst) |
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
+| `sim/modus`        | browser → Node-RED | `{"sim24":true}` — simulator in simulatiemodus → Node-RED forceert een 24-uur veld (`palenActief`) |
+| `sim/locatie`      | browser → Node-RED | `[{"mac":"aa:..","paal":7}]` — exacte paal per speler (sim-modus, deterministisch, geen RSSI) |
 | `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitReveal":"• Lilou","getalWaarde":2,"teller":7,"maxTeller":10}` |
 | `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"tag":"-"}]}` |
 
@@ -245,14 +251,17 @@ laag verschilt. Een browser-client verbindt via `ws://192.168.1.43:9001`.
 systeem (`plaatjes/data` en `commando/master1`) gedraagt als de echte
 hardware. Twee modi:
 
-- **Monitor**: subscribe-only — kijkt passief mee met een echt spel.
-- **Simulatie**: publiceert `plaatjes/data` op basis van virtuele speler-
-  posities (RSSI berekend via een log-distance path-loss model). Vervangt
-  daarmee `bridge.py` als bron; zet die laatste uit om dubbele detecties
-  te voorkomen.
+- **Monitor**: subscribe-only — kijkt passief mee met een echt spel en volgt de
+  opgeloste posities (`locatie/spelers`).
+- **Simulatie**: de simulator is een **spelverloop-/conflict-tester**. Hij gebruikt
+  **geen RSSI-model**, maar stuurt de exacte paal van elke speler direct door op
+  `sim/locatie` (deterministisch). Via `sim/modus {sim24:true}` forceert Node-RED
+  een **24-uur veld** (`palenActief`), onafhankelijk van `paaltjesLijst` (die blijft
+  de echte, gebouwde palen voor de hardware). Node-RED schrijft die posities direct
+  in `spelerLocaties` en stuurt beweging-events naar het puntensysteem.
 
-Node-RED en de firmware worden voor de simulator niet aangepast — hij
-houdt zich aan dit protocol.
+De firmware wordt voor de simulator niet aangepast; Node-RED kreeg enkel de twee
+sim-ingangen (`sim/modus`, `sim/locatie`) erbij naast het echte hardware-pad.
 
 ### Audio-abstractie (`audio/afspelen`)
 
