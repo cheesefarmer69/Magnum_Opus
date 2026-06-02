@@ -1,5 +1,10 @@
 # Plates of Fate — events opstellen
 
+> **Per-categorie overzicht** van alle (huidige en toekomstige) events — werking,
+> doelwitbepaling en controle — staat in `docs/event-catalogus.md`
+> (hoofdstukken Verplaatsing / Toestand / Wereld). Dit document hieronder is de
+> technische **schema-referentie** voor het opstellen van een event.
+
 Dit document beschrijft het **standaardformaat** voor Plates-of-Fate events en
 hoe je er stap voor stap een nieuw event mee opstelt. De engine die deze events
 afspeelt staat in Node-RED flow 06 (zie
