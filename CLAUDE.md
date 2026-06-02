@@ -97,8 +97,16 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 5. Node-RED en Mosquitto worden NIET aangepast door deploy.sh
 
 ### Node-RED
-- Bewerk in browser-UI op http://192.168.1.43:1880
-- Exporteer flows regelmatig als backup naar `pi/node-red/flows.json`
+- Bewerk in browser-UI op http://192.168.1.43:1880 **of** rechtstreeks in
+  `pi/node-red/flows.json` (chirurgische edits, zie memory).
+- **Flows deployen = `pi/node-red/deploy-flows.ps1` (Windows) of `deploy-flows.sh`
+  (Pi).** Dit pusht `flows.json` via de Node-RED Admin API (`POST /flows`, full).
+  ⚠️ **`docker restart magnum-Opus` herlaadt de repo-`flows.json` NIET** — de
+  container draait op zijn eigen `/data/flows.json`. Na elke wijziging aan
+  `flows.json` dus **altijd `deploy-flows.ps1` draaien**, anders verandert er niets
+  in de draaiende Node-RED.
+- Exporteer flows uit de browser-UI terug naar `pi/node-red/flows.json` als je in de
+  UI hebt bewerkt (anders raakt de repo achter).
 - MQTT broker-server in Node-RED config: `192.168.1.43` (niet 127.0.0.1 — Node-RED draait in een bridge-netwerk, niet host-netwerk)
 
 ## Belangrijke configbestanden
