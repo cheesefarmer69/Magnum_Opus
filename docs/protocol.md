@@ -263,6 +263,19 @@ hardware. Twee modi:
 De firmware wordt voor de simulator niet aangepast; Node-RED kreeg enkel de twee
 sim-ingangen (`sim/modus`, `sim/locatie`) erbij naast het echte hardware-pad.
 
+**Wederzijdse uitsluiting van de bron.** `global.simVeld24` (gezet via `sim/modus`)
+bepaalt wie `spelerLocaties` schrijft:
+- `simVeld24 === true` (sim-modus): de echte `Locatiebepaling Spelers` doet niets
+  (negeert `plaatjes/data` én de `[TEST]`-injects); **alleen** `Sim directe locatie`
+  schrijft. Zo is de simulatie een standalone pakket en kan echte hardware de
+  virtuele posities niet vervuilen.
+- `simVeld24 !== true` (monitor): `Sim directe locatie` doet niets; alleen de echte
+  hardware bepaalt de posities. Monitor-modus is dan een zuivere visualisatie.
+
+Het dashboard heeft een aparte pagina **"Simulatie"** (PoF-besturing + live radar)
+die in sim-modus de virtuele wereld toont. Dezelfde PoF-engine bedient zowel het
+echte spel (pagina "Bediening") als de simulatie.
+
 ### Audio-abstractie (`audio/afspelen`)
 
 De Plates-of-Fate engine (Node-RED flow 06) publiceert audio-verzoeken op

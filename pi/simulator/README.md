@@ -150,6 +150,13 @@ verondersteld te werken, dus er is **geen RSSI-model**: de simulator stuurt de
 exacte paal van elke speler direct door (topic `sim/locatie`) en werkt op een
 **24-uur veld** (via `sim/modus {sim24:true}`), onafhankelijk van `paaltjesLijst`.
 
+**Standalone.** Zodra je op **Simulatie** staat, schakelt Node-RED de echte
+locatiebepaling uit (`simVeld24`): alleen de simulator bepaalt dan de posities, ook
+als de echte serial-bridge/hardware nog draait. Er is een aparte dashboard-pagina
+**"Simulatie"** met de PoF-besturing én de live radar van de virtuele spelers, zodat
+je het hele spelverloop op één scherm test. Schakel je terug naar **Monitor**, dan
+toont alles weer puur het echte spel.
+
 ### Voorbereiding: stop de echte bridge
 
 Om dubbele bronnen te voorkomen, stop je `bridge.py` op de Pi:
