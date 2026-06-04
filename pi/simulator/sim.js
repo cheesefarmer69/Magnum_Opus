@@ -9,8 +9,8 @@
 //
 // Visualisatie: bovenaanzicht van het speelveld zoals beschreven
 // in docs/playfield.md (24-hoek, R=11.50 m), met per paal een
-// LED-bolletje dat de actuele kleur/animatie toont op basis van
-// commando/master1-berichten (actie-IDs 0-22 uit firmware/Slave).
+// LED-bolletje dat de actuele kleur toont op basis van
+// commando/master1-berichten (actie 0=uit, 1=portaal, 2=happy hour, 3=piep).
 // ============================================================
 
 // --- VELD-GEOMETRIE (uit docs/playfield.md) ---
@@ -43,16 +43,13 @@ function welkUur(x, y) {
 const BUZZER_PIEP_MS = 600;   // moet overeenkomen met ACTIE_BUZZER_PIEP op de slave
 
 // --- ACTIE-ID TABEL (uit firmware/Slave/src/main.cpp) ---
+// Minimale set: 0 = uit, 1 = portaal (paars), 2 = happy hour (goud), 3 = buzzer-piep.
 const ACTIE_NAAM = {
-    0: "NIETS",       1: "ROOD",        2: "GROEN",       3: "BUZZER_AAN",  4: "BUZZER_UIT",
-    5: "BLAUW",       6: "WIT",         7: "GEEL",        8: "PAARS",       9: "CYAAN",
-    10: "ORANJE",     11: "KNIPPER_SNEL",12: "KNIPPER_TRAAG",13: "PULS_ROOD",14: "PULS_BLAUW",
-    15: "REGENBOOG",  16: "POLITIE",    17: "MEL_1PIEP",  18: "MEL_2PIEP",  19: "MEL_OPLOPEND",
-    20: "MEL_AFLOPEND",21: "MEL_ALARM", 22: "MEL_FANFARE"
+    0: "NIETS", 1: "PORTAAL", 2: "HAPPY_HOUR", 3: "BUZZER_PIEP"
 };
+const ACTIE_BUZZER_PIEP = 3;
 const SOLID_KLEUR = {
-    0: "#cccccc", 1: "#ff0000", 2: "#00ff00", 5: "#0000ff", 6: "#dddddd",
-    7: "#ffff00", 8: "#9c27b0", 9: "#00ffff", 10: "#ff9800"
+    0: "#cccccc", 1: "#9c27b0", 2: "#ffb400"
 };
 
 // --- SPELERS (default uit Node-RED config-flow) ---
@@ -75,6 +72,8 @@ const state = {
     paalActie: new Array(AANTAL_PALEN + 1).fill(0),  // actie-ID per paal
     paalLaatsteCmd: new Array(AANTAL_PALEN + 1).fill(0),  // ms
     paalBuzzer: new Array(AANTAL_PALEN + 1).fill(0),  // buzzer-icoon actief tot (ms)
+    portalen: [],               // actieve portaal-paren [{palen:[a,b]}] (uit pof/portalen)
+    toestanden: [],             // actieve uur-effecten [{uur,effect,naam,resterendeRondes}] (uit pof/toestanden)
     geselecteerdePaal: null,
     tickMs: 250,
     publishMs: 250              // hoe vaak detecties publiceren in sim-modus
@@ -100,13 +99,24 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "locatie/spelers", "spel/historie"]);
+        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "locatie/spelers", "spel/historie"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
     state.client.on("offline",   () => { state.verbonden = false; zetStatus("offline"); log("err", "Offline."); });
     state.client.on("error",     (e) => log("err", "MQTT-fout: " + e.message));
     state.client.on("message", (topic, payload) => verwerkBericht(topic, payload.toString()));
+}
+
+// Bouwt de tekst die effectief voorgelezen wordt: het aantal getroffen doelwitten +
+// zelfstandig naamwoord (enkel/meervoud) + de event-tekst. Bv. "3 uren worden Happy Hour."
+function afroepTekst(data) {
+    const tekst = data.eventTekst || "";
+    const cnt = Array.isArray(data.doelwit) ? data.doelwit.length : 0;
+    if (!cnt || (data.doelwitType !== "speler" && data.doelwitType !== "uur")) return tekst;
+    const enkel = cnt === 1;
+    const woord = data.doelwitType === "uur" ? (enkel ? "uur" : "uren") : (enkel ? "speler" : "spelers");
+    return cnt + " " + woord + " " + tekst;
 }
 
 function verwerkBericht(topic, raw) {
@@ -116,7 +126,7 @@ function verwerkBericht(topic, raw) {
     if (topic === "commando/master1") {
         const paal = data.paal, actie = data.actie;
         if (paal >= 1 && paal <= AANTAL_PALEN) {
-            if (actie === 23) {
+            if (actie === ACTIE_BUZZER_PIEP) {
                 // buzzer-piep: toon icoon voor de duur van de piep, laat paalActie ongemoeid
                 state.paalBuzzer[paal] = Date.now() + BUZZER_PIEP_MS;
             } else {
@@ -124,7 +134,7 @@ function verwerkBericht(topic, raw) {
             }
             state.paalLaatsteCmd[paal] = Date.now();
         }
-        log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || (actie === 23 ? "BUZZER_PIEP" : "?")} (${actie})`);
+        log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
     } else if (topic === "pof/controle") {
@@ -134,7 +144,8 @@ function verwerkBericht(topic, raw) {
         (data.resultaten || []).forEach(r => {
             if (FOUT.has(r.status)) {
                 overtredingen++;
-                log("foutcode", `${r.speler}: ${r.status} (Δ${r.verplaatst})${ev}`);
+                const d = (r.delta != null) ? `, ${r.delta >= 0 ? "+" : ""}${r.delta} uur` : "";
+                log("foutcode", `${r.speler}: ${r.status} (verpl ${r.verplaatst}${d})${ev}`);
             }
         });
         if (!overtredingen) log("info", `Controle OK${ev} — alle regels voldaan`);
@@ -142,7 +153,9 @@ function verwerkBericht(topic, raw) {
         const timerEl = document.getElementById("pof-timer");
         const naamEl  = document.getElementById("pof-event-naam");
         const doelEl  = document.getElementById("pof-doelwit");
+        const tellerEl = document.getElementById("pof-teller");
         if (!timerEl) return;
+        if (tellerEl) tellerEl.textContent = (data.eventenRonde != null ? data.eventenRonde : 0);
         if (!data.actief || data.fase === "idle") {
             timerEl.textContent = "—";
             naamEl.textContent  = "";
@@ -154,10 +167,8 @@ function verwerkBericht(topic, raw) {
         } else {
             timerEl.textContent = (data.fase === "bezig") ? "…"
                 : (data.teller != null) ? data.teller + "s" : "…";
-            const getal = (data.getalWaarde != null) ? " (" + data.getalWaarde + ")" : "";
-            const txt = data.eventTekst ? " — " + data.eventTekst : "";
-            naamEl.textContent = (data.eventNaam || data.eventTekst)
-                ? "⚡ " + (data.eventNaam || "") + getal + txt : "";
+            // Toon enkel de tekst die effectief wordt voorgelezen: "<aantal> <speler/uur> <event-tekst>".
+            naamEl.textContent = afroepTekst(data);
             const reveal = data.doelwitReveal
                 || (Array.isArray(data.doelwit) ? data.doelwit.map(d => "• " + d).join("\n") : "");
             doelEl.textContent = reveal || "—";
@@ -177,6 +188,26 @@ function verwerkBericht(topic, raw) {
             }
             renderSpelers();
         }
+    } else if (topic === "pof/portalen") {
+        // Actieve portaal-paren: teken de verbindingslijn(en) en onthoud de koppeling.
+        const vorig = state.portalen.length;
+        state.portalen = Array.isArray(data) ? data : [];
+        renderPortalen();
+        if (state.portalen.length !== vorig) {
+            const tekst = state.portalen.map(p => p.palen.join("↔")).join(", ");
+            log("info", state.portalen.length ? `Portaal actief: ${tekst}` : "Portaal gesloten");
+        }
+    } else if (topic === "pof/toestanden") {
+        // Actieve uur-toestanden (tags) voor het Toestanden-paneel.
+        const vorige = state.toestanden || [];
+        const nieuw = Array.isArray(data) ? data : [];
+        const sleutel = (t) => (t.effect || "?") + "@" + t.uur;
+        const nieuwSet = new Set(nieuw.map(sleutel));
+        for (const t of vorige) {
+            if (!nieuwSet.has(sleutel(t))) log("info", `Toestand afgelopen: ${t.naam || t.effect} op uur ${t.uur}`);
+        }
+        state.toestanden = nieuw;
+        renderToestanden();
     } else if (topic === "spel/historie") {
         renderHistorie(data);
     } else if (topic === "plaatjes/data") {
@@ -203,6 +234,35 @@ function renderHistorie(data) {
         div.innerHTML = `<b>${e.nr}.</b> ${e.tekst}<span class="histo-doel">${doel}</span>`;
         lijst.appendChild(div);
     });
+}
+
+// Toont de actieve toestanden, gegroepeerd per tag, met per uur het aantal
+// resterende events (rondes) dat de toestand nog blijft.
+function renderToestanden() {
+    const el = document.getElementById("toestanden-lijst");
+    if (!el) return;
+    const lijst = state.toestanden || [];
+    if (!lijst.length) {
+        el.innerHTML = '<div class="toestand-leeg">Geen actieve toestanden.</div>';
+        return;
+    }
+    const perTag = {};
+    for (const t of lijst) {
+        const tag = t.naam || t.effect || "?";
+        (perTag[tag] = perTag[tag] || []).push(t);
+    }
+    el.innerHTML = "";
+    for (const tag of Object.keys(perTag).sort()) {
+        const items = perTag[tag].slice().sort((a, b) => a.uur - b.uur);
+        const uren = items.map(t => {
+            const r = (t.resterendeRondes != null) ? ` <span class="toestand-rondes">(nog ${t.resterendeRondes})</span>` : "";
+            return `uur ${t.uur}${r}`;
+        }).join(", ");
+        const div = document.createElement("div");
+        div.className = "toestand-groep";
+        div.innerHTML = `<b>${tag}</b>: ${uren}`;
+        el.appendChild(div);
+    }
 }
 
 function publishLocaties() {
@@ -305,23 +365,8 @@ function renderLeds() {
         led.setAttribute("class", "led");
         led.style.fill = "";
 
-        if (actie in SOLID_KLEUR) {
-            // Solid kleur (0,1,2,5-10)
-            led.style.fill = SOLID_KLEUR[actie];
-        } else if (actie === 3) {
-            // BUZZER_AAN: geel bolletje als indicator
-            led.style.fill = "#ffeb3b";
-        } else if (actie === 4) {
-            led.style.fill = "#cccccc";
-        } else if (actie >= 11 && actie <= 16) {
-            // Animaties via CSS-class
-            led.setAttribute("class", "led actie-" + actie);
-        } else if (actie >= 17 && actie <= 22) {
-            // Melodieën: korte flash (laatste 1.5s na commando)
-            const sinceMs = Date.now() - state.paalLaatsteCmd[n];
-            if (sinceMs < 1500) led.setAttribute("class", "led melodie-flash");
-            led.style.fill = "#cccccc";
-        }
+        // Minimale set: 0 = uit, 1 = portaal (paars), 2 = happy hour (goud).
+        if (actie in SOLID_KLEUR) led.style.fill = SOLID_KLEUR[actie];
     }
     renderBuzzers();
 }
@@ -343,6 +388,31 @@ function renderBuzzers() {
             grp.appendChild(t);
         }
     }
+}
+
+function renderPortalen() {
+    const grp = document.getElementById("portalen");
+    if (!grp) return;
+    grp.innerHTML = "";
+    for (const pr of state.portalen) {
+        if (!pr || !Array.isArray(pr.palen) || pr.palen.length < 2) continue;
+        const pa = paalPositie(pr.palen[0]), pb = paalPositie(pr.palen[1]);
+        const line = document.createElementNS(NS, "line");
+        line.setAttribute("x1", pa.x * M_TO_PX); line.setAttribute("y1", pa.y * M_TO_PX);
+        line.setAttribute("x2", pb.x * M_TO_PX); line.setAttribute("y2", pb.y * M_TO_PX);
+        line.setAttribute("class", "portaal-lijn");
+        grp.appendChild(line);
+    }
+}
+
+// Geeft het partner-uur als 'uur' deel is van een actief portaal, anders null.
+function portaalPartner(uur) {
+    for (const pr of state.portalen) {
+        if (!pr || !Array.isArray(pr.palen)) continue;
+        if (pr.palen[0] === uur) return pr.palen[1];
+        if (pr.palen[1] === uur) return pr.palen[0];
+    }
+    return null;
 }
 
 function berekenGroepsOffsets(spelers) {
@@ -471,8 +541,23 @@ function doDrag(ev) {
 }
 function endDrag() {
     if (drag) {
-        drag.speler.drag = false;
+        const sp = drag.speler;
+        sp.drag = false;
         document.querySelectorAll(".speler.dragging").forEach(el => el.classList.remove("dragging"));
+        // Portaal-gebruik: losgelaten op een portaal-uur -> teleporteer naar de partner.
+        // We laten de speler eerst één publish-cyclus op uur A staan, zodat Node-RED de
+        // sprong A->B als portaal (0 levensuren) herkent i.p.v. als gewone verplaatsing.
+        const uur = welkUur(sp.x, sp.y);
+        const partner = portaalPartner(uur);
+        if (partner) {
+            log("info", `${sp.naam} op portaal-uur ${uur} → teleport naar ${partner}`);
+            setTimeout(() => {
+                const p = paalPositie(partner);
+                const f = (R_BUITEN_M - 2.5) / R_BUITEN_M;
+                sp.x = p.x * f; sp.y = p.y * f;
+                renderSpelers(); renderZijbalk();
+            }, Math.max(state.publishMs + 100, 350));
+        }
         renderZijbalk();
     }
     drag = null;
@@ -514,10 +599,15 @@ function tickAutoWalk() {
 // ============================================================
 // LOG
 // ============================================================
+// Logsoorten -> filtercategorie (dropdown-checklist). Onbekende soorten vallen onder info.
+const LOG_CAT = { cmd: "cmd", audio: "audio", foutcode: "foutcode", info: "info", data: "info", err: "info" };
+function logCatActief(cat) {
+    const cb = document.querySelector('.logfilt[value="' + cat + '"]');
+    return !cb || cb.checked;
+}
 function log(soort, tekst) {
-    if (soort === "foutcode" && !document.getElementById("filter-foutcodes").checked) return;
-    const filterCmdOnly = document.getElementById("filter-cmd-only").checked;
-    if (filterCmdOnly && soort !== "cmd") return;
+    const cat = LOG_CAT[soort] || "info";
+    if (!logCatActief(cat)) return;
     const div = document.getElementById("log");
     const t = new Date();
     const tijdStr = t.toTimeString().slice(0, 8) + "." + String(t.getMilliseconds()).padStart(3, "0");
@@ -610,24 +700,41 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Log resize handle
+    // Log resize handle — de gekozen hoogte blijft vast (en bewaard in localStorage),
+    // zodat het speelveld niet meer omhoog geduwd wordt.
     const logPaneel = document.getElementById("log-paneel");
     const resizeHandle = document.getElementById("log-resize-handle");
+    function zetLogHoogte(h) {
+        const hh = Math.round(Math.min(Math.max(80, h), window.innerHeight * 0.7));
+        logPaneel.style.height = hh + "px";
+        logPaneel.style.maxHeight = hh + "px";
+    }
+    const bewaardeH = parseInt(localStorage.getItem("sim-log-hoogte") || "", 10);
+    if (bewaardeH) zetLogHoogte(bewaardeH);
     resizeHandle.addEventListener("mousedown", (e) => {
         const startY = e.clientY;
         const startH = logPaneel.getBoundingClientRect().height;
-        const onMove = (ev) => {
-            const delta = startY - ev.clientY;
-            const newH = Math.min(Math.max(80, startH + delta), window.innerHeight * 0.6);
-            logPaneel.style.maxHeight = newH + "px";
-        };
+        const onMove = (ev) => zetLogHoogte(startH + (startY - ev.clientY));
         const onUp = () => {
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
+            localStorage.setItem("sim-log-hoogte", String(parseInt(logPaneel.style.height, 10) || ""));
         };
         window.addEventListener("mousemove", onMove);
         window.addEventListener("mouseup", onUp);
         e.preventDefault();
+    });
+
+    // Log-filter (dropdown-checklist): selectie bewaren/herstellen.
+    const logFilters = document.querySelectorAll(".logfilt");
+    const bewaardFilter = JSON.parse(localStorage.getItem("sim-log-filter") || "null");
+    logFilters.forEach(cb => {
+        if (bewaardFilter && cb.value in bewaardFilter) cb.checked = bewaardFilter[cb.value];
+        cb.addEventListener("change", () => {
+            const st = {};
+            logFilters.forEach(c => st[c.value] = c.checked);
+            localStorage.setItem("sim-log-filter", JSON.stringify(st));
+        });
     });
 
     // Loops

@@ -22,9 +22,11 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 /* Veld — links tegen het scherm, geen padding-left */
 #veld-wrapper {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    padding: 8px 8px 8px 0; background: #f8f8f8; min-width: 0;
+    padding: 8px 8px 8px 0; background: #f8f8f8; min-width: 0; min-height: 0; overflow: hidden;
 }
-#veld { width: 100%; max-width: 700px; height: auto; aspect-ratio: 1; background: #ffffff; border-radius: 8px; border: 1px solid #ddd; }
+/* max-height:100% laat het vierkante veld krimpen i.p.v. boven/onder weg te vallen
+   wanneer het log-paneel ruimte inneemt. */
+#veld { width: auto; height: auto; max-width: 700px; max-height: 100%; aspect-ratio: 1; background: #ffffff; border-radius: 8px; border: 1px solid #ddd; }
 
 /* Event-balk naast het veld */
 #event-balk {
@@ -33,6 +35,12 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
     padding: 12px; overflow-y: auto; display: flex; flex-direction: column;
 }
 #event-balk h3 { margin: 0 0 8px 0; font-size: 0.95em; color: #444; border-bottom: 1px solid #ccd7e8; padding-bottom: 4px; }
+.event-kop { display: flex; align-items: center; gap: 8px; }
+.event-kop h3 { flex: 1; margin-bottom: 0; border-bottom: 0; }
+.pof-teller {
+    background: #0277bd; color: #fff; font-weight: bold; font-size: 1.1em;
+    min-width: 2em; text-align: center; border-radius: 6px; padding: 4px 8px; line-height: 1;
+}
 
 /* Speler-zijbalk */
 #zijbalk { width: 260px; flex-shrink: 0; background: #f5f5f5; border-left: 1px solid #ddd; padding: 12px; overflow-y: auto; }
@@ -48,8 +56,11 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 #speler-lijst button.del-knop { background: #c62828; color: white; font-weight: bold; }
 .aside-actions { margin-top: 8px; display: flex; gap: 6px; }
 .aside-actions button { flex: 1; padding: 4px; background: #ddd; color: #333; border: 0; border-radius: 3px; cursor: pointer; font-size: 0.85em; }
-.model-info { font-size: 0.85em; color: #666; }
-.model-info div { padding: 2px 0; }
+.toestanden-lijst { font-size: 0.85em; color: #444; }
+.toestand-groep { padding: 3px 0; border-bottom: 1px solid #eee; }
+.toestand-groep b { color: #9c27b0; }
+.toestand-rondes { color: #888; font-size: 0.9em; }
+.toestand-leeg { color: #888; padding: 4px 0; }
 
 /* Log-paneel met resize-handle bovenaan */
 #log-paneel { background: #f0f0f0; border-top: 1px solid #ccc; max-height: 240px; display: flex; flex-direction: column; flex-shrink: 0; }
@@ -57,7 +68,16 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 #log-resize-handle:hover { background: #999; }
 .log-header { display: flex; gap: 1em; align-items: center; padding: 6px 12px; border-bottom: 1px solid #ccc; }
 .log-header h3 { margin: 0; font-size: 0.95em; }
-.log-header button { margin-left: auto; padding: 2px 10px; background: #ccc; color: #333; border: 0; border-radius: 3px; cursor: pointer; font-size: 0.85em; }
+.log-header button { padding: 2px 10px; background: #ccc; color: #333; border: 0; border-radius: 3px; cursor: pointer; font-size: 0.85em; }
+.log-filter { position: relative; font-size: 0.85em; }
+.log-filter > summary { cursor: pointer; list-style: none; background: #ddd; padding: 3px 10px; border-radius: 3px; user-select: none; }
+.log-filter > summary::-webkit-details-marker { display: none; }
+.log-filter-menu {
+    position: absolute; top: 110%; left: 0; z-index: 50; background: #fff; border: 1px solid #bbb;
+    border-radius: 4px; padding: 6px 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); white-space: nowrap;
+    display: flex; flex-direction: column; gap: 3px;
+}
+.auto-scroll-lbl { margin-left: auto; font-size: 0.85em; }
 #log { flex: 1; overflow-y: auto; padding: 6px 12px; font-family: ui-monospace, Consolas, monospace; font-size: 0.82em; background: #fff; }
 #log .row { padding: 1px 0; white-space: pre; }
 #log .row.cmd  { color: #0277bd; }
@@ -70,6 +90,8 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 /* Veld-elementen */
 .ring { fill: none; stroke: #ff6200; stroke-width: 0.5; }
 .spaak { stroke: #ff6200; stroke-width: 0.3; }
+.portaal-lijn { stroke: #9c27b0; stroke-width: 1.2; stroke-dasharray: 3 2; opacity: 0.85; animation: portaal-puls 1.5s infinite ease-in-out; }
+@keyframes portaal-puls { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
 .paal { fill: #ff6200; stroke: #cc4e00; stroke-width: 0.3; cursor: pointer; }
 .paal.geselecteerd { fill: #ffeb3b; }
 .paal-label { fill: #222; font-size: 6.5px; font-weight: bold; text-anchor: middle; pointer-events: none; }

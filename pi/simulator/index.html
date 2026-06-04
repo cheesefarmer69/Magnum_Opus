@@ -30,6 +30,7 @@
             <svg id="veld" viewBox="-300 -300 600 600" xmlns="http://www.w3.org/2000/svg">
                 <g id="ringen"></g>
                 <g id="spaken"></g>
+                <g id="portalen"></g>
                 <g id="paaltjes"></g>
                 <g id="led-bolletjes"></g>
                 <g id="buzzers"></g>
@@ -39,7 +40,10 @@
         </section>
 
         <div id="event-balk">
-            <h3>Huidig event</h3>
+            <div class="event-kop">
+                <div id="pof-teller" class="pof-teller" title="Events deze ronde">0</div>
+                <h3>Huidig event</h3>
+            </div>
             <div id="pof-paneel" class="pof-paneel">
                 <div id="pof-timer" class="pof-timer">—</div>
                 <div id="pof-event-naam" class="pof-meta"></div>
@@ -55,11 +59,9 @@
                 <button id="btn-add-speler">+ Speler</button>
                 <button id="btn-reset-spelers">Reset posities</button>
             </div>
-            <h3>Modus</h3>
-            <div class="model-info">
-                <div><b>Monitor</b>: volgt het echte spel (locatie/spelers).</div>
-                <div><b>Simulatie</b>: stuurt posities direct door op een 24-uur
-                    veld (geen RSSI-model). Sleep spelers of zet ze op auto.</div>
+            <h3>Toestanden</h3>
+            <div id="toestanden-lijst" class="toestanden-lijst">
+                <div class="toestand-leeg">Geen actieve toestanden.</div>
             </div>
         </aside>
 
@@ -76,9 +78,16 @@
         <div id="log-resize-handle"></div>
         <div class="log-header">
             <h3>Log</h3>
-            <label><input type="checkbox" id="filter-cmd-only"> Commando's</label>
-            <label><input type="checkbox" id="filter-foutcodes" checked> Foutcodes</label>
-            <label><input type="checkbox" id="auto-scroll" checked> Auto-scroll</label>
+            <details class="log-filter" id="log-filter">
+                <summary>Toon ▾</summary>
+                <div class="log-filter-menu">
+                    <label><input type="checkbox" class="logfilt" value="info" checked> Info</label>
+                    <label><input type="checkbox" class="logfilt" value="cmd" checked> Commando's</label>
+                    <label><input type="checkbox" class="logfilt" value="audio" checked> Audio</label>
+                    <label><input type="checkbox" class="logfilt" value="foutcode" checked> Foutcodes</label>
+                </div>
+            </details>
+            <label class="auto-scroll-lbl"><input type="checkbox" id="auto-scroll" checked> Auto-scroll</label>
             <button id="btn-clear-log">Wis</button>
         </div>
         <div id="log"></div>

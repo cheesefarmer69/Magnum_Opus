@@ -72,21 +72,19 @@ typedef struct __attribute__((packed)) {
 
 ### Geldige `actie_id` waarden
 
+De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
+
 | ID | Constante | Gedrag |
 |----|-----------|--------|
 | 0  | `ACTIE_NIETS`       | LEDs uit (CRGB::Black), MOSFET uit |
-| 1  | `ACTIE_ROOD`        | LED strip rood, MOSFET aan |
-| 2  | `ACTIE_GROEN`       | LED strip groen, MOSFET aan |
-| 3  | `ACTIE_BUZZER_AAN`  | Buzzer continu aan (2060 Hz, `tone()`) |
-| 4  | `ACTIE_BUZZER_UIT`  | Buzzer uit (`noTone()`) |
-| 5–10 | kleuren | BLAUW/WIT/GEEL/PAARS/CYAAN/ORANJE |
-| 11–16 | animaties | knipperen/pulseren/regenboog/politie |
-| 17–22 | melodieën | piepjes/oplopend/aflopend/alarm/fanfare |
-| 23 | `ACTIE_BUZZER_PIEP` | Eén duidelijke piep, 1500 Hz, 600 ms (niet-blokkend, auto-stop). Gebruikt om een afgeroepen **uur** hoorbaar te maken. |
+| 1  | `ACTIE_PORTAAL`     | LED strip **paars** continu (portaal-toestand), MOSFET aan |
+| 2  | `ACTIE_HAPPY_HOUR`  | LED strip **goud** continu (happy-hour-toestand), MOSFET aan |
+| 3  | `ACTIE_BUZZER_PIEP` | Eén duidelijke piep, 1500 Hz, 600 ms (niet-blokkend, auto-stop). Gebruikt om een afgeroepen **uur** hoorbaar te maken én als zoemer-test. |
 
-Bij `ACTIE_ROOD` en `ACTIE_GROEN` wordt de MOSFET eerst HIGH gezet (5 ms
-delay) voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje
-op de LED-strip bij inschakelen.
+De LED-toestanden (1/2) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
+op basis van de actieve effecten; loopt een effect af of stopt het spel, dan stuurt
+Node-RED `ACTIE_NIETS`. Bij een kleur-actie wordt de MOSFET eerst HIGH gezet (5 ms delay)
+voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje bij inschakelen.
 
 ### Reliability: master retry-queue
 
@@ -172,13 +170,15 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 |--------------------|--------------------|----------------------------------------------|
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
-| `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` |
+| `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["getallen/3.wav","woorden/spelers.wav","events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` — de event-fase begint met de aantal-prefix (`getallen/<aantal>` + `woorden/<speler\|spelers\|uur\|uren>`) |
 | `locatie/spelers`  | Node-RED → browser | `{"Lilou":5,"Maud":12}` — opgeloste paal per speler (algoritme-uitkomst) |
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
 | `sim/modus`        | browser → Node-RED | `{"sim24":true}` — simulator in simulatiemodus → Node-RED forceert een 24-uur veld (`palenActief`) |
 | `sim/locatie`      | browser → Node-RED | `[{"mac":"aa:..","paal":7}]` — exacte paal per speler (sim-modus, deterministisch, geen RSSI) |
-| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitReveal":"• Lilou","getalWaarde":2,"teller":7,"maxTeller":10}` |
-| `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"tag":"-"}]}` |
+| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller |
+| `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"delta":-1,"tag":"-"}]}` — `delta` = toegekende/afgetrokken levensuren |
+| `pof/portalen`     | Node-RED → browser | `[{"palen":[12,20]}]` — actieve portaal-paren (retained); simulator tekent de verbindingslijn en teleporteert |
+| `pof/toestanden`   | Node-RED → browser | `[{"uur":12,"effect":"portaal","naam":"Portalen","resterendeRondes":3}]` — actieve uur-effecten (retained); voedt het sim-"Toestanden"-paneel |
 
 ### Plates-of-Fate: doelwit-reveal en `pof/status`
 
@@ -285,19 +285,20 @@ audiosegmenten in *welke volgorde*, niet *hoe* ze klinken. De consument is de
 sequentieel via `aplay` over de aux-jack speelt. Zie `docs/handleidingen/audio-player.md`.
 
 ```json
-{"fase":"event","tekst":"Minimum 3 uur vooruit.","segments":["events/verplaatsing1_voor.wav","getallen/3.wav","events/verplaatsing1_na.wav"],"prioriteit":"normaal"}
+{"fase":"event","tekst":"3 spelers maximum 3 uur.","segments":["getallen/3.wav","woorden/spelers.wav","events/verplaatsing2_voor.wav","getallen/3.wav","events/verplaatsing2_na.wav"],"prioriteit":"normaal"}
 ```
 
 - `fase`: `"event"` of `"doelwit"`.
 - `tekst`: leesbare tekst (simulator-log + fallback); de player gebruikt `segments`.
-- `segments`: lijst WAV-bestandsnamen relatief t.o.v. de audio-map, in afspeelvolgorde
-  (knip-en-plak: begin + getal + eind voor events; `doelwit/voor` + per doelwit een
-  clip + `doelwit/na`).
+- `segments`: lijst WAV-bestandsnamen relatief t.o.v. de audio-map, in afspeelvolgorde.
+  De **event-fase** begint met de aantal-prefix (`getallen/<aantal>` +
+  `woorden/<speler|spelers|uur|uren>`) gevolgd door begin + getal + eind van het event;
+  de **doelwit-fase** is `doelwit/voor` + per doelwit een clip + `doelwit/na`.
 - `prioriteit`: vrije tekst voor latere afspeel-volgorde.
 
-Plates-of-Fate **gevolgen** die LED's/buzzers aansturen hergebruiken het
-bestaande `commando/master1`-pad (zie sectie 2, `actie_id` 0–4) — er is dus
-geen apart commando-formaat voor events.
+Plates-of-Fate LED-toestanden worden centraal gestuurd op het bestaande
+`commando/master1`-pad (zie sectie 2, `actie_id` 0–3: `1` = paars/portaal,
+`2` = goud/happy hour, `3` = piep) — er is dus geen apart commando-formaat voor events.
 
 ## 6. Slave-registratie en sender-MAC gate (master code)
 

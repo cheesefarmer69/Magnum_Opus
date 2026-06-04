@@ -76,16 +76,15 @@ loop()
 | `LICHT_DREMPEL` | ~56 | ADC-drempel (V) voor laser-detectie — kalibreer per opstelling |
 | `BATT_WAARSCHUWING` | ~46 | Spanning (V) waaronder LED langzaam knippert |
 | `BATT_KRITIEK` | ~47 | Spanning (V) waaronder LED snel knippert |
-| `BUZZER_FREQ` | ~37 | Toonfrequentie (Hz) van de buzzer — zet op de resonantiefrequentie |
 
 > **Batterijmeting:** `leesBatterijSpanning()` gebruikt `analogReadMilliVolts()`
 > (fabriekskalibratie van de ADC), niet `analogRead()` met een vaste 3.3V-referentie.
 > Dat laatste meet op de ESP32-C3 structureel enkele procenten te laag.
 >
 > **Buzzervolume:** een passieve buzzer is het luidst rond zijn resonantie­frequentie
-> (typisch 2–4 kHz). Klinkt hij te stil, zet dan `BUZZER_FREQ` op de waarde uit het
-> datasheet van jouw buzzer. Een actieve buzzer (met ingebouwde oscillator) hoort
-> NIET met `tone()` aangestuurd te worden maar met een vaste `digitalWrite(HIGH)`.
+> (typisch 2–4 kHz). De buzzer-piep (`ACTIE_BUZZER_PIEP`) gebruikt 1500 Hz; klinkt hij
+> te stil, pas dan de frequentie in `MELODIE_PIEP` aan. Een actieve buzzer (met ingebouwde
+> oscillator) hoort NIET met `tone()` aangestuurd te worden maar met `digitalWrite(HIGH)`.
 
 ---
 
@@ -121,8 +120,8 @@ De huidige code gebruikt de volgende volgorde:
 | `[SEND] Versturen naar master (2 spelers)...` | Batch wordt verstuurd (ook bij 0 spelers) |
 | `[ESP-NOW] Batch verzonden OK` | Master heeft pakket ontvangen |
 | `[ESP-NOW] Verzending MISLUKT` | Master niet bereikbaar (kanaal? MAC?) |
-| `[CMD] Actie ontvangen: 2` | Commando 2 (GROEN) ontvangen van master |
-| `[ACTIE] LED strip GROEN` | Commando wordt uitgevoerd |
+| `[CMD] Actie ontvangen: 1` | Commando 1 (PORTAAL/paars) ontvangen van master |
+| `[ACTIE] LED 1` | Commando wordt uitgevoerd |
 | `[CMD] Timeout, geen commando` | Geen commando binnen 200ms na verzenden |
 | `[BATT] 3.87V` | Batterijspanning om de 5 seconden |
 | `[LASER] Straal verbroken` | Lichtdrempel onderschreden |
@@ -132,13 +131,16 @@ De huidige code gebruikt de volgende volgorde:
 
 ## Actie-ID's
 
+Minimale set: enkel acties die aan een spel-event hangen. De LED-toestanden (portaal,
+happy hour) worden centraal door Node-RED gestuurd op basis van de actieve effecten;
+loopt een effect af of stopt het spel, dan stuurt Node-RED `ACTIE_NIETS`.
+
 | ID | Constante | Gedrag |
 |----|-----------|--------|
 | 0 | `ACTIE_NIETS` | LEDs uit, MOSFET uit |
-| 1 | `ACTIE_ROOD` | LED strip rood, MOSFET aan |
-| 2 | `ACTIE_GROEN` | LED strip groen, MOSFET aan |
-| 3 | `ACTIE_BUZZER_AAN` | Buzzer aan (`BUZZER_FREQ`, standaard 2700 Hz) |
-| 4 | `ACTIE_BUZZER_UIT` | Buzzer uit |
+| 1 | `ACTIE_PORTAAL` | LED strip paars continu (portaal-toestand) |
+| 2 | `ACTIE_HAPPY_HOUR` | LED strip goud continu (happy-hour-toestand) |
+| 3 | `ACTIE_BUZZER_PIEP` | Eén piep 1500 Hz, 600 ms (uur-afroep / zoemer-test) |
 
 ---
 

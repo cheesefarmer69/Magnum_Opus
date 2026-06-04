@@ -22,18 +22,23 @@ Start POF → aanloop (5s, zichtbaar aftellen)
           → reactie (reactietijd_s, zichtbaar aftellen)
           → VERIFY  (Verifieer beweging → tabel Controle)
           → aanloop … (automatisch)
-Manueel:  geen automatische timers. Knop Volgende event → CHOOSE (event komt direct);
-          daarna fase "wacht_controle" → de controle gebeurt PAS bij de knop Controle
-          (zo heb je tijd om fysiek te testen). Na de controle → wachten op Volgende event.
+Manueel:  geen automatische timers. Knop Volgende event → CHOOSE (event + reveal +
+          gevolgen) → fase "wacht_controle". ÉÉN druk op Controle verifieert en scoort.
+          Daarna → wachten op Volgende event.
 Stop POF → pofActief = false, fase idle.
 ```
 
-- **CHOOSE** (instant): `Kies event` rolt zo nodig `getal` en vult `x` in de tekst;
-  `Kies doelwit` rolt het `aantal`-optie, selecteert doelwitten en **snapshot de
-  beginposities van alle spelers**; `Voer gevolg uit` voert de gevolgen uit en zet
-  de fase op `reactie` (×0.5 bij wereld-effect `events_sneller`).
-- **VERIFY**: `Verifieer beweging` vergelijkt elke speler zijn netto-vooruit met het
-  gerolde getal (doelwit: min/max; niet-doelwit: moet stil staan) → tabel **Controle**.
+- **CHOOSE** (instant): `Kies event` filtert eerst events weg die hun `max` bereikt
+  hebben (max-engine), rolt zo nodig `getal`/`x`, **selecteert meteen de doelwitten**
+  (zodat het aantal vooraan in de afroep kan, bv. "3 spelers …") en bouwt de event-audio
+  met die aantal-prefix; `Kies doelwit` **snapshot de beginposities** en bouwt de
+  doelwit-reveal-audio; `Voer gevolg uit` voert de gevolgen uit en zet de fase op
+  `reactie` (×0.5 bij wereld-effect `events_sneller`).
+- **VERIFY = scoren**: `Verifieer beweging` kent **hier** de levensuren toe (niet live).
+  Per speler, op basis van begin-snapshot → eindpositie (portaal-bewust): legaal vooruit
+  `+netto` (×2 op happy hour); te weinig/te veel/achteruit/niet-doelwit-dat-beweegt
+  trekt levensuren af. Onder 0 → blijft 0 + **+1 sterfte**. `Bereken levensuren` (flow 04)
+  werkt enkel nog de positie bij. Resultaat → tabel **Controle** + globale stats.
 
 Besturing (Start/Stop POF, **Manueel**-switch, **Volgende event**-knop,
 **Controle**-knop, **Timer**, **Huidig event**, **Controle**-tabel) staat op de
@@ -48,17 +53,25 @@ Besturing (Start/Stop POF, **Manueel**-switch, **Volgende event**-knop,
 ## Events configureren
 
 Events staan in `global.pofEvents`, gevuld door **drie** config-injects —
-`[CONFIG] Speler-events`, `[CONFIG] Uur-events`, `[CONFIG] Wereld-events` — die elk
+`[CONFIG] Speler-events`, `[CONFIG] Toestand-events`, `[CONFIG] Wereld-events` — die elk
 hun categorie in `pofEvents` mergen (`Sla pofEvents op (merge per categorie)`). Zo
 houd je events overzichtelijk per categorie. Schema + uitleg: `docs/events.md`.
 
+> **Categorie** is `speler` / `toestand` / `wereld` (de oude waarde `uur` heet nu
+> `toestand`). `doelwit.type` mag nog steeds `uur` zijn — dat kiest een uur áls doelwit.
+
 ## Doelwitkeuze (C2)
 
-`Kies doelwit` ondersteunt drie selectiewijzen (per event ingesteld in `doelwit`):
+> De selectie gebeurt sinds de aantal-prefix in **`Kies event`** (niet meer in
+> `Kies doelwit`), zodat het aantal doelwitten al bekend is op het moment van de afroep.
+> `Kies doelwit` gebruikt dat resultaat (`msg.doelwit`) en doet enkel de snapshot +
+> reveal-audio.
+
+`Kies event` ondersteunt drie selectiewijzen (per event ingesteld in `doelwit`):
 - `willekeurig` — N willekeurige spelers/uren.
 - `alle` — alle spelers/uren.
 - `rang` — sorteer op een veld en neem de top N:
-  - **speler**: `levensuren` (`totaalUren`) of `achterstand`.
+  - **speler**: `levensuren` (`totaalUren`).
   - **uur**: `nummer` (klokstand) of `bezetting` (aantal spelers op dat uur via
     `spelerLocaties`).
 
@@ -79,21 +92,52 @@ gevolgen hebben. Types (uitbreidbaar: nieuw type = extra tak):
 
 Drie registers (global context):
 
-| Register          | Vorm                                                                    | Niveau  |
-|-------------------|-------------------------------------------------------------------------|---------|
-| `bordStaat`       | `{ <uur>: { effecten: [ {id, effect, naam, resterendeRondes, data} ] } }` | uur   |
-| `spelerEffecten`  | `{ <naam>: [ {id, effect, naam, resterendeRondes, data} ] }`            | speler  |
-| `wereldEffecten`  | `[ {id, effect, naam, resterendeRondes, data} ]`                        | wereld  |
+| Register          | Vorm                                                                              | Niveau  |
+|-------------------|-----------------------------------------------------------------------------------|---------|
+| `bordStaat`       | `{ <uur>: { effecten: [ {id, bron, instId, effect, naam, resterendeRondes, data} ] } }` | uur |
+| `spelerEffecten`  | `{ <naam>: [ {id, bron, instId, effect, naam, resterendeRondes, data} ] }`        | speler  |
+| `wereldEffecten`  | `[ {id, bron, instId, effect, naam, resterendeRondes, data} ]`                     | wereld  |
+
+`bron` = het event-id; `instId` = één per event-afvuring (gedeeld door alle effecten
+van diezelfde afvuring). `duurRondes` mag een getal zijn óf een optie (`kort` 2–4 /
+`middel` 4–7 / `lang` 7–12) die `Voer gevolg uit` rolt. Een uur-effect op precies 2
+palen krijgt `data.partner` = het andere uur (koppelt bv. de twee portaal-uren).
 
 **Aftellen/aflopen:** `Verouder effecten` draait bij elke nieuwe ronde, verlaagt
 `resterendeRondes` van álle effecten met 1 en verwijdert wat ≤ 0 is. Nieuwe
 effecten (toegevoegd door `Voer gevolg uit`) starten op hun volle `duurRondes`.
 
-**Afdwinging (twee werkende voorbeelden):**
+**Max-engine:** een toestand-event met veld `max: N` mag hooguit `N` instanties tegelijk
+actief hebben. `Kies event` telt de actieve instanties (distinct `instId` met
+`bron === id`) over de drie registers en slaat het event over zolang `max` bereikt is.
+
+**Afdwinging (werkende voorbeelden):**
 - speler `mag_niet_bewegen` → `Bereken levensuren` (flow 04) negeert een beweging
   van die speler (geen punten; positie wel bijgewerkt).
 - wereld `events_sneller` → `Voer gevolg uit` halveert de reactietijd.
-- uur-effecten (bv. `gevaarlijk`) worden voorlopig alleen opgeslagen en getoond.
+- uur `portaal` → een sprong tussen de twee gekoppelde portaal-uren levert 0 levensuren
+  op en telt niet als stap (flow 04). De `Verifieer beweging`-controle is portaal-bewust
+  (een legale sprong van hoog naar laag uur geeft geen "TERUG IN TIJD").
+- uur `happy_hour` → een verplaatsing die op dat uur eindigt levert dubbele levensuren
+  (flow 04).
+
+**LED-toestanden centraal (`Sync toestanden + LEDs`, node `c6a0000000000050`):** deze
+node (getriggerd door de 2s-refresh én na `Verouder effecten`) leidt per paal de LED af
+uit het actieve uur-effect (`portaal` → actie 1/paars, `happy_hour` → actie 2/goud, anders
+0/uit) en stuurt alleen bij wijziging op `commando/master1`. Zo gaan verlopen of gestopte
+toestanden vanzelf weer uit. De node publiceert ook **`pof/portalen`** (paren) en
+**`pof/toestanden`** (uur-effect-rijen) voor de simulator. Toestand-events hebben dus géén
+`commando`-gevolg meer nodig voor hun LED.
+
+**Reset (`resetSpelStaat`):** **Stop spel** (in `Verwerk bediening`) én de twee-staps
+**Noodstop** resetten de **partij** — events-teller, alle effect-registers, posities en
+snapshots — maar **niet** de globale stats. De Herstart-knop is verwijderd; gebruik
+Start/Stop/Pauzeer/Hervat.
+
+**Globale stats (`spelerStats`):** `totaalUren`/levensdagen, `sterftes` en (later) `skills`
+**blijven** over Stop heen, gedeeld door sim + echt. Ze staan in een eigen dashboard
+**Globale stats** (onder Live Radar, ook op de sim-pagina). De inject **[BEHEER] Wis
+globale stats** zet ze handmatig op 0.
 
 **Beheer:** `[BEHEER] Wis alle effecten` (inject) leegt de drie registers — handig
 bij testen of bij het herstarten van een spelcyclus.
@@ -101,8 +145,11 @@ bij testen of bij het herstarten van een spelcyclus.
 ## Audio-abstractie
 
 Audio-verzoeken worden gepubliceerd op MQTT-topic **`audio/afspelen`**
-(`{tekst, fase, prioriteit}`). De afspeel-consument op de geluidsbox bestaat nog
-niet — zie `docs/todo.md`.
+(`{tekst, fase, segments, prioriteit}`); de **`audio-player`** Pi-service speelt de
+WAV-segmenten sequentieel af. De **event-fase** begint met de aantal-prefix
+(`getallen/<aantal>` + `woorden/<speler|spelers|uur|uren>`) zodat het aantal getroffen
+doelwitten vóór de event-tekst klinkt; de **doelwit-fase** somt de doelwitten één voor
+één op. Zie `docs/protocol.md` en `pi/audio-player/audio/README.md`.
 
 ## Visualisatie
 
@@ -122,7 +169,7 @@ effecten** (`Niveau | Doel | Effect | Rondes resterend`), gevoed door
 | `pofHuidigEvent` | object  | 06 Kies event         | 06 dashboard                       |
 | `pofVerificatie` | object  | 06 Kies doelwit       | 06 Verifieer                       |
 | `pofRegels`      | object  | 06 (ronde/gevolg)     | 04 Bereken levensuren              |
-| `bordStaat`      | object  | 06 Voer gevolg/Verouder | 06 Bouw effecten-tabel           |
+| `bordStaat`      | object  | 06 Voer gevolg/Verouder | 06 Bouw effecten-tabel / Kies event (max) / Sync toestanden + LEDs, 04 (portaal/happy hour) |
 | `spelerEffecten` | object  | 06 Voer gevolg/Verouder | 06, 04 (mag_niet_bewegen)        |
 | `wereldEffecten` | array   | 06 Voer gevolg/Verouder | 06 (events_sneller)              |
 

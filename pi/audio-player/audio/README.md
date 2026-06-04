@@ -23,6 +23,11 @@ audio/
 ├── uren/          één bestand per uur/paal
 │   ├── 1.wav
 │   └── ... t/m 24.wav
+├── woorden/       losse zelfstandige naamwoorden voor de aantal-prefix
+│   ├── speler.wav   ("speler")
+│   ├── spelers.wav  ("spelers")
+│   ├── uur.wav      ("uur")
+│   └── uren.wav     ("uren")
 └── doelwit/       vaste omkadering rond de doelwit-opsomming
     ├── voor.wav   ("De volgende doelwitten zijn gekozen:")
     └── na.wav     ("...dat waren de doelwitten.")
@@ -30,13 +35,19 @@ audio/
 
 ## Hoe een event klinkt (knip-en-plak)
 
-Bij een event met getal speelt de Pi achter elkaar:
+Vóór de event-tekst roept de Pi eerst het **aantal getroffen doelwitten** af, gevolgd
+door het zelfstandig naamwoord (enkel/meervoud):
+`getallen/<aantal>.wav` → `woorden/<speler|spelers|uur|uren>.wav`
+
+Daarna de event-tekst zelf (met eventueel getal):
 `events/<id>_voor.wav` → `getallen/<getal>.wav` → `events/<id>_na.wav`
 
-Voorbeeld event `verplaatsing1` met getal 3:
-> "Minimum" + "drie" + "uur vooruit."
+Voorbeeld event `verplaatsing2` dat 3 spelers raakt, met getal 3:
+> "drie" + "spelers" + "Maximum" + "drie" + "uur."  → *"3 spelers maximum 3 uur."*
 
-Bij de doelwitten:
+Raakt het 1 speler: "één" + "speler" + … (enkelvoud).
+
+Bij de doelwitten (zoals voorheen, één voor één):
 `doelwit/voor.wav` → (`spelers/lilou.wav` of `uren/7.wav`, per doelwit) → `doelwit/na.wav`
 
 ## Een nieuw event van audio voorzien
@@ -47,6 +58,10 @@ Geef het event in de Node-RED `[CONFIG]`-inject de velden `audioVoor` en
 { "id": "verplaatsing1", "audioVoor": "verplaatsing1_voor.wav", "audioNa": "verplaatsing1_na.wav", ... }
 ```
 Leg dan `events/verplaatsing1_voor.wav` en `events/verplaatsing1_na.wav` klaar.
+
+Huidige toestand-events die audio verwachten (in `events/`):
+`portalen_voor.wav` / `portalen_na.wav` en `happy_hour_voor.wav` / `happy_hour_na.wav`.
+En de aantal-prefix-woorden in `woorden/`: `speler.wav`, `spelers.wav`, `uur.wav`, `uren.wav`.
 
 Ontbrekende bestanden worden gewoon overgeslagen (met een logregel) — de service
 blijft draaien.

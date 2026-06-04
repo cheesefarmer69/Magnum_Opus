@@ -42,7 +42,9 @@ het echte hardware is.
 | 24-uur veld (onafhankelijk van paaltjesLijst) | ✗ | ✓ |
 | Verplaatsingscontrole testen (te veel / terug in tijd) | ✗ | ✓ |
 | Buzzer-piep per afgeroepen uur (🔔) | ✓ | ✓ |
-| LED-animaties testen (actie 11–16) | ✓ | ✓ |
+| Portaal tonen (paarse lijn) + erdoor teleporteren | ✓ (tonen) | ✓ (teleport) |
+| Toestanden-paneel (actieve tags per uur + resterende events) | ✓ | ✓ |
+| LED-toestanden tonen (paars=portaal, goud=happy hour) | ✓ | ✓ |
 | Plates-of-Fate flow testen zonder hardware | ✗ | ✓ |
 | Foutcodes enkel bij echte overtreding | ✓ | ✓ |
 | Scenario opnemen/afspelen | ✗ (v2) | ✗ (v2) |
@@ -103,11 +105,29 @@ Kijk passief mee met een echt spel zonder enig risico.
    - **LED-bolletjes** naast de palen kleuren mee bij elk `commando/master1`-bericht.
    - **Speler-posities** volgen de **uitkomst van het locatie-algoritme** (topic
      `locatie/spelers`), niet de ruwe paal-berichten — dus geen geflikker meer.
-   - **Log-paneel** toont alle inkomende berichten; vink "Foutcodes" aan voor
-     controle-resultaten, "Commando's" voor enkel LED-commando's.
+   - **Huidig event** toont enkel de tekst die effectief voorgelezen wordt
+     ("3 uren worden Happy Hour."); links ervan staat een **teller** met het aantal
+     events dat deze partij gevallen is (reset bij Stop).
+   - **Log-paneel** met een **dropdown-filter** ("Toon ▾"): vink aan wat je wil zien —
+     **Info · Commando's · Audio · Foutcodes**. De gekozen filters én de loghoogte blijven
+     bewaard (localStorage). Sleep de bovenrand om de hoogte in te stellen; het speelveld
+     krimpt mee i.p.v. weggeduwd te worden, en de oudste logregels verdwijnen vanzelf.
+     Ook **"Toestand afgelopen"** verschijnt in de log zodra een toestand verdwijnt.
    - **Audio**-aanvragen (oranje in de log) verschijnen bij Plates-of-Fate events.
    - **Historiek-paneel** (rechts, klik op de verticale "Historiek"-tab) toont de
      events van het lopende spel chronologisch (topic `spel/historie`).
+   - **Portaal**: zodra een portaal-event valt, kleuren twee palen continu paars en
+     verschijnt er een **paarse stippellijn** tussen de twee uren (topic
+     `pof/portalen`).
+
+### Portaal gebruiken (simulatiemodus)
+
+Sleep een speler naar een portaal-uur en **laat hem daar los**: de simulator laat hem
+één publish-cyclus op dat uur staan en teleporteert hem dan naar het **partner-uur**.
+Doordat Node-RED zo een directe paalwissel A→B ziet, scoort het die sprong als portaal
+(**0 levensuren**); de stappen die je ervoor/erna nog versleept, tellen wel gewoon mee.
+De automatische random-walk gebruikt het portaal niet — test portaalgebruik dus met
+slepen.
 
 ### Kleuren in de log
 
@@ -221,5 +241,7 @@ bij het eerste laden (daarna gecached door de browser).
 - Geen RSSI-/signaalsimulatie: de simulator test het spelverloop, niet de
   radioprestaties van de hardware. Voor RSSI-diagnose zie `docs/locatiebepaling.md`
   (ruwe-RSSI-tabel met echte hardware).
-- LED-animaties in de browser benaderen de firmware-animaties maar zijn
-  niet pixel-identiek aan de fysieke LED-strip.
+- De LED-bolletjes tonen de minimale actie-set: paars (portaal), goud (happy hour) of
+  uit. Andere kleuren/animaties bestaan niet meer in de firmware.
+- Het **Toestanden**-paneel (rechtsonder in de zijbalk) toont per tag welke uur-toestand
+  actief is en hoeveel events die nog blijft (via topic `pof/toestanden`).
