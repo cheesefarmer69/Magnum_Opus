@@ -34,11 +34,14 @@ Stop POF → pofActief = false, fase idle.
   met die aantal-prefix; `Kies doelwit` **snapshot de beginposities** en bouwt de
   doelwit-reveal-audio; `Voer gevolg uit` voert de gevolgen uit en zet de fase op
   `reactie` (×0.5 bij wereld-effect `events_sneller`).
-- **VERIFY = scoren**: `Verifieer beweging` kent **hier** de levensuren toe (niet live).
-  Per speler, op basis van begin-snapshot → eindpositie (portaal-bewust): legaal vooruit
-  `+netto` (×2 op happy hour); te weinig/te veel/achteruit/niet-doelwit-dat-beweegt
-  trekt levensuren af. Onder 0 → blijft 0 + **+1 sterfte**. `Bereken levensuren` (flow 04)
-  werkt enkel nog de positie bij. Resultaat → tabel **Controle** + globale stats.
+- **VERIFY = scoren (pad-gebaseerd)**: `Verifieer beweging` kent **hier** de levensuren toe
+  (niet live), op basis van het **opgenomen pad** `pofPad[speler]` — een geordende reeks hops die
+  `Bereken levensuren` (flow 04) tijdens de reactietijd verzamelt. Elke hop is een **STAP**
+  (1 vooruit, nooit achteruit) of een **TELEPORT** (sprong tussen twee actieve portaal-palen, 0
+  stappen, richting-agnostisch, max 1×/portaal). Géén netto begin/eind-vergelijking. Legaal
+  vooruit `+voor` (×2 op happy-hour-eindpaal); te veel/te weinig/achteruit/niet-doelwit-dat-beweegt
+  trekt af; onder 0 → 0 + **+1 sterfte**. Volledige spec: `docs/event-systeem.md`. Resultaat →
+  tabel **Controle** + globale stats.
 
 Besturing (Start/Stop POF, **Manueel**-switch, **Volgende event**-knop,
 **Controle**-knop, **Timer**, **Huidig event**, **Controle**-tabel) staat op de

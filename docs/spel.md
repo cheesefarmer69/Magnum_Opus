@@ -54,21 +54,22 @@ en ondertussen zoveel mogelijk levensuren verzamelen.
 
 ### Puntensysteem (scoren op controle)
 
-Levensuren worden **niet live** toegekend, maar **pas bij de controle** van een event,
-op basis van waar elke speler stond toen het event viel en waar hij eindigt. Tijdens
-elk event mag enkel het **doelwit** van een verplaatsing-event bewegen; andere spelers
-moeten stil blijven staan.
+Levensuren worden **niet live** toegekend, maar **pas bij de controle** van een event, op basis
+van het **gelopen pad** (de geordende stappen, niet enkel begin/eind — zie `docs/event-systeem.md`).
+Een verplaatsing is een reeks atomaire acties:
 
-Per speler, bij de controle:
+- **STAP** = één paal vooruit (de klok loopt rond; achteruit mag nooit) → **1 levensuur**.
+- **TELEPORT** = via een actief portaal naar de gekoppelde paal → **0 stappen, 0 levensuren**,
+  richting-agnostisch (mag dus naar een lager uur), max 1× per portaal per verplaatsing.
 
-- **Legaal vooruit** (doelwit dat aan de min/max-voorwaarde voldoet): `+netto` levensuren.
-  Eindigt hij op een **happy-hour**-uur, dan tellen die levensuren **dubbel**.
-- **Illegale of onvolledige verplaatsing trekt levensuren AF** (geen achterstand meer):
-  - niet-doelwit dat tóch beweegt: `−|verplaatsing|` (5→8 = −3; 5→4 = −1).
-  - doelwit dat **te weinig** vooruit ging (< min): `−(het aantal dat hij bewoog)`.
-  - doelwit dat **te veel** vooruit ging (> max): `−(het teveel)` (netto − max).
-  - achteruit (terug in de tijd) terwijl dat niet mag: `−|verplaatsing|`.
-- Een portaal-sprong telt als 0 stappen (zie hieronder) en geeft dus geen straf.
+Tijdens elk event mag enkel het **doelwit** van een verplaatsing-event bewegen; anderen blijven
+stil. Per speler bij de controle (`voor` = aantal STAP vooruit, `x` = budget):
+
+- **Legaal** (doelwit, `voor ≤ x`, geen achterstap): `+voor` levensuren; eindigt hij op een
+  **happy-hour**-uur, dan **dubbel**.
+- **Straf** (aftrek): te veel `−(voor − x)`; te weinig `−voor`; achteruit `−achter`; niet-doelwit
+  dat beweegt `−(voor+achter)` (5→8 = −3, 5→4 = −1).
+- Een portaal-sprong telt als 0 stappen → geen straf en geen "terug in de tijd".
 
 ### Sterftes
 

@@ -50,26 +50,27 @@ zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LE
 | `getal` | rolt `x` (bv. `midden` → 1–6) en vult het in de tekst in |
 | `doelwit` | type `speler` — wie moet bewegen |
 
+> Controle/scoring is **pad-gebaseerd** (STAP/TELEPORT, actie-per-actie) — zie
+> `docs/event-systeem.md`. `voor` = aantal STAP vooruit, `x` = budget. Een TELEPORT (sprong
+> tussen twee actieve portaal-palen) telt 0 stappen.
+
 ## Huidige events
 
-### verplaatsingMin — "Minimum x uur vooruit."
-- **Werking**: de gekozen spelers moeten minstens `x` uur **vooruit** op de klok.
-- **Doelwit**: `type: speler`, `selectie: willekeurig`, `aantal: laag` (1–3 actieve
-  spelers). `x` = `getal: midden` (1–6).
-- **Controle** (na reactietijd, per doelwit-speler) — levensuren-Δ:
-  - `netto ≥ x` → **OK**, +netto (×2 op happy hour)
-  - `0 ≤ netto < x` → **TE WEINIG**, −netto
-  - `netto < 0` → **TERUG IN TIJD**, −|netto|
-  - niet-doelwit dat toch beweegt → **BEWOOG (mocht niet)**, −|netto|
-
-### verplaatsingMax — "Maximum x uur."
-- **Werking**: de gekozen spelers mogen hoogstens `x` uur vooruit.
-- **Doelwit**: identiek aan verplaatsingMin.
+### verplaatsingMax — "Maximum x uur." (Event A)
+- **Werking**: de gekozen spelers mogen **hoogstens** `x` STAPpen vooruit (minder mag,
+  achteruit niet). Een portaal-sprong telt 0.
+- **Doelwit**: `type: speler`, `selectie: willekeurig`, `aantal: laag` (1–3 actieve spelers).
+  `x` = `getal: midden`.
 - **Controle** — levensuren-Δ:
-  - `0 ≤ netto ≤ x` → **OK**, +netto (×2 op happy hour)
-  - `netto > x` → **TE VEEL**, −(netto − x)
-  - `netto < 0` → **TERUG IN TIJD**, −|netto|
-  - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, −|netto|
+  - `voor ≤ x` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
+  - `voor > x` → **TE VEEL**, −(voor − x)
+  - achterwaartse STAP → **TERUG IN TIJD**, −achter
+  - >1× zelfde portaal → **ONGELDIGE TELEPORT**, −voor
+  - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, −(voor+achter)
+  - onder 0 → 0 levensuren + **1 sterfte**
+
+> Het oude `verplaatsingMin`-event is verwijderd (de "nooit achteruit"-regel zit nu in de
+> STAP-definitie; een aparte minimum-variant is niet nodig).
 
 ## Hoe het doelwit bepaald wordt
 De kandidaten zijn de **actieve, niet-gepauzeerde** spelers. Daarna:

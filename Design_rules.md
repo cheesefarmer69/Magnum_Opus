@@ -80,21 +80,25 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 
 ## 4. Puntensysteem (scoring) — geldt voor echt spel én sim
 
-- **Scoren gebeurt PAS bij de controle** van een event, niet live per paalwissel. De
-  begin-snapshot (bij het vallen van het event) → eindpositie bepaalt de netto-verplaatsing.
-  Levensuren zijn dus pas **na de controle** zichtbaar in de dashboards.
-- **Beweging is altijd gecontroleerd.** Bij elk event mag enkel het **beweging-doelwit** (een
-  speler-doelwit van een event met `voorwaarde` min/max) bewegen. Alle andere spelers moeten
-  **stil blijven staan**; bewegen = straf. (Dus ook tijdens toestand-/wereld-events.)
-- **Levensuren-Δ per speler bij de controle:**
+> **Volledige spec: `docs/event-systeem.md` (leidend).** Hieronder de kernregels.
+
+- **Pad, geen netto.** Een verplaatsing is een **geordende reeks atomaire acties**:
+  **STAP** (1 paal vooruit, klok rond, nooit achteruit → 1 levensuur) en **TELEPORT** (sprong
+  tussen twee actieve portaal-palen → 0 stappen, 0 levensuren, richting-agnostisch, max 1×/portaal).
+  **Nooit** richting/score afleiden uit netto begin/eind — beoordeel **actie per actie** (het pad
+  wordt opgenomen uit de settled paalwissels in `pofPad`). Zo geeft een legale portaal-sprong naar
+  een lager uur géén "TERUG IN TIJD".
+- **Scoren gebeurt PAS bij de controle** (niet live); pas dan zichtbaar in de dashboards.
+- **Beweging is altijd gecontroleerd.** Bij elk event mag enkel het **beweging-doelwit**
+  (`voorwaarde` min/max) bewegen; anderen blijven stil, anders straf.
+- **Levensuren-Δ per speler** (`voor` = aantal STAP vooruit, `x` = budget):
   | Geval | Δ |
   |-------|---|
-  | doelwit `min`, netto ≥ getal | **+netto** (×2 op happy hour) |
-  | doelwit `min`, 0 ≤ netto < getal (TE WEINIG) | **−netto** |
-  | doelwit `max`, netto ≤ getal | **+netto** (×2 op happy hour) |
-  | doelwit `max`, netto > getal (TE VEEL) | **−(netto − getal)** |
-  | doelwit, netto < 0 (TERUG IN TIJD) | **−\|netto\|** |
-  | niet-doelwit dat beweegt (BEWOOG mocht niet) | **−\|netto\|** |
+  | doelwit `max`, `voor ≤ x` (geldig) | **+voor** (×2 op happy hour) |
+  | doelwit `max`, `voor > x` (TE VEEL) | **−(voor − x)** |
+  | doelwit `min`, `voor < x` (TE WEINIG) | **−voor** |
+  | doelwit, achterwaartse STAP (TERUG IN TIJD) | **−achter** |
+  | niet-doelwit dat beweegt (BEWOOG mocht niet) | **−(voor+achter)** |
   | stil blijven staan | 0 |
   Voorbeelden van Nic: 5→8 zonder te mogen = −3; 5→4 mag niet = −1.
 - **Geen "achterstand"-deficitmodel meer** (vervangen door directe aftrek).

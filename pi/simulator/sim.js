@@ -489,20 +489,15 @@ function renderZijbalk() {
         const uurEl = document.createElement("span");
         uurEl.className = "speler-uur";
         uurEl.textContent = "Uur " + welkUur(sp.x, sp.y);
-        const btnAuto = document.createElement("button");
-        btnAuto.textContent = "auto";
-        btnAuto.className = sp.auto ? "actief" : "";
-        btnAuto.title = "Automatische random walk";
-        btnAuto.addEventListener("click", () => { sp.auto = !sp.auto; renderZijbalk(); });
         const btnDel = document.createElement("button");
-        btnDel.textContent = "✕";
+        btnDel.textContent = "X";
         btnDel.className = "del-knop";
         btnDel.title = "Verwijder speler";
         btnDel.addEventListener("click", () => {
             state.spelers = state.spelers.filter(x => x !== sp);
             renderZijbalk(); renderSpelers();
         });
-        li.append(kleur, naam, uurEl, btnAuto, btnDel);
+        li.append(kleur, naam, uurEl, btnDel);
         ul.appendChild(li);
     }
 }
@@ -565,36 +560,8 @@ function endDrag() {
     window.removeEventListener("pointerup", endDrag);
 }
 
-// ============================================================
-// AUTOMATISCHE BEWEGING
-// ============================================================
-function tickAutoWalk() {
-    if (state.gepauzeerd) return;
-    const dt_s = state.tickMs / 1000;
-    const SNELHEID = 1.2;  // m/s
-    const RING_MID = (R_BUITEN_M + R_BINNEN_M) / 2;
-    const RING_MARGE = 1.0;
-
-    for (const sp of state.spelers) {
-        if (!sp.auto || sp.drag) continue;
-        // Brownian-motion stap
-        const stap = SNELHEID * dt_s;
-        sp.x += (Math.random() - 0.5) * 2 * stap;
-        sp.y += (Math.random() - 0.5) * 2 * stap;
-        // Houd binnen de ring: als buiten, spiegel terug naar het midden
-        const r = Math.hypot(sp.x, sp.y);
-        if (r > R_BUITEN_M - RING_MARGE) {
-            const k = (R_BUITEN_M - RING_MARGE) / r;
-            sp.x *= k; sp.y *= k;
-        } else if (r < R_BINNEN_M + RING_MARGE) {
-            // Trek licht naar buiten (richting buitenring)
-            const k = (R_BINNEN_M + RING_MARGE) / Math.max(r, 0.1);
-            sp.x *= k; sp.y *= k;
-        }
-    }
-    renderSpelers();
-    renderZijbalk();
-}
+// Spelers bewegen enkel via slepen (geen automatische random walk meer), zodat het
+// gelopen pad zuiver gedetecteerd wordt voor de verplaatsingscontrole.
 
 // ============================================================
 // LOG
@@ -738,6 +705,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     // Loops
-    setInterval(() => { tickAutoWalk(); renderLeds(); }, state.tickMs);
+    setInterval(renderLeds, state.tickMs);
     setInterval(publishLocaties, state.publishMs);
 });

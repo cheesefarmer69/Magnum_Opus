@@ -1335,7 +1335,7 @@
         "type": "function",
         "z": "c4a0000000000001",
         "name": "Bereken levensuren",
-        "func": "// Positie-update. Levensuren worden NIET hier toegekend, maar pas bij de controle\n// (Verifieer beweging) op basis van de begin-snapshot -> eindpositie. Hier houden we\n// enkel de huidige paal bij (voor commando-targeting).\nconst ev = msg.payload;\nif (!ev || !ev.speler || ev.vanPaal === undefined || ev.naarPaal === undefined) {\n    return null;\n}\nlet stats = global.get(\"spelerStats\") || {};\nlet s = stats[ev.speler] || {};\nif (s.totaalUren === undefined) s.totaalUren = 0;\nif (s.sterftes === undefined) s.sterftes = 0;\nif (s.tijdTerug === undefined) s.tijdTerug = false;\ns.huidigePaal = ev.naarPaal;\nstats[ev.speler] = s;\nglobal.set(\"spelerStats\", stats);\nmsg.payload = {\n    speler: ev.speler, van: ev.vanPaal, naar: ev.naarPaal,\n    totaalUren: s.totaalUren,\n    levensdagen: Math.floor(s.totaalUren / 24),\n    levensuren: s.totaalUren % 24,\n    sterftes: s.sterftes,\n    melding: ev.speler + \" positie -> paal \" + ev.naarPaal + \" (scoren bij de controle)\"\n};\nreturn msg;\n",
+        "func": "// Positie-update + PAD-OPNAME. Levensuren worden niet hier toegekend, maar bij de\n// controle (Verifieer beweging) op basis van het opgenomen pad.\nconst ev = msg.payload;\nif (!ev || !ev.speler || ev.vanPaal === undefined || ev.naarPaal === undefined) {\n    return null;\n}\nlet stats = global.get(\"spelerStats\") || {};\nlet s = stats[ev.speler] || {};\nif (s.totaalUren === undefined) s.totaalUren = 0;\nif (s.sterftes === undefined) s.sterftes = 0;\nif (s.tijdTerug === undefined) s.tijdTerug = false;\n\n// Tijdens de bewegingsfase elke settled paalwissel als hop bewaren (geordend pad).\nconst fase = global.get(\"pofFase\") || \"idle\";\nif (fase === \"reactie\" || fase === \"wacht_controle\") {\n    let pad = global.get(\"pofPad\") || {};\n    (pad[ev.speler] = pad[ev.speler] || []).push([ev.vanPaal, ev.naarPaal]);\n    global.set(\"pofPad\", pad);\n}\n\ns.huidigePaal = ev.naarPaal;\nstats[ev.speler] = s;\nglobal.set(\"spelerStats\", stats);\nmsg.payload = {\n    speler: ev.speler, van: ev.vanPaal, naar: ev.naarPaal,\n    totaalUren: s.totaalUren,\n    levensdagen: Math.floor(s.totaalUren / 24),\n    levensuren: s.totaalUren % 24,\n    sterftes: s.sterftes,\n    melding: ev.speler + \" positie -> paal \" + ev.naarPaal + \" (scoren bij de controle)\"\n};\nreturn msg;\n",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -1651,7 +1651,7 @@
         "once": true,
         "onceDelay": 0.3,
         "topic": "speler",
-        "payload": "[{\"id\": \"verplaatsing1\", \"naam\": \"verplaatsingMin\", \"tag\": \"\", \"categorie\": \"speler\", \"tekst\": \"Minimum x uur vooruit.\", \"reactietijd_s\": 15, \"doelwit\": {\"type\": \"speler\", \"selectie\": \"willekeurig\", \"aantal\": \"laag\"}, \"getal\": \"midden\", \"voorwaarde\": \"min\", \"audioVoor\": \"verplaatsing1_voor.wav\", \"audioNa\": \"verplaatsing1_na.wav\", \"gevolgen\": [{\"type\": \"geen\"}]}, {\"id\": \"verplaatsing2\", \"naam\": \"verplaatsingMax\", \"tag\": \"\", \"categorie\": \"speler\", \"tekst\": \"Maximum x uur.\", \"reactietijd_s\": 15, \"doelwit\": {\"type\": \"speler\", \"selectie\": \"willekeurig\", \"aantal\": \"laag\"}, \"getal\": \"midden\", \"voorwaarde\": \"max\", \"audioVoor\": \"verplaatsing2_voor.wav\", \"audioNa\": \"verplaatsing2_na.wav\", \"gevolgen\": [{\"type\": \"geen\"}]}]",
+        "payload": "[{\"id\": \"verplaatsing2\", \"naam\": \"verplaatsingMax\", \"tag\": \"\", \"categorie\": \"speler\", \"tekst\": \"Maximum x uur.\", \"reactietijd_s\": 15, \"doelwit\": {\"type\": \"speler\", \"selectie\": \"willekeurig\", \"aantal\": \"laag\"}, \"getal\": \"midden\", \"voorwaarde\": \"max\", \"audioVoor\": \"verplaatsing2_voor.wav\", \"audioNa\": \"verplaatsing2_na.wav\", \"gevolgen\": [{\"type\": \"geen\"}]}]",
         "payloadType": "json",
         "x": 200,
         "y": 200,
@@ -1815,7 +1815,7 @@
         "type": "function",
         "z": "c6a0000000000001",
         "name": "Kies doelwit",
-        "func": "// Snapshot beginposities + bouw de doelwit-reveal-audio.\n// Het doelwit is al gekozen in \"Kies event\" (msg.doelwit) zodat het aantal vooraan kan.\nconst event = msg.event;\nconst d = event.doelwit || { type: \"geen\" };\nconst doelwit = msg.doelwit || [];\n\n// Historiek: vul de doelwitten aan op het laatst gelogde event\nlet _spelH = global.get(\"pofHuidigSpel\");\nif (_spelH && _spelH.events.length) { _spelH.events[_spelH.events.length - 1].doelwit = doelwit.slice(); global.set(\"pofHuidigSpel\", _spelH); }\n\n// Snapshot beginposities van de ACTIEVE spelers (niet-doelwit moet stil blijven).\nconst loc = global.get(\"spelerLocaties\") || {};\nconst _gpSnap = global.get(\"gespauzeerdePlayers\") || {};\nlet startPosities = {};\nfor (const naam in loc) { if (!_gpSnap[naam]) startPosities[naam] = loc[naam]; }\nglobal.set(\"pofVerificatie\", {\n    voorwaarde: event.voorwaarde || \"geen\",\n    getal: msg.getalWaarde,\n    doelwit: doelwit,\n    startPosities: startPosities\n});\n\nlet tekst;\nif (!doelwit.length) tekst = \"Dit raakt niemand in het bijzonder.\";\nelse if (d.type === \"uur\") tekst = \"Getroffen uren: \" + doelwit.join(\", \") + \".\";\nelse tekst = \"Getroffen spelers: \" + doelwit.join(\", \") + \".\";\nfunction _veilig(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,\"_\");}\nconst _segD = [\"doelwit/voor.wav\"];\nfor (const _t of doelwit) _segD.push(d.type === \"uur\" ? \"uren/\" + _t + \".wav\" : \"spelers/\" + _veilig(_t) + \".wav\");\n_segD.push(\"doelwit/na.wav\");\nconst audio = { payload: { fase: \"doelwit\", tekst: tekst, segments: _segD, prioriteit: \"normaal\" } };\nglobal.set(\"pofDoelwitReveal\", \"\");\nreturn [msg, audio];\n",
+        "func": "// Snapshot beginposities + bouw de doelwit-reveal-audio.\n// Het doelwit is al gekozen in \"Kies event\" (msg.doelwit) zodat het aantal vooraan kan.\nconst event = msg.event;\nconst d = event.doelwit || { type: \"geen\" };\nconst doelwit = msg.doelwit || [];\n\n// Historiek: vul de doelwitten aan op het laatst gelogde event\nlet _spelH = global.get(\"pofHuidigSpel\");\nif (_spelH && _spelH.events.length) { _spelH.events[_spelH.events.length - 1].doelwit = doelwit.slice(); global.set(\"pofHuidigSpel\", _spelH); }\n\n// Snapshot beginposities van de ACTIEVE spelers (niet-doelwit moet stil blijven).\nconst loc = global.get(\"spelerLocaties\") || {};\nconst _gpSnap = global.get(\"gespauzeerdePlayers\") || {};\nlet startPosities = {};\nfor (const naam in loc) { if (!_gpSnap[naam]) startPosities[naam] = loc[naam]; }\nglobal.set(\"pofVerificatie\", {\n    voorwaarde: event.voorwaarde || \"geen\",\n    getal: msg.getalWaarde,\n    doelwit: doelwit,\n    startPosities: startPosities\n});\nglobal.set(\"pofPad\", {});   // pad-opname leegmaken voor deze ronde\n\nlet tekst;\nif (!doelwit.length) tekst = \"Dit raakt niemand in het bijzonder.\";\nelse if (d.type === \"uur\") tekst = \"Getroffen uren: \" + doelwit.join(\", \") + \".\";\nelse tekst = \"Getroffen spelers: \" + doelwit.join(\", \") + \".\";\nfunction _veilig(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,\"_\");}\nconst _segD = [\"doelwit/voor.wav\"];\nfor (const _t of doelwit) _segD.push(d.type === \"uur\" ? \"uren/\" + _t + \".wav\" : \"spelers/\" + _veilig(_t) + \".wav\");\n_segD.push(\"doelwit/na.wav\");\nconst audio = { payload: { fase: \"doelwit\", tekst: tekst, segments: _segD, prioriteit: \"normaal\" } };\nglobal.set(\"pofDoelwitReveal\", \"\");\nreturn [msg, audio];\n",
         "outputs": 2,
         "timeout": 0,
         "noerr": 0,
@@ -2363,7 +2363,7 @@
         "type": "function",
         "z": "c6a0000000000001",
         "name": "Verifieer beweging",
-        "func": "// Controle: scoort de verplaatsingen van dit event. Levensuren worden HIER toegekend\n// (niet live). Per speler: begin-snapshot -> eindpositie, portaal-bewust.\nconst v = global.get(\"pofVerificatie\") || {};\nconst loc = global.get(\"spelerLocaties\") || {};\nconst se = global.get(\"spelerEffecten\") || {};\nconst we = global.get(\"wereldEffecten\") || [];\nconst bord = global.get(\"bordStaat\") || {};\nlet stats = global.get(\"spelerStats\") || {};\nconst palen = (global.get(\"palenActief\") || global.get(\"paaltjesLijst\") || []).slice().sort((a, b) => a - b);\nconst M = palen.length;\n\n// Actieve portaal-paren (een portaal-sprong telt 0 stappen en mag van een hoger naar\n// een lager uur gaan). Zo geeft zo'n legale sprong geen \"TERUG IN TIJD\".\nconst portalen = [];\n{\n    const seen = {};\n    for (const u in bord) for (const e of (bord[u].effecten || [])) {\n        if (e.effect !== \"portaal\") continue;\n        const a = parseInt(u, 10); const b = e.data && e.data.partner;\n        if (b == null) continue;\n        for (const pb of (Array.isArray(b) ? b : [b])) {\n            const k = a < pb ? a + \"-\" + pb : pb + \"-\" + a;\n            if (!seen[k]) { seen[k] = true; portalen.push([a, pb]); }\n        }\n    }\n}\nfunction vArc(a, b) { const ia = palen.indexOf(a), ib = palen.indexOf(b); if (M < 2 || ia < 0 || ib < 0) return null; return (((ib - ia) % M) + M) % M; }\nfunction netto(s0, eind) {\n    if (s0 == null || eind == null) return null;\n    const pv = vArc(s0, eind); if (pv == null) return null;\n    const pa = M - pv;\n    let bestV = pv;\n    for (const pr of portalen) {\n        const A = pr[0], B = pr[1];\n        const c1a = vArc(s0, A), c1b = vArc(B, eind);\n        if (c1a != null && c1b != null) bestV = Math.min(bestV, c1a + c1b);\n        const c2a = vArc(s0, B), c2b = vArc(A, eind);\n        if (c2a != null && c2b != null) bestV = Math.min(bestV, c2a + c2b);\n    }\n    return (bestV <= pa) ? bestV : -pa;\n}\n\nconst doelwitSet = new Set(v.doelwit || []);\nconst start = v.startPosities || {};\nconst voorwaarde = v.voorwaarde || \"geen\";\nconst getal = v.getal;\nconst bewegingEvent = (voorwaarde === \"min\" || voorwaarde === \"max\");\n\nlet rijen = [];\nfor (const naam in start) {\n    let s = stats[naam] || {};\n    if (s.totaalUren === undefined) s.totaalUren = 0;\n    if (s.sterftes === undefined) s.sterftes = 0;\n    if (s.tijdTerug === undefined) s.tijdTerug = false;\n\n    const n = netto(start[naam], (loc[naam] !== undefined ? loc[naam] : null));\n    const isDoel = bewegingEvent && doelwitSet.has(naam);\n    const heeftBlok = (se[naam] || []).some(e => e.effect === \"mag_niet_bewegen\");\n\n    let status, delta = 0;\n    if (n === null) { status = \"onbekend\"; delta = 0; }\n    else if (heeftBlok) { status = \"GEBLOKKEERD\"; delta = 0; }\n    else if (isDoel) {\n        if (n < 0 && !s.tijdTerug) { status = \"TERUG IN TIJD\"; delta = n; }\n        else if (voorwaarde === \"min\") {\n            if (n >= getal) { status = \"OK\"; delta = n; }\n            else { status = \"TE WEINIG\"; delta = -n; }\n        } else {\n            if (n <= getal) { status = \"OK\"; delta = n; }\n            else { status = \"TE VEEL\"; delta = -(n - getal); }\n        }\n    } else {\n        // Niet-bewegingsdoelwit (of event zonder min/max-voorwaarde): moet stil blijven.\n        if (n === 0) { status = \"OK (stil)\"; delta = 0; }\n        else { status = \"BEWOOG (mocht niet)\"; delta = -Math.abs(n); }\n    }\n\n    // Happy hour x2 op LEGAAL verdiende levensuren (eindpositie heeft happy_hour-effect).\n    if (delta > 0) {\n        const happy = ((bord[loc[naam]] || {}).effecten || []).some(e => e.effect === \"happy_hour\");\n        if (happy) { delta *= 2; status += \" (happy hour x2)\"; }\n    }\n\n    // Toepassen + sterfte: onder 0 -> blijf op 0 en +1 sterfte (speler speelt door).\n    const nieuw = s.totaalUren + delta;\n    if (nieuw < 0) { s.totaalUren = 0; s.sterftes += 1; status += \" -> STERFTE\"; }\n    else s.totaalUren = nieuw;\n    stats[naam] = s;\n\n    const paalFX = ((bord[loc[naam]] || {}).effecten || []).map(e => e.naam);\n    const allFX = [...(se[naam] || []).map(e => e.naam), ...we.map(e => e.naam), ...paalFX];\n    const tag = allFX.length ? allFX.join(\", \") : \"-\";\n    const dStr = (delta >= 0 ? \"+\" : \"\") + delta;\n    rijen.push({ Speler: naam, Tag: tag, Verplaatst: (n === null ? \"?\" : n), Status: status + \" (\" + dStr + \" uur)\" });\n    // ruwe status voor de foutcode-detectie in de simulator\n    rijen[rijen.length - 1]._status = status;\n    rijen[rijen.length - 1]._delta = delta;\n}\nglobal.set(\"spelerStats\", stats);\n\n// Volgende fase: automatisch nieuwe aanloop, of wachten in manueel-modus.\nconst manueel = global.get(\"pofManueel\") === true;\nglobal.set(\"pofFase\", manueel ? \"wacht\" : \"aanloop\");\nglobal.set(\"pofTeller\", manueel ? 0 : 5);\n\nconst FOUT = new Set([\"TE WEINIG\", \"TE VEEL\", \"TERUG IN TIJD\", \"BEWOOG (mocht niet)\"]);\nconst controleMsg = {\n    topic: \"pof/controle\",\n    payload: {\n        event: (global.get(\"pofHuidigEvent\") || {}).naam || \"\",\n        resultaten: rijen.map(r => ({\n            speler: r.Speler,\n            status: FOUT.has(r._status) ? r._status : \"OK\",\n            verplaatst: r.Verplaatst,\n            delta: r._delta,\n            tag: r.Tag\n        }))\n    }\n};\nconst tabel = rijen.map(r => ({ Speler: r.Speler, Tag: r.Tag, Verplaatst: r.Verplaatst, Status: r.Status }));\nglobal.set(\"pofLaatsteControle\", tabel);\nmsg.payload = tabel.length ? tabel : [{ Speler:\"-\", Tag:\"-\", Verplaatst:\"-\", Status:\"geen spelers\" }];\nreturn [msg, controleMsg];\n",
+        "func": "// Controle: scoort op basis van het OPGENOMEN PAD (geordende hops), actie per actie.\n// STAP = 1 levensuur (nooit achteruit); TELEPORT (tussen twee actieve portaal-palen) =\n// 0 stappen, geen richtingcheck. Geen netto begin/eind-vergelijking.\nconst v = global.get(\"pofVerificatie\") || {};\nconst loc = global.get(\"spelerLocaties\") || {};\nconst se = global.get(\"spelerEffecten\") || {};\nconst we = global.get(\"wereldEffecten\") || [];\nconst bord = global.get(\"bordStaat\") || {};\nconst pad = global.get(\"pofPad\") || {};\nlet stats = global.get(\"spelerStats\") || {};\nconst palen = (global.get(\"palenActief\") || global.get(\"paaltjesLijst\") || []).slice().sort((a, b) => a - b);\nconst N = palen.length;\nconst idx = (p) => palen.indexOf(p);\n\nfunction portaalPartner(p) {\n    const fx = ((bord[p] || {}).effecten || []).find(e => e.effect === \"portaal\" && e.data && e.data.partner != null);\n    return fx ? fx.data.partner : null;\n}\n\n// Ontleed het pad van een speler -> voorwaartse/achterwaartse stappen, teleports, geldigheid.\nfunction ontleed(hops) {\n    let voor = 0, achter = 0, ongeldig = false, bewogen = false;\n    const portaalGebruik = {};\n    for (const h of (hops || [])) {\n        bewogen = true;\n        const van = h[0], naar = h[1];\n        if (portaalPartner(van) === naar) {            // TELEPORT\n            const key = van < naar ? van + \"-\" + naar : naar + \"-\" + van;\n            portaalGebruik[key] = (portaalGebruik[key] || 0) + 1;\n            if (portaalGebruik[key] > 1) ongeldig = true;   // max 1x per portaal per zet\n            continue;\n        }\n        const iv = idx(van), inr = idx(naar);\n        if (N < 2 || iv < 0 || inr < 0) continue;\n        const fd = (((inr - iv) % N) + N) % N;\n        const bd = N - fd;\n        if (fd <= bd) voor += fd; else achter += bd;\n    }\n    return { voor, achter, ongeldig, bewogen };\n}\n\nconst doelwitSet = new Set(v.doelwit || []);\nconst start = v.startPosities || {};\nconst voorwaarde = v.voorwaarde || \"geen\";\nconst x = v.getal;\nconst bewegingEvent = (voorwaarde === \"min\" || voorwaarde === \"max\");\n\nlet rijen = [];\nfor (const naam in start) {\n    let s = stats[naam] || {};\n    if (s.totaalUren === undefined) s.totaalUren = 0;\n    if (s.sterftes === undefined) s.sterftes = 0;\n    if (s.tijdTerug === undefined) s.tijdTerug = false;\n\n    const heeftBlok = (se[naam] || []).some(e => e.effect === \"mag_niet_bewegen\");\n    const r = ontleed(pad[naam]);\n    const isDoel = bewegingEvent && doelwitSet.has(naam);\n    let status, delta = 0;\n\n    if (heeftBlok) { status = \"GEBLOKKEERD\"; delta = 0; }\n    else if (isDoel) {\n        if (r.ongeldig) { status = \"ONGELDIGE TELEPORT\"; delta = -r.voor; }\n        else if (r.achter > 0) { status = \"TERUG IN TIJD\"; delta = -r.achter; }\n        else if (voorwaarde === \"max\" && r.voor > x) { status = \"TE VEEL\"; delta = -(r.voor - x); }\n        else if (voorwaarde === \"min\" && r.voor < x) { status = \"TE WEINIG\"; delta = -r.voor; }\n        else { status = \"OK\"; delta = r.voor; }\n    } else {\n        // Niet-(bewegings)doelwit: moet stil blijven staan.\n        if (!r.bewogen && !r.ongeldig) { status = \"OK (stil)\"; delta = 0; }\n        else { status = \"BEWOOG (mocht niet)\"; delta = -(r.voor + r.achter); }\n    }\n\n    // Happy hour x2 op een LEGAAL verdiende beloning (eindpaal heeft happy_hour).\n    if (delta > 0) {\n        const happy = ((bord[loc[naam]] || {}).effecten || []).some(e => e.effect === \"happy_hour\");\n        if (happy) { delta *= 2; status += \" (happy hour x2)\"; }\n    }\n    // Toepassen + sterfte.\n    const nieuw = s.totaalUren + delta;\n    if (nieuw < 0) { s.totaalUren = 0; s.sterftes += 1; status += \" -> STERFTE\"; }\n    else s.totaalUren = nieuw;\n    stats[naam] = s;\n\n    const paalFX = ((bord[loc[naam]] || {}).effecten || []).map(e => e.naam);\n    const allFX = [...(se[naam] || []).map(e => e.naam), ...we.map(e => e.naam), ...paalFX];\n    const tag = allFX.length ? allFX.join(\", \") : \"-\";\n    const dStr = (delta >= 0 ? \"+\" : \"\") + delta;\n    rijen.push({ Speler: naam, Tag: tag, Verplaatst: (r.voor - r.achter), Status: status + \" (\" + dStr + \" uur)\", _status: status, _delta: delta });\n}\nglobal.set(\"spelerStats\", stats);\n\nconst manueel = global.get(\"pofManueel\") === true;\nglobal.set(\"pofFase\", manueel ? \"wacht\" : \"aanloop\");\nglobal.set(\"pofTeller\", manueel ? 0 : 5);\nglobal.set(\"pofPad\", {});\n\nconst FOUT = new Set([\"TERUG IN TIJD\", \"TE VEEL\", \"TE WEINIG\", \"BEWOOG (mocht niet)\", \"ONGELDIGE TELEPORT\"]);\nconst controleMsg = {\n    topic: \"pof/controle\",\n    payload: {\n        event: (global.get(\"pofHuidigEvent\") || {}).naam || \"\",\n        resultaten: rijen.map(r => ({ speler: r.Speler, status: FOUT.has(r._status) ? r._status : \"OK\", verplaatst: r.Verplaatst, delta: r._delta, tag: r.Tag }))\n    }\n};\nconst tabel = rijen.map(r => ({ Speler: r.Speler, Tag: r.Tag, Verplaatst: r.Verplaatst, Status: r.Status }));\nglobal.set(\"pofLaatsteControle\", tabel);\nmsg.payload = tabel.length ? tabel : [{ Speler:\"-\", Tag:\"-\", Verplaatst:\"-\", Status:\"geen spelers\" }];\nreturn [msg, controleMsg];\n",
         "outputs": 2,
         "timeout": 0,
         "noerr": 0,
@@ -3079,7 +3079,7 @@
         "type": "function",
         "z": "c6a0000000000001",
         "name": "Doelwit reveal",
-        "func": "// Onthul de doelwitten een-voor-een (dashboard + global voor simulator).\n// out1 -> Doelwit ui_text | out2 -> Voer gevolg uit | out3 -> Controle-tabel | out4 -> commando/master1 (buzzer-piep per uur)\nconst doelwit = msg.doelwit || [];\nconst namen = doelwit.length ? doelwit : [\"(niemand)\"];\nconst STAP = 1200;          // ms tussen namen\nconst uurType = msg.event && msg.event.doelwit && msg.event.doelwit.type === \"uur\";\nlet lijnen = [];\nglobal.set(\"pofDoelwitReveal\", \"\");\n\n// Voorlopige controle-tabel: alle spelers, status 'afwachten...'\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst loc = global.get(\"spelerLocaties\") || {};\nconst se = global.get(\"spelerEffecten\") || {};\nconst we = global.get(\"wereldEffecten\") || [];\nconst bord = global.get(\"bordStaat\") || {};\nconst doelSet = new Set(doelwit);\nlet beginRijen = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const paalFX = ((bord[loc[naam]] || {}).effecten || []).map(e => e.naam);\n    const allFX = [...(se[naam] || []).map(e => e.naam), ...we.map(e => e.naam), ...paalFX];\n    beginRijen.push({ Speler: naam, Tag: allFX.length ? allFX.join(\", \") : \"-\", Verplaatst: 0, Status: doelSet.has(naam) ? \"afwachten...\" : \"-\" });\n}\nif (!beginRijen.length) beginRijen = [{ Speler:\"-\", Tag:\"-\", Verplaatst:\"-\", Status:\"afwachten...\" }];\n\nnamen.forEach((naam, i) => {\n    setTimeout(() => {\n        lijnen.push(\"â¢ \" + naam);\n        const tekst = lijnen.join(\"\\n\");\n        global.set(\"pofDoelwitReveal\", tekst);\n        const buzz = uurType ? { payload: { paal: naam, actie: 3 } } : null;\n        node.send([{ payload: tekst }, null, null, buzz]);\n    }, i * STAP);\n});\n// Na de laatste naam: gevolgen uitvoeren (Voer gevolg uit zet auto->reactie of manueel->wacht_controle).\nsetTimeout(() => { node.send([null, msg, null, null]); }, namen.length * STAP + 600);\nreturn [null, null, { payload: beginRijen }, null];\n",
+        "func": "// Onthul de doelwitten een-voor-een (dashboard + global voor simulator).\n// out1 -> Doelwit ui_text | out2 -> Voer gevolg uit | out3 -> Controle-tabel | out4 -> commando/master1 (buzzer-piep per uur)\nconst doelwit = msg.doelwit || [];\nconst namen = doelwit.length ? doelwit : [\"(niemand)\"];\nconst STAP = 1200;\nconst uurType = msg.event && msg.event.doelwit && msg.event.doelwit.type === \"uur\";\nlet lijnen = [];\nglobal.set(\"pofDoelwitReveal\", \"\");\n\nconst spelersLijst = global.get(\"spelersLijst\") || {};\nconst loc = global.get(\"spelerLocaties\") || {};\nconst se = global.get(\"spelerEffecten\") || {};\nconst we = global.get(\"wereldEffecten\") || [];\nconst bord = global.get(\"bordStaat\") || {};\nconst doelSet = new Set(doelwit);\nlet beginRijen = [];\nfor (const mac in spelersLijst) {\n    const naam = spelersLijst[mac];\n    const paalFX = ((bord[loc[naam]] || {}).effecten || []).map(e => e.naam);\n    const allFX = [...(se[naam] || []).map(e => e.naam), ...we.map(e => e.naam), ...paalFX];\n    beginRijen.push({ Speler: naam, Tag: allFX.length ? allFX.join(\", \") : \"-\", Verplaatst: 0, Status: doelSet.has(naam) ? \"afwachten...\" : \"-\" });\n}\nif (!beginRijen.length) beginRijen = [{ Speler:\"-\", Tag:\"-\", Verplaatst:\"-\", Status:\"afwachten...\" }];\n\nnamen.forEach((naam, i) => {\n    setTimeout(() => {\n        lijnen.push(\"- \" + naam);\n        const tekst = lijnen.join(\"\\n\");\n        global.set(\"pofDoelwitReveal\", tekst);\n        const buzz = uurType ? { payload: { paal: naam, actie: 3 } } : null;\n        node.send([{ payload: tekst }, null, null, buzz]);\n    }, i * STAP);\n});\nsetTimeout(() => { node.send([null, msg, null, null]); }, namen.length * STAP + 600);\nreturn [null, null, { payload: beginRijen }, null];\n",
         "outputs": 4,
         "timeout": 0,
         "noerr": 0,
@@ -4645,7 +4645,87 @@
                 "c6a0000000000062"
             ]
         ]
+    },
+    {
+        "id": "c6a0000000000070",
+        "type": "ui-group",
+        "name": "Scheidsrechter",
+        "page": "b3d1000000000009",
+        "width": 6,
+        "height": 1,
+        "order": 5,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "c6a0000000000071",
+        "type": "ui-text-input",
+        "z": "c6a0000000000001",
+        "group": "c6a0000000000070",
+        "name": "Scheids-invoer",
+        "label": "Correctie",
+        "tooltip": "bv. 'Lilou +5' (levensuren) of 'Lilou s+1' (sterfte)",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "mode": "text",
+        "delay": 300,
+        "topic": "scheids",
+        "topicType": "str",
+        "sendOnBlur": true,
+        "clearOnSubmit": true,
+        "icon": "",
+        "iconPosition": "left",
+        "className": "",
+        "wires": [
+            [
+                "c6a0000000000072"
+            ]
+        ]
+    },
+    {
+        "id": "c6a0000000000072",
+        "type": "function",
+        "z": "c6a0000000000001",
+        "name": "Scheidsrechter-correctie",
+        "func": "// Handmatige scheidsrechter-correctie voor disputen/randgevallen.\n// Invoer: \"<naam> <waarde>\"  ->  levensuren: \"Lilou +5\" / \"Lilou -3\" (clamp 0)\n//                                sterftes:   \"Lilou s+1\" / \"Lilou s-1\" (clamp 0)\nconst inp = (msg.payload || \"\").toString().trim();\nconst m = inp.match(/^(.+?)\\s+(s?)\\s*([+-]?\\d+)$/i);\nif (!m) { msg.payload = \"Formaat: '<naam> +5' (levensuren) of '<naam> s+1' (sterfte)\"; return msg; }\nconst naam = m[1].trim();\nconst isSterfte = m[2].toLowerCase() === \"s\";\nconst waarde = parseInt(m[3], 10);\nlet stats = global.get(\"spelerStats\") || {};\nconst key = Object.keys(stats).find(k => k.toLowerCase() === naam.toLowerCase());\nif (!key) { msg.payload = \"Onbekende speler: \" + naam; return msg; }\nlet s = stats[key];\nif (isSterfte) { s.sterftes = Math.max(0, (s.sterftes || 0) + waarde); }\nelse { s.totaalUren = Math.max(0, (s.totaalUren || 0) + waarde); }\nstats[key] = s;\nglobal.set(\"spelerStats\", stats);\nmsg.payload = \"Correctie: \" + key + (isSterfte ? \"  sterftes=\" + s.sterftes : \"  levensuren=\" + s.totaalUren);\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 800,
+        "wires": [
+            [
+                "c6a0000000000073"
+            ]
+        ]
+    },
+    {
+        "id": "c6a0000000000073",
+        "type": "ui-text",
+        "z": "c6a0000000000001",
+        "group": "c6a0000000000070",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Scheids-feedback",
+        "label": "",
+        "format": "{{msg.payload}}",
+        "layout": "row-left",
+        "style": false,
+        "font": "",
+        "fontSize": 14,
+        "color": "#717171",
+        "wires": []
     }
+
 
 
 ]

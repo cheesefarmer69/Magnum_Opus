@@ -1,9 +1,9 @@
 # Plates of Fate — events opstellen
 
-> **Per-categorie overzicht** van alle (huidige en toekomstige) events — werking,
-> doelwitbepaling en controle — staat in `docs/event-catalogus.md`
-> (hoofdstukken Verplaatsing / Toestand / Wereld). Dit document is de technische
-> **schema-referentie** voor het opstellen van een event.
+> **Werking & verplaatsingscontrole** (preconditie/effect/invariant, STAP/TELEPORT, scoring):
+> zie `docs/event-systeem.md` (leidend). **Per-categorie overzicht** van de events:
+> `docs/event-catalogus.md`. Dit document is de technische **schema-referentie** voor het
+> opstellen van een event-object. Houd deze drie consistent.
 
 Events worden bewaard in `global.pofEvents`, gevuld door de `[CONFIG] <categorie>-events`
 injects in Node-RED flow 06 (zie `pi/node-red/blokken/06_plates_of_fate/README.md`).
@@ -104,26 +104,26 @@ waartegen de `voorwaarde` controleert.
 
 ### Beweging-controle (`voorwaarde`) en scoring
 
-Levensuren worden **pas bij de controle** toegekend (niet live), op basis van de **netto
-vooruit**-verplaatsing (start→eind, portaal-sprongen meegerekend) t.o.v. het gerolde
-`getal`. Bij elk event mag enkel het doelwit van een verplaatsing-event (`voorwaarde`
-min/max) bewegen; anderen moeten stil blijven. Δ = de levensuren die worden toegekend
-(of afgetrokken):
+Levensuren worden **pas bij de controle** toegekend (niet live), op basis van het **opgenomen
+pad** (geordende STAP/TELEPORT-acties), **niet** een netto begin/eind-vergelijking. Een STAP
+telt 1 (nooit achteruit); een TELEPORT (sprong tussen twee actieve portaal-palen) telt 0 en
+wordt niet op richting gecontroleerd. Bij een verplaatsing-event (`voorwaarde` min/max) mag enkel
+het doelwit bewegen; anderen moeten stil blijven. `voor` = aantal STAP vooruit, `x` = `getal`.
+Δ = de toegekende/afgetrokken levensuren:
 
 | Geval | Status | Δ levensuren |
 |-------|--------|--------------|
-| doelwit `min`, netto ≥ getal | OK | **+netto** (×2 op happy hour) |
-| doelwit `min`, 0 ≤ netto < getal | TE WEINIG | **−netto** |
-| doelwit `max`, netto ≤ getal | OK | **+netto** (×2 op happy hour) |
-| doelwit `max`, netto > getal | TE VEEL | **−(netto − getal)** |
-| doelwit, netto < 0 (mag niet terug) | TERUG IN TIJD | **−\|netto\|** |
-| niet-doelwit dat beweegt | BEWOOG (mocht niet) | **−\|netto\|** |
+| doelwit `max`, `voor ≤ x` (geldig) | OK | **+voor** (×2 op happy-hour-eindpaal) |
+| doelwit `max`, `voor > x` | TE VEEL | **−(voor − x)** |
+| doelwit `min`, `voor < x` | TE WEINIG | **−voor** |
+| doelwit, achterwaartse STAP | TERUG IN TIJD | **−achter** |
+| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **−voor** |
+| niet-doelwit dat beweegt | BEWOOG (mocht niet) | **−(voor+achter)** |
 | stil blijven staan | OK (stil) | 0 |
 
-Zou Δ een speler **onder 0** brengen, dan blijft hij op 0 met **+1 sterfte** (hij speelt
-door). Een legale portaal-sprong (ook van een hoger naar een lager uur) telt als vooruit
-en geeft dus geen "TERUG IN TIJD". Het resultaat per speler verschijnt in de tabel
-**Controle** en in de globale stats.
+Zou Δ een speler **onder 0** brengen, dan blijft hij op 0 met **+1 sterfte** (hij speelt door).
+Doordat de TELEPORT niet als STAP telt en niet op richting wordt gecontroleerd, geeft een legale
+portaal-sprong (ook naar een lager uur) géén "TERUG IN TIJD". Volledige uitleg: `docs/event-systeem.md`.
 
 ### Max-engine (`max`)
 
@@ -219,16 +219,17 @@ Voorbeelden: "speler met de minste levensuren" (`veld:levensuren, richting:laags
 
 ## Voorbeelden
 
-### Verplaatsing-event (speler, min/max + getal + controle)
+### Verplaatsing-event (speler, max + getal + controle) — Event A
 
 ```js
-{ id:"verplaatsing1", naam:"verplaatsingMin", categorie:"speler",
-  tekst:"Minimum x uur vooruit.", reactietijd_s:15,
+{ id:"verplaatsing2", naam:"verplaatsingMax", categorie:"speler",
+  tekst:"Maximum x uur.", reactietijd_s:15,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
-  getal:"midden", voorwaarde:"min", gevolgen:[{ type:"geen" }] }
+  getal:"midden", voorwaarde:"max", gevolgen:[{ type:"geen" }] }
 ```
-Kiest 1–3 spelers, rolt een getal 4–6 in plaats van `x`, en controleert na 15 s of die
-spelers minstens dat aantal palen vooruit zijn. Niet-gekozen spelers moeten stil blijven.
+Kiest 1–3 spelers, rolt een getal in plaats van `x`, en controleert na de reactietijd of die
+spelers **hoogstens** dat aantal STAPpen vooruit zetten (een portaal-sprong telt 0). Niet-gekozen
+spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
 
 ### Toestand-event (portaal: blijvend effect, max, paar-koppeling)
 

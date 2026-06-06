@@ -31,12 +31,16 @@ try {
 }
 
 # 2. Volledige deploy via de Admin API
+#    We sturen de RUWE UTF-8 bytes met expliciete charset. (Windows PowerShell 5.1
+#    verminkt UTF-8 bij -InFile / string-body zonder charset -> "rare tekens" zoals
+#    â€¢ of Ã© in de draaiende Node-RED. Raw bytes + char=utf-8 voorkomt dat.)
 Write-Host "Deploy naar $Url/flows ..."
 try {
+    $bytes = [System.IO.File]::ReadAllBytes($flows)
     Invoke-RestMethod -Uri "$Url/flows" -Method Post `
-        -ContentType "application/json" `
+        -ContentType "application/json; charset=utf-8" `
         -Headers @{ "Node-RED-Deployment-Type" = "full" } `
-        -InFile $flows | Out-Null
+        -Body $bytes | Out-Null
     Write-Host "OK - alle flows vervangen." -ForegroundColor Green
 } catch {
     Write-Error "Deploy mislukt: $($_.Exception.Message)"
