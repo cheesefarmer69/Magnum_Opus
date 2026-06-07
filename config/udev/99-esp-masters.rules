@@ -1,22 +1,22 @@
-# udev rule voor Magnum Opus master ESP32 op de Raspberry Pi.
+# udev rule voor de Magnum Opus masters (ESP32 met CH340) op de Raspberry Pi.
 #
-# Deze rule maakt een persistente symlink /dev/ttyMaster1 die altijd verwijst
-# naar de juiste USB-poort, ook na reboot of opnieuw inpluggen. Zonder deze
-# rule krijg je willekeurig /dev/ttyUSB0 of /dev/ttyUSB1 en breekt je
-# serial-bridge container.
+# De serial-bridge detecteert masters nu ZELF op basis van de CH340 USB-id en
+# routeert per master op paal_id — dus een vaste /dev/ttyMaster1-symlink of een
+# poort-gebonden regel is NIET meer nodig. Deze regel zorgt alleen nog dat de
+# tty-devices wereld-leesbaar/schrijfbaar zijn (MODE 0666) zodat de container
+# erbij kan, ongeacht in welke USB-poort een master zit. Dit schaalt naar de
+# 3 masters zonder aanpassing.
 #
-# De rule bindt aan FYSIEKE USB-poort 1-1.4 op de Pi. Als je de master in
-# een andere USB-poort steekt, werkt deze rule niet meer — pas dan de
-# KERNELS-waarde aan, of herschrijf naar matching op serial number.
-#
-# Vendor 1a86 / Product 7523 = QinHeng CH340 USB-UART chip (zit op je ESP32 WROOM).
+# Vendor 1a86 / Product 7523 = QinHeng CH340 USB-UART chip (op de ESP32 WROOM).
 #
 # Installatie op de Pi:
 #   sudo cp config/udev/99-esp-masters.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules
 #   sudo udevadm trigger
 #   (master uit- en inpluggen)
-#   ls -la /dev/ttyMaster1   ← moet symlink tonen naar /dev/ttyUSB?
+#   ls -l /dev/ttyUSB*   ← moet 0666 (crw-rw-rw-) tonen
+#
+# Optioneel: wil je tóch vaste symlinks per master, voeg dan regels met
+# KERNELS=="<usb-poort>" + SYMLINK+="ttyMasterN" toe. Niet vereist voor werking.
 
-# Master 1 — USB poort 1-1.4
-SUBSYSTEM=="tty", KERNELS=="1-1.4", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ttyMaster1", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE="0666"

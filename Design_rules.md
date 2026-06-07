@@ -45,9 +45,13 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 - **Categorie** is `speler` | `toestand` | `wereld`. (De oude waarde `uur` heet nu
   `toestand` — je kiest immers een *toestand*.) `doelwit.type` mag wél `uur` zijn.
 - **Standaardformaat** bevat enkel: `id, naam, categorie, tekst, reactietijd_s,
-  doelwit {type, selectie, aantal}, getal, voorwaarde, max, gevolgen`.
-  **`veld` en `richting` horen NIET in het standaardformaat** — die leven enkel in de
-  aparte uitleg over `selectie: "rang"`.
+  doelwit {type, selectie, aantal}, getal, voorwaarde, max, duratie, gevolgen`.
+  **`selectie` is enkel `willekeurig` of `alle`** — de oude `rang`-selectie (met
+  `veld`/`richting`) is verwijderd; die velden bestaan niet meer.
+- **`duratie`** = hoelang de toestand van een event blijft (in aantal events/rondes), op
+  **event-niveau**. Mag een **vast getal** (`3`), een **bereik** `[min,max]` (willekeurig
+  gerold, bv. `[2,5]`), of een **preset**-string (`"kort"` 2-4 / `"middel"` 4-7 / `"lang"`
+  7-12). Overschrijft de oude per-gevolg `duurRondes`.
 - **Documentatiestijl** (in `docs/events.md`): bij elk veld in het standaardformaat kort
   vermelden **wat het is/doet en wat je kan invullen**. Langere uitleg in **aparte
   secties**, niet als lange inline-commentaar in het codevoorbeeld.
@@ -140,12 +144,30 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 
 ## 7. Node-RED dashboards / besturing
 
-- **Twee pagina's, elk zelfvoorzienend:** "Bediening" (echt spel) en "Simulatie" (sim). Elk
-  heeft zijn **eigen volledige knoppenset** (Start/Stop/Pauzeer/Hervat spel + Start/Stop POF
-  + Manueel + status). Je draait sim **óf** echt, nooit samen (gedeelde engine).
-- **Geen Herstart-knop** — enkel **Start, Stop, Pauzeer, Hervat**.
-- **Eén klik op "Controle"** in manuele modus voltooit de ronde (geen tussenstap meer).
+- **Twee pagina's, elk zelfvoorzienend:** "Bediening" (echt spel) en "Simulatie" (sim). Je
+  draait sim **óf** echt, nooit samen (gedeelde engine).
+- **Bovenbalk (Speltoestand-groep, volle breedte) met schakelaars i.p.v. losse knoppen:**
+  - **1 Spel-schakelaar** (start/stop): ON = spel lopend **+ POF actief**, OFF = stop +
+    partij-reset + **alle paal-LED's uit** (node "Spel aan/uit"). Groen = loopt, rood = gestopt.
+  - **1 Pauze-schakelaar** (pauzeer/hervat).
+  - **Manueel/automatisch-schakelaar** + **Controle** + **Volgend event** in dezelfde balk.
+    Controle/Volgend werken **enkel in manuele modus** (`pof_volgende` is manueel-gated;
+    `pof_controle` enkel in fase `wacht_controle`) — in auto doen ze niets.
+  - **Spel-toestand** staat onderaan (links) in de balk.
+- **Geen aparte Start POF / Stop POF / Start / Stop / Pauzeer / Hervat / Herstart knoppen
+  meer** — die zijn vervangen door de twee schakelaars.
+- **Eén klik op "Controle"** in manuele modus voltooit de ronde.
 - Radar-tabel toont **Sterftes** (niet langer "Achterstand").
+- **Gebruik enkel beproefde dashboard-widgets** (`ui-button`, `ui-switch`, `ui-text`,
+  `ui-table`). Een onbeproefde widget (bv. `ui-text-input` met onvolledige schema) kan de
+  **hele dashboard-pagina laten crashen** na een deploy — vermijden.
+- **Test-widgets-pagina ("Test widgets"):** een aparte dashboard-pagina, **los van het
+  spel** (eigen function-nodes + `ui-text`, géén game-globals), om widget-gedrag uit te
+  proberen — o.a. of een `ui-switch` **visueel live mee-toggelt zonder page-refresh**
+  (varianten: passthru/gekoppeld, decouple+feedback, passthru-uit+decouple). De **echte
+  bediening-balk wijzigt pas** als Nic op basis hiervan een widget kiest.
+- **Sterftes resetten:** knop op de **Admin**-pagina (achter de twee-staps unlock,
+  topic `reset_sterftes`). Globale stats volledig wissen: inject **[BEHEER] Wis globale stats**.
 
 ---
 
@@ -186,6 +208,30 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 - **Test-injects:** hou er **exact 2** over (LED-test + zoemer-test), met de **paal makkelijk
   kiesbaar** (via de inject-payload). Geen tientallen test-injects.
 - **Compileren** (PlatformIO) vóór commit; `__attribute__((packed))` op ESP-NOW-structs.
+
+### Zend-/ontvangst-indicatoren & drukknop
+
+- **Slave ingebouwde LED (GPIO8, active-LOW):** knippert kort bij elke **succesvolle
+  ESP-NOW-zend** (visuele zend-indicator).
+- **Master ingebouwde LED (GPIO2, active-HIGH):** pulst kort bij elke **ontvangen
+  slave-batch** (visuele ontvangst-indicator). Beide niet-blokkerend via `millis()`.
+- **Drukknop (slave GPIO3, `INPUT_PULLDOWN`):** het framework draait **altijd, met of
+  zonder fysieke knop** (zonder knop houdt de pulldown de pin LOW → geen valse triggers).
+  Een druk geeft een puls op de **rode LED (GPIO6)** en stuurt een hook-regel
+  `{"paal":N,"knop":1}` over serial. De rode LED is **gedeeld**: knop-puls heeft voorrang
+  op de batterij-waarschuwing.
+- **Geen lichtsensor/laser-tripwire.** Het TEMT6000-idee is volledig verwijderd; GPIO3 is nu
+  de drukknop. Pin-mapping: zie `docs/pcb/pinout.md` (single source of truth, klopt met de
+  firmware).
+
+### Master-detectie (Pi serial-bridge)
+
+- **Poort-onafhankelijk.** De bridge detecteert **alle CH340-masters automatisch** (VID
+  1a86 / PID 7523), ongeacht USB-poort, en **routeert per master op `paal_id`** (1–7 →
+  master1, 8–16 → master2, 17–24 → master3). **Geen vaste `/dev/ttyMaster1`** of
+  poort-gebonden udev-regel meer. Dit schaalt naar 3 masters zonder code- of poortwijziging.
+- Container krijgt toegang via `--device-cgroup-rule 'c 188:* rmw'` + `-v /dev:/dev`
+  (`deploy.sh`); udev zet enkel nog `MODE=0666`.
 
 ---
 

@@ -34,12 +34,16 @@ testdetectie publiceert. Klik hem:
 **3. Kijk wat de bridge doet:** `docker logs serial-bridge`. Sinds de heartbeat
 print hij elke 10 s:
 ```
-[STATUS] 1234 berichten gepubliceerd (42 in 10s), seriële poorten: ['/dev/ttyMaster1']
+[STATUS] 1234 berichten gepubliceerd (42 in 10s), open poorten: ['/dev/ttyUSB0'], routes: {'commando/master1': '/dev/ttyUSB0'}
 ```
-- `seriële poorten: GEEN` → de bridge krijgt de poort niet: **sluit elke seriële
-  monitor**, en zit de master in de **Pi** (niet je pc)? Bestaat `/dev/ttyMaster1`?
-  (`ls -l /dev/ttyMaster1`; juiste USB-poort 1-1.4 / udev-rule). Of "Fout op
-  /dev/ttyMaster1: ... busy" → poort bezet.
+- `open poorten: GEEN` → de bridge vindt geen master: **sluit elke seriële
+  monitor**, en zit de master in de **Pi** (niet je pc)? Check
+  `ls -l /dev/ttyUSB*` en `lsusb | grep 1a86`. Heeft de container toegang
+  (`-v /dev:/dev` + cgroup-rule in `deploy.sh`) en is de udev-regel
+  (`MODE=0666`) geïnstalleerd? De USB-poort maakt niet meer uit — de bridge
+  detecteert elke CH340 automatisch.
+- `routes: nog niet geleerd` terwijl er wel data binnenkomt → normaal tot de
+  eerste batch; de routering wordt geleerd uit de `paal_id`.
 - poort verbonden maar teller blijft **0** → de master stuurt geen geldige
   JSON-regels naar de Pi.
 - teller **loopt op** → de bridge publiceert; dan moet Node-RED het zien (stap 2

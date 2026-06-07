@@ -1,10 +1,30 @@
-# Slave PCB v1.0 — Pinout
-  
-  | ESP32-C3 pin | Functie | Notitie |
-  |--------------|---------|---------|
-  | GPIO0 | WS2812B data | Naar IRLZ44N MOSFET gate |
-  | GPIO1 | Buzzer | Passieve piezo |
-  | GPIO2 | TEMT6000 | Lichtsensor analoog |
-  | GPIO3 | Warning LED | Direct |
-  | GPIO4 | Battery monitor | ADC, voltage divider |
-  | ... | ... | ... |
+# Pinout — Magnum Opus
+
+Komt overeen met de firmware (`firmware/Slave/src/main.cpp` en
+`firmware/Master/src/main.cpp`). Werk dit bestand bij wanneer de firmware-pins
+wijzigen.
+
+## Slave — ESP32-C3 SuperMini
+
+| GPIO | Functie | Richting | Notitie |
+|------|---------|----------|---------|
+| GPIO0 | WS2812B data | OUT | 7 LEDs via 330Ω serieweerstand |
+| GPIO1 | MOSFET gate | OUT | IRLZ44N via 220Ω, 10k pull-down (schakelt LED-voeding) |
+| GPIO3 | Drukknop | IN | Tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. HIGH = ingedrukt. Werkt met of zonder fysieke knop (zonder knop houdt de pulldown de pin LOW → geen valse triggers) |
+| GPIO4 | Batterij-ADC | IN (ADC1) | Spanningsdeler 2× 100k (V_adc = V_batt / 2), 12-bit |
+| GPIO5 | Buzzer | OUT | Passieve piezo via 100Ω |
+| GPIO6 | Rode LED | OUT | Via 150Ω. Gedeeld: batterij-waarschuwing (knipperend) **én** drukknop-puls (~150 ms vol aan, heeft voorrang) |
+| GPIO8 | Ingebouwde LED | OUT | Onboard LED, **active-LOW** (LOW = aan). Knippert kort (~40 ms) bij elke succesvolle ESP-NOW-zend |
+
+Batterij-drempels (firmware): waarschuwing < 3.4 V (langzaam knipperen),
+kritiek < 3.2 V (snel knipperen).
+
+## Master — ESP32 WROOM-32
+
+| GPIO | Functie | Richting | Notitie |
+|------|---------|----------|---------|
+| GPIO2 | Ingebouwde LED | OUT | Onboard LED, **active-HIGH** (HIGH = aan). Pulst kort (~30 ms) bij elke ontvangen slave-batch |
+| USB | Serial naar Pi | — | CH340 USB-UART (VID 1a86, PID 7523), 115200 baud |
+
+De master communiceert met de slaves via ESP-NOW (geen extra pinnen nodig) en
+met de Pi via de USB-serieelverbinding.

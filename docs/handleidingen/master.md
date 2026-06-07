@@ -146,8 +146,10 @@ voeg toe aan de array, `AANTAL_SLAVES` mee ophogen, herflash de master.
 Check het MAC in de slave Serial Monitor (banner `SLAVE MAC-ADRES : ...`).
 
 **Pi stuurt commando's maar master doet niets**
-→ Controleer of de USB-verbinding op `/dev/ttyMaster1` staat (udev rule).
-Plug de master in een andere USB-poort? Dan werkt de symlink niet.
+→ De bridge detecteert de master automatisch (CH340, elke USB-poort) en leert
+de routering uit de `paal_id`. Check in `docker logs serial-bridge` of er een
+`[ROUTE] ... -> commando/masterN`-regel staat; zo niet, dan heeft deze master
+nog geen batch gestuurd. Controleer ook `ls -l /dev/ttyUSB*` op de Pi.
 
 **Master reageert niet op seriële input**
 → `verwerkSerieel()` verwacht exact de velden `"paal"` en `"actie"` in de JSON.

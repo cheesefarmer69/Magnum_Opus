@@ -21,18 +21,19 @@ Eén event is één object in die array.
 
   doelwit: {                 // VERPLICHT — wie/wat het event raakt (mag type "geen")
     type: "uur",             //   "speler" (spelers) | "uur" (palen) | "geen" (niemand)
-    selectie: "willekeurig", //   "willekeurig" (toeval) | "alle" | "rang" (zie Geavanceerd)
+    selectie: "willekeurig", //   "willekeurig" (toeval) | "alle"
     aantal: "laag"           //   "enkel"|"laag"|"midden"|"hoog" of een vast getal
   },
 
   getal: "midden",           // OPTIONEEL — rolt een getal en vult elke 'x' in de tekst in
   voorwaarde: "min",         // OPTIONEEL — "min" | "max" | "geen" (beweging-controle)
   max: 1,                    // OPTIONEEL — max. aantal tegelijk actieve instanties (toestand)
+  duratie: [2, 4],           // OPTIONEEL — hoelang de toestand blijft: getal | [min,max] | "kort"/"middel"/"lang"
   audioVoor: "id_voor.wav",  // OPTIONEEL — WAV vóór het getal in de afroep
   audioNa: "id_na.wav",      // OPTIONEEL — WAV ná het getal in de afroep
 
   gevolgen: [                // VERPLICHT — array van één of meer gevolgen
-    { type: "effect", niveau: "uur", effect: "portaal", duurRondes: "kort", data: {} }
+    { type: "effect", niveau: "uur", effect: "portaal", data: {} }
   ]
 }
 ```
@@ -50,6 +51,7 @@ Eén event is één object in die array.
 | `getal`         | nee       | Optie/getal dat `x` in de tekst invult én de controle-waarde bepaalt. |
 | `voorwaarde`    | nee       | `min` / `max` / `geen` — beweging-controle na de reactietijd. |
 | `max`           | nee       | Hoeveel instanties van dít event tegelijk actief mogen zijn (toestand). |
+| `duratie`       | nee       | Hoelang de toestand blijft (events/rondes): vast getal, `[min,max]`-bereik (willekeurig), of preset `kort`/`middel`/`lang`. Overschrijft per-gevolg `duurRondes`. |
 | `audioVoor` / `audioNa` | nee | WAV-bestandsnamen voor de afroep (knip-en-plak rond het getal). |
 | `gevolgen`      | ja        | Eén of meer gevolgen (`commando` / `score` / `effect` / `geen`). |
 
@@ -71,13 +73,12 @@ Bepaalt het soort event én in welke config-inject het hoort:
 
 | `type`   | Betekenis | `selectie` | `aantal` |
 |----------|-----------|------------|----------|
-| `speler` | kiest spelers | `willekeurig` / `alle` / `rang` | aantal spelers |
-| `uur`    | kiest palen/uren | `willekeurig` / `alle` / `rang` | aantal uren |
+| `speler` | kiest spelers | `willekeurig` / `alle` | aantal spelers |
+| `uur`    | kiest palen/uren | `willekeurig` / `alle` | aantal uren |
 | `geen`   | raakt niemand specifiek (wereld-events) | — | — |
 
 - **`willekeurig`** — een steekproef van `aantal` spelers/uren (zonder terugleggen).
 - **`alle`** — alle actieve spelers / alle actieve palen.
-- **`rang`** — gesorteerd op een veld; zie **Geavanceerd: rang-selectie**.
 - **Actieve spelers** = enkel spelers met een bekende positie (`spelerLocaties`) en niet
   gepauzeerd. **Actieve palen** = `palenActief` (in simulatiemodus 1..24, anders `paaltjesLijst`).
 
@@ -154,9 +155,10 @@ Elk gevolg is één object in de array; combineren mag.
 
 ### Blijvende effecten (`type: "effect"`)
 
-Een blijvend effect blijft `duurRondes` rondes actief (één ronde = één event) en loopt
-daarna vanzelf af. `duurRondes` mag een vast getal zijn óf een optie-string die de engine
-rolt: `kort` (2–4) · `middel` (4–7) · `lang` (7–12). Opslag in één van drie registers:
+Een blijvend effect blijft een aantal rondes actief (één ronde = één event) en loopt
+daarna vanzelf af. De duur komt bij voorkeur van het **event-veld `duratie`** (getal,
+`[min,max]`-bereik, of preset `kort` 2–4 / `middel` 4–7 / `lang` 7–12); zonder `duratie`
+valt de engine terug op een per-gevolg `duurRondes`. Opslag in één van drie registers:
 
 | `niveau` | Register          | Voorbeeld-`effect`        | Afgedwongen? |
 |----------|-------------------|---------------------------|--------------|
@@ -177,32 +179,13 @@ doelwitten af + het zelfstandig naamwoord (enkel/meervoud): "3 spelers …", "1 
 vooraan de audio-segmenten (zie `pi/audio-player/audio/README.md`). De doelwitten zelf
 worden daarna één voor één opgesomd.
 
-### Geavanceerd: rang-selectie (`veld` + `richting`)
-
-Wil je niet willekeurig kiezen maar "de hoogste/laagste", gebruik dan `selectie: "rang"`
-en voeg twee extra velden toe aan het `doelwit`-object:
-
-```js
-doelwit: { type: "speler", selectie: "rang", veld: "levensuren", richting: "laagste", aantal: 1 }
-```
-
-| veld | bij `type` | Betekenis |
-|------|-----------|-----------|
-| `levensuren`  | speler | sorteer op `totaalUren` |
-| `nummer`      | uur    | sorteer op uur-nummer (1..24) |
-| `bezetting`   | uur    | sorteer op aantal spelers op dat uur (`spelerLocaties`) |
-
-`richting` is `hoogste` of `laagste`; de engine sorteert en neemt de eerste `aantal`.
-Voorbeelden: "speler met de minste levensuren" (`veld:levensuren, richting:laagste`),
-"de 2 drukste uren" (`type:uur, veld:bezetting, richting:hoogste, aantal:2`).
-
 ---
 
 ## Stap voor stap een nieuw event
 
 1. **Kies de categorie** (`speler` / `toestand` / `wereld`) — bepaalt de config-inject.
 2. **Schrijf `naam` en `tekst`** — de tekst is wat de spelers horen.
-3. **Bepaal het doelwit** — `type` + `selectie` (`willekeurig`/`alle`, of `rang`) + `aantal`.
+3. **Bepaal het doelwit** — `type` + `selectie` (`willekeurig`/`alle`) + `aantal`.
 4. **Koppel één of meer gevolgen** — `effect` (blijvend), `score` (levensuren), of
    `commando` (losse LED/zoemer).
 5. **Zet `reactietijd_s`** (en evt. `getal` / `voorwaarde` / `max`).
@@ -235,10 +218,10 @@ spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
 
 ```js
 { id:"portalen", naam:"Portalen", categorie:"toestand",
-  tekst:"Een portaal opent tussen twee uren.", reactietijd_s:15, max:1,
+  tekst:"Een portaal opent tussen twee uren.", reactietijd_s:15, max:1, duratie:[2,4],
   doelwit:{ type:"uur", selectie:"willekeurig", aantal:2 },
   audioVoor:"portalen_voor.wav", audioNa:"portalen_na.wav",
-  gevolgen:[ { type:"effect", niveau:"uur", effect:"portaal", duurRondes:"kort", data:{} } ] }
+  gevolgen:[ { type:"effect", niveau:"uur", effect:"portaal", data:{} } ] }
 ```
 Kiest 2 willekeurige uren; elk krijgt een `portaal`-effect met `data.partner` = het andere
 uur. De LED's worden paars via de centrale LED-node (geen `commando` nodig). `max: 1` houdt
@@ -249,22 +232,22 @@ het bij één portaal tegelijk. Een sprong tussen de twee portaal-uren geeft **0
 
 ```js
 { id:"happy_hour", naam:"Happy Hour", categorie:"toestand",
-  tekst:"worden Happy Hour.", reactietijd_s:15, max:4,
+  tekst:"worden Happy Hour.", reactietijd_s:15, max:4, duratie:[3,6],
   doelwit:{ type:"uur", selectie:"willekeurig", aantal:"laag" },
   audioVoor:"happy_hour_voor.wav", audioNa:"happy_hour_na.wav",
-  gevolgen:[ { type:"effect", niveau:"uur", effect:"happy_hour", duurRondes:"kort", data:{} } ] }
+  gevolgen:[ { type:"effect", niveau:"uur", effect:"happy_hour", data:{} } ] }
 ```
 Kiest 1–3 willekeurige uren (afroep: "3 uren worden Happy Hour"). Die uren worden goud.
 Eindigt een speler een verplaatsing op een happy-hour-uur, dan tellen de verdiende
 levensuren dubbel (zie `docs/spel.md`). `max: 4` laat tot 4 happy-hour-uren tegelijk toe.
 
-### Toestand-event (rang + score)
+### Toestand-event (score)
 
 ```js
 { id:"kosmische_gift", naam:"Kosmische gift", categorie:"toestand",
-  tekst:"Een gulle ster schenkt de speler met de minste levensuren een gift.",
+  tekst:"Een gulle ster schenkt een willekeurige speler een gift.",
   reactietijd_s:15,
-  doelwit:{ type:"speler", selectie:"rang", veld:"levensuren", richting:"laagste", aantal:"enkel" },
+  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"enkel" },
   gevolgen:[ { type:"score", delta:3 } ] }
 ```
 

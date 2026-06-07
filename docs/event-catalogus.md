@@ -14,9 +14,7 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
 ## Begrippen (gelden voor alle categorieën)
 
 - **Doelwit**: wie/wat het event raakt. Bepaald door het `doelwit`-object:
-  - `selectie`: `willekeurig` (steekproef), `rang` (gesorteerd op een veld), of `alle`.
-  - `veld` (bij `rang`): spelers → `levensuren`; uren → `nummer`/`bezetting`.
-  - `richting` (bij `rang`): `hoogste` of `laagste`.
+  - `selectie`: `willekeurig` (steekproef) of `alle`.
   - `aantal`: vast getal, of optie `enkel`=1, `laag`=1–3, `midden`=1–6, `hoog`=3–10.
 - **Actieve spelers**: alleen spelers met een bekende positie (`spelerLocaties`) en
   niet gepauzeerd komen in aanmerking als doelwit. Verwijderde of niet-aanwezige
@@ -75,8 +73,6 @@ zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LE
 ## Hoe het doelwit bepaald wordt
 De kandidaten zijn de **actieve, niet-gepauzeerde** spelers. Daarna:
 - `willekeurig` → `aantal` spelers via steekproef (zonder terugleggen).
-- `rang` → sorteer op `veld` (`levensuren`) in `richting` (`hoogste`/`laagste`), neem de
-  eerste `aantal`. Bv. "speler met minste levensuren".
 - `alle` → alle actieve spelers.
 
 ## Hoe verplaatsing-events gecontroleerd worden
@@ -86,8 +82,8 @@ weinig/te veel/achteruit/niet-doelwit-dat-beweegt trekt af. Zou een speler onder
 dan blijft hij op 0 met **+1 sterfte**. Zie `docs/spel.md` en `docs/events.md`.
 
 ## Toekomstige verplaatsing-events (sjablonen)
-- **Achterblijver vooruit**: `doelwit {selectie:rang, veld:levensuren, richting:laagste,
-  aantal:enkel}`, `voorwaarde:min`, `getal:laag`.
+- **Eén vooruit (toeval)**: `doelwit {selectie:willekeurig, aantal:enkel}`,
+  `voorwaarde:min`, `getal:laag`.
 - **Iedereen één vooruit**: `doelwit {selectie:alle}`, `voorwaarde:min`, `getal:enkel`.
 - **Niemand mag bewegen**: `doelwit {type:geen}` + alle spelers worden als niet-doelwit
   gecontroleerd (elke beweging = BEWOOG mocht niet).
@@ -115,9 +111,9 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 
 ### Portalen — "Een portaal opent tussen twee uren."
 - **Werking**: kiest 2 willekeurige uren en opent er een portaal tussen. Beide palen
-  krijgen een `portaal`-effect (uur-niveau) met een willekeurige duur (`duurRondes:
-  "kort"` → 2–4 rondes); de centrale LED-node kleurt ze **continu paars**. De twee uren
-  worden aan elkaar gekoppeld via `data.partner`.
+  krijgen een `portaal`-effect (uur-niveau) met een willekeurige duur (`duratie: [2,4]` →
+  2–4 events); de centrale LED-node kleurt ze **continu paars**. De twee uren worden aan
+  elkaar gekoppeld via `data.partner`.
 - **Doelwit**: `type: uur`, `selectie: willekeurig`, `aantal: 2`.
 - **Max**: `max: 1` — er is hooguit één portaal tegelijk op het veld.
 - **Spelregel**: een speler die volgens de spelregels op een portaal-uur landt, mag
@@ -141,9 +137,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   3 uur vooruit eindigend op happy hour → +6. Zie `docs/spel.md`.
 
 ## Hoe het doelwit bepaald wordt
-- **Uur-doelwit**: kandidaten = het actieve palen-veld. `willekeurig`/`rang`/`alle`
-  zoals in hoofdstuk 1; bij `rang` is `veld` = `nummer` of `bezetting` (aantal spelers
-  op die paal).
+- **Uur-doelwit**: kandidaten = het actieve palen-veld. `willekeurig`/`alle`
+  zoals in hoofdstuk 1.
 - **Speler-doelwit**: zoals hoofdstuk 1 (actieve spelers).
 
 ## Effecten: opslag, veroudering, weergave

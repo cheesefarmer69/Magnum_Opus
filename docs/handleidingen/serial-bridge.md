@@ -16,8 +16,26 @@ Master (USB Serial)  ←→  bridge.py  ←→  MQTT broker  ←→  Node-RED
 
 - **Master → MQTT:** leest JSON-regels van de seriële poort, publiceert
   op topic `plaatjes/data`
-- **MQTT → Master:** ontvangt commando's van topic `commando/master1`,
-  schrijft ze naar de seriële poort
+- **MQTT → Master:** ontvangt commando's van topics `commando/master1..3`,
+  schrijft ze naar de juiste seriële poort
+
+---
+
+## Poort-detectie (poort-onafhankelijk, schaalt naar 3 masters)
+
+De bridge gebruikt **geen vaste `/dev/ttyMaster1` meer**. In plaats daarvan:
+
+- **Auto-detectie:** een detectie-thread scant elke 5s met
+  `serial.tools.list_ports` naar alle CH340-chips (VID `0x1A86`, PID `0x7523`)
+  en opent automatisch elke gevonden poort — ongeacht in welke USB-poort een
+  master zit, en ook als een master later (her)ingeplugd wordt.
+- **Routering leren:** uit de binnenkomende `paal_id` leidt de bridge af welke
+  master op een poort zit (palen 1–7 → master1, 8–16 → master2, 17–24 →
+  master3) en koppelt zo `commando/masterN` aan de juiste poort.
+- **Inkomend** wordt ongewijzigd op `plaatjes/data` gepubliceerd; de `paal_id`
+  in de data routeert verder in Node-RED.
+
+Dit werkt voor 1, 2 of 3 masters zonder code- of poortwijziging.
 
 ---
 
@@ -26,12 +44,13 @@ Master (USB Serial)  ←→  bridge.py  ←→  MQTT broker  ←→  Node-RED
 ### Threads
 
 ```
-main thread:  MQTT client loop (handelt on_connect / on_message af)
-thread 1:     lees_poort(master1)   → blocking readline op /dev/ttyMaster1
+main thread:    MQTT client loop (handelt on_connect / on_message af)
+detectie-thread: scant elke 5s naar CH340-poorten, start leesthreads
+lees-thread/poort: blocking readline per gedetecteerde master-poort
 ```
 
-Per master-poort draait één daemon-thread. Momenteel is er één master
-(`MEESTERS` lijst), uitbreidbaar voor meerdere masters.
+Per gedetecteerde master-poort draait één daemon-thread (`lees_poort`).
+Nieuwe poorten worden automatisch opgepikt door de detectie-thread.
 
 ### Richting 1: Master → MQTT
 
@@ -48,22 +67,25 @@ client.publish("plaatjes/data", json.dumps(data))
 
 ### Richting 2: MQTT → Master
 
-`on_mqtt_message()` wordt aangeroepen bij elk bericht op `commando/master1`:
+`on_mqtt_message()` wordt aangeroepen bij elk bericht op `commando/master1..3`:
 
 ```python
-parsed = json.loads(commando)        # valideer JSON
+parsed = json.loads(commando)         # valideer JSON
 # vereist: "paal" en "actie" aanwezig
+ser = topic_naar_serieel.get(topic)   # geleerde poort voor deze master
 ser.write((commando + '\n').encode()) # doorsturen naar master
 ```
 
 De bridge valideert alleen of de JSON parseerbaar is en de vereiste velden
-bevat. Verdere validatie (geldig paal-ID, etc.) doet de master zelf.
+bevat. Verdere validatie (geldig paal-ID, etc.) doet de master zelf. Is de
+routering voor een master nog niet geleerd (die master heeft nog geen batch
+gestuurd), dan wordt het commando genegeerd tot de eerste data binnenkomt.
 
 ### Reconnect-gedrag
 
 | Component | Gedrag bij verbindingsverlies |
 |-----------|-------------------------------|
-| Seriële poort | `lees_poort()` vangt de exception, wacht 5s, herverbindt in lus |
+| Seriële poort | `lees_poort()` geeft de poort vrij bij een fout; de detectie-thread heropent hem binnen ~5s |
 | MQTT broker | paho auto-reconnect (1–30s exponential backoff) |
 | MQTT subscriptions | worden hernieuwd in `on_connect()` bij elke (her)verbinding |
 
@@ -79,16 +101,14 @@ Via environment variables (in `docker-compose.yml` of `.env`):
 | `MQTT_PORT` | `1883` | Poort van de broker |
 | `MQTT_DATA_TOPIC` | `plaatjes/data` | Topic voor detectie-data naar Node-RED |
 
-De seriële poort en commando-topic staan hardcoded in `MEESTERS`:
+Poorten worden niet meer geconfigureerd: de CH340-id's en de paal_id→master
+mapping staan in de code (`CH340_VID`/`CH340_PID`, `paal_naar_topic`). De
+master mag in om het even welke USB-poort zitten.
 
-```python
-MEESTERS = [
-    {"poort": "/dev/ttyMaster1", "baud": 115200, "commando_topic": "commando/master1"}
-]
-```
-
-`/dev/ttyMaster1` is een udev-symlink (zie `config/udev/99-esp-masters.rules`).
-De master moet in USB-poort 1-1.4 zitten, anders bestaat de symlink niet.
+De udev-regel (`config/udev/99-esp-masters.rules`) zet de tty-devices alleen
+nog op `MODE=0666` zodat de container ze kan openen — geen poort-lock meer.
+De container krijgt toegang via `--device-cgroup-rule 'c 188:* rmw'` + `-v
+/dev:/dev` (zie `deploy.sh`).
 
 ---
 
@@ -97,7 +117,9 @@ De master moet in USB-poort 1-1.4 zitten, anders bestaat de symlink niet.
 | Topic | Richting | Payload |
 |-------|----------|---------|
 | `plaatjes/data` | Bridge → Node-RED | `{"paal":1,"mac":"aa:bb:cc:dd:ee:ff","rssi":-67}` |
-| `commando/master1` | Node-RED → Bridge | `{"paal":1,"actie":2}` |
+| `commando/master1` | Node-RED → Bridge | `{"paal":1,"actie":2}` (palen 1–7) |
+| `commando/master2` | Node-RED → Bridge | `{"paal":8,"actie":2}` (palen 8–16) |
+| `commando/master3` | Node-RED → Bridge | `{"paal":17,"actie":2}` (palen 17–24) |
 
 ---
 
@@ -107,14 +129,16 @@ De master moet in USB-poort 1-1.4 zitten, anders bestaat de symlink niet.
 |------------|-----------|
 | `MQTT verbonden (rc=0)` | Verbinding met broker OK |
 | `Geabonneerd op commando/master1` | Ready om commando's te ontvangen |
-| `Verbinding maken met /dev/ttyMaster1...` | Seriële poort wordt geopend |
-| `Verbonden met /dev/ttyMaster1` | Serieel verbonden, bridge actief |
-| `[DATA] /dev/ttyMaster1: {'paal': 2, ...}` | JSON ontvangen en gepubliceerd |
-| `[DEBUG] /dev/ttyMaster1: [RECV] Paal 2...` | Debug-output van master, niet doorgestuurd |
+| `[DETECTIE] Nieuwe master-poort: /dev/ttyUSB0` | CH340 gevonden, leesthread gestart |
+| `Verbonden met /dev/ttyUSB0` | Serieel verbonden, bridge actief |
+| `[ROUTE] /dev/ttyUSB0 -> commando/master1 (paal 3)` | Routering geleerd uit paal_id |
+| `[DATA] /dev/ttyUSB0: {'paal': 2, ...}` | JSON ontvangen en gepubliceerd |
+| `[DEBUG] /dev/ttyUSB0: [RECV] Paal 2...` | Debug-output van master, niet doorgestuurd |
 | `[MQTT] Ontvangen op commando/master1: {...}` | Commando van Node-RED ontvangen |
 | `[SERIEEL] Commando verstuurd naar ...: {...}` | Commando doorgestuurd naar master |
+| `[SERIEEL] Nog geen poort geleerd voor ...` | Master heeft nog geen batch gestuurd; commando genegeerd |
 | `[MQTT] Ongeldig formaat, verwacht: ...` | JSON mist "paal" of "actie" veld |
-| `Fout op /dev/ttyMaster1: ..., opnieuw in 5s` | Verbinding verloren, wordt herproefd |
+| `Fout op /dev/ttyUSB0: ..., poort vrijgegeven` | Verbinding verloren; detectie heropent |
 | `MQTT verbinding verloren (rc=N)` | Broker niet bereikbaar, auto-reconnect start |
 
 ---
@@ -135,24 +159,26 @@ Node-RED en Mosquitto worden niet aangeraakt.
 
 ## Veelvoorkomende problemen
 
-**`Fout op /dev/ttyMaster1: [Errno 2] No such file`**
-→ De master is niet aangesloten, of zit in de verkeerde USB-poort.
-Controleer: `ls /dev/ttyMaster*` op de Pi. Zit de master in USB-poort 1-1.4?
+**Geen `[DETECTIE]`-regel / `open poorten: GEEN` in de heartbeat**
+→ Geen CH340 gevonden. Controleer: `ls -l /dev/ttyUSB*` en
+`lsusb | grep 1a86` op de Pi. Zit een master ingeplugd en heeft de container
+toegang (`-v /dev:/dev` + cgroup-rule in `deploy.sh`)? Is de udev-regel
+geïnstalleerd (`MODE=0666`)?
 
 **Data komt aan op bridge maar niet in Node-RED**
 → MQTT-broker niet bereikbaar, of topic verschil.
 Check: `mosquitto_sub -h 127.0.0.1 -t "plaatjes/data"` op de Pi.
 
 **Commando's van Node-RED komen niet aan bij master**
-→ Controleer of het topic exact `commando/master1` is.
-Check of de bridge subscribed is: zoek `Geabonneerd op commando/master1` in de logs.
-`docker logs serial-bridge` toont de volledige loghistorie.
+→ Controleer of het topic exact `commando/masterN` is (N = 1/2/3 afhankelijk
+van de paal). Zie je `[ROUTE] ... -> commando/masterN` in de logs? Zo niet,
+dan heeft die master nog geen batch gestuurd en is de routering nog niet
+geleerd. `docker logs serial-bridge` toont de volledige loghistorie.
 
 **Bridge loopt vast na reboot Pi**
-→ De master-USB is nog niet gereed als de container start. De `lees_poort()`
-retry-lus vangt dit op en verbindt zodra `/dev/ttyMaster1` beschikbaar is.
-Geen actie nodig — geef het 10 seconden.
+→ De master-USB is nog niet gereed als de container start. De detectie-thread
+scant elke 5s en verbindt zodra een CH340 verschijnt. Geen actie nodig.
 
-**`[SERIEEL] Geen verbinding voor commando/master1`**
-→ De seriële verbinding is op dat moment verbroken (bijv. master herstart).
-De thread herverbindt automatisch binnen 5 seconden.
+**`[SERIEEL] Nog geen poort geleerd voor commando/masterN`**
+→ Die master heeft nog geen data gestuurd, dus de bridge weet nog niet op
+welke poort hij zit. Lost zichzelf op zodra de eerste batch binnenkomt.

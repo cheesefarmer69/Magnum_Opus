@@ -17,7 +17,7 @@ Globals: `pofActief`, `pofManueel`, `pofFase` (`idle|aanloop|bezig|reactie|wacht
 `pofTeller`. Per seconde telt de tick af en stuurt bij 0 de volgende fase.
 
 ```
-Start POF → aanloop (5s, zichtbaar aftellen)
+Spel AAN  → start spel + POF (één schakelaar) → aanloop (5s, zichtbaar aftellen)
           → CHOOSE  (Kies event → Verouder effecten → Kies doelwit → Voer gevolg uit)
           → reactie (reactietijd_s, zichtbaar aftellen)
           → VERIFY  (Verifieer beweging → tabel Controle)
@@ -25,7 +25,7 @@ Start POF → aanloop (5s, zichtbaar aftellen)
 Manueel:  geen automatische timers. Knop Volgende event → CHOOSE (event + reveal +
           gevolgen) → fase "wacht_controle". ÉÉN druk op Controle verifieert en scoort.
           Daarna → wachten op Volgende event.
-Stop POF → pofActief = false, fase idle.
+Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
 ```
 
 - **CHOOSE** (instant): `Kies event` filtert eerst events weg die hun `max` bereikt
@@ -43,10 +43,13 @@ Stop POF → pofActief = false, fase idle.
   trekt af; onder 0 → 0 + **+1 sterfte**. Volledige spec: `docs/event-systeem.md`. Resultaat →
   tabel **Controle** + globale stats.
 
-Besturing (Start/Stop POF, **Manueel**-switch, **Volgende event**-knop,
-**Controle**-knop, **Timer**, **Huidig event**, **Controle**-tabel) staat op de
-**Bediening**-pagina. De engine draait alleen als `pofActief` AAN staat én
-`spelToestand` op `"lopend"`.
+Besturing staat in de **bovenbalk** (Speltoestand-groep, volle breedte) op de **Bediening**-
+én **Simulatie**-pagina: een **Spel-schakelaar** (start/stop, node "Spel aan/uit"), een
+**Pauze-schakelaar**, de **Manueel**-schakelaar, en de knoppen **Controle** + **Volgend
+event** (enkel actief in manuele modus). De spel-toestand staat onderaan in de balk. De
+aparte Start/Stop/Pauzeer/Hervat/Herstart- en Start/Stop POF-knoppen zijn **vervangen** door
+deze schakelaars. De engine draait alleen als `pofActief` AAN staat én `spelToestand` op
+`"lopend"`. **Sterftes resetten:** knop op de **Admin**-pagina (`reset_sterftes`).
 
 > **Controle-knop**: alleen relevant in manueel-modus. Daar telt er geen
 > reactietimer af; je drukt zelf **Controle** wanneer de spelers klaar zijn,
@@ -70,13 +73,9 @@ houd je events overzichtelijk per categorie. Schema + uitleg: `docs/events.md`.
 > `Kies doelwit` gebruikt dat resultaat (`msg.doelwit`) en doet enkel de snapshot +
 > reveal-audio.
 
-`Kies event` ondersteunt drie selectiewijzen (per event ingesteld in `doelwit`):
+`Kies event` ondersteunt twee selectiewijzen (per event ingesteld in `doelwit`):
 - `willekeurig` — N willekeurige spelers/uren.
 - `alle` — alle spelers/uren.
-- `rang` — sorteer op een veld en neem de top N:
-  - **speler**: `levensuren` (`totaalUren`).
-  - **uur**: `nummer` (klokstand) of `bezetting` (aantal spelers op dat uur via
-    `spelerLocaties`).
 
 Volledige veldreferentie + voorbeelden: `docs/events.md`.
 
@@ -178,9 +177,9 @@ effecten** (`Niveau | Doel | Effect | Rondes resterend`), gevoed door
 
 ## Testen
 
-1. Flow 00 gedraaid + **spel gestart** (flow 03 → `lopend`).
-2. **Start POF** op de Bediening-pagina → de **Timer** telt 5→0 af, dan wordt een
-   event gekozen, `x` ingevuld, de tekst voorgelezen en de getroffen spelers
+1. Flow 00 gedraaid.
+2. **Spel-schakelaar AAN** (bovenbalk) → start spel + POF; de **Timer** telt 5→0 af, dan
+   wordt een event gekozen, `x` ingevuld, de tekst voorgelezen en de getroffen spelers
    bepaald. Volg dit in de debug-sidebar; abonneer op audio met
    `mosquitto_sub -h 192.168.1.43 -t audio/afspelen`.
 3. Na de reactietijd (15→0) toont de tabel **Controle** ✅/❌ per speler.

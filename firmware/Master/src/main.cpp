@@ -5,6 +5,13 @@
 
 const int WIFI_KANAAL = 1;
 
+// ---- INGEBOUWDE LED ----
+// ESP32 WROOM-32 onboard LED op GPIO2 (active-HIGH). Pulst kort bij elke
+// ontvangen slave-batch als visuele ontvangst-indicator (niet-blokkerend).
+#define BUILTIN_LED_PIN 2
+const unsigned long RECV_KNIPPER_MS = 30;       // duur puls bij batch-ontvangst
+unsigned long ingebouwdeLedTot = 0;             // millis() tot wanneer LED aan
+
 // ---- DATASTRUCTS ----
 typedef struct __attribute__((packed)) batch_message {
   int32_t paal_id;
@@ -136,6 +143,9 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     return;
   }
 
+  // Visuele ontvangst-indicator: pulst de ingebouwde LED kort (niet-blokkerend).
+  ingebouwdeLedTot = millis() + RECV_KNIPPER_MS;
+
   Serial.printf("[RECV] %d bytes van paal %d (%02X:%02X:%02X:%02X:%02X:%02X)\n",
     len, paalIndex + 1, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
@@ -209,6 +219,10 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
+  // Ingebouwde LED (active-HIGH): uit bij start
+  pinMode(BUILTIN_LED_PIN, OUTPUT);
+  digitalWrite(BUILTIN_LED_PIN, LOW);
+
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
@@ -270,4 +284,6 @@ void setup() {
 void loop() {
   verwerkSerieel();
   verwerkQueue();
+  // Ingebouwde LED (active-HIGH): aan zolang de ontvangst-puls loopt.
+  digitalWrite(BUILTIN_LED_PIN, (millis() < ingebouwdeLedTot) ? HIGH : LOW);
 }

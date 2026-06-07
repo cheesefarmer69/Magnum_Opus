@@ -89,7 +89,10 @@ reactietijd: een geordende reeks hops `[van,naar]` per speler (`global.pofPad`).
    happy hour die nog actief zijn blijven.
 
 Portalen en happy hour zijn **toestanden** (open in hun eigen event, blijven actief tot ze
-aflopen of voor altijd als er geen einde is).
+aflopen of voor altijd als er geen einde is). De **levensduur** van een toestand komt uit
+het event-veld **`duratie`** (op event-niveau): een vast getal, een `[min,max]`-bereik dat
+willekeurig gerold wordt, of een preset (`kort`/`middel`/`lang`). Dat getal wordt
+`resterendeRondes` en telt elke ronde af in stap 6.
 
 ---
 

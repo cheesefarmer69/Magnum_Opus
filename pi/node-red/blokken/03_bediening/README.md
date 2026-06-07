@@ -20,6 +20,12 @@ testen als tijdens een echt spel. In deze eerste versie beheert het de
 > zijn verwijderd; de Plates-of-Fate engine stuurt commando's nu zelf. De
 > POF-besturingsgroep is naar deze Bediening-pagina verplaatst.
 
+> **Aparte "Test widgets"-pagina:** er staat een losse dashboard-pagina *Test
+> widgets* (knoppen/schakelaars, **niet aan het spel gekoppeld**) om widget-gedrag
+> uit te proberen — vooral of een `ui-switch` visueel live mee-toggelt zonder
+> page-refresh. De echte bediening-balk hieronder wijzigt pas zodra op basis
+> daarvan een widget gekozen is. Zie Design_rules §7.
+
 ## De speltoestand
 
 De flow houdt één globale variabele bij: `global.spelToestand`.

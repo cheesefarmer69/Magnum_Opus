@@ -108,7 +108,9 @@ Queue-grootte: 16. Bij vol stuurt master `{"status":"queue_vol"}` terug.
 
 Master stuurt detecties door naar de Pi, één JSON-bericht per regel.
 
-- **Poort op Pi**: `/dev/ttyMaster1` (symlink via udev rule, zie `config/udev/`)
+- **Poort op Pi**: automatisch gedetecteerd (CH340 USB-UART, elke USB-poort).
+  De bridge routeert per master op `paal_id` (1–7/8–16/17–24). Zie
+  `docs/handleidingen/serial-bridge.md`.
 - **Baudrate**: 115200
 - **Regelafsluiting**: `\n`
 - **Encoding**: UTF-8
@@ -132,6 +134,22 @@ Eén regel per ontvangen batch — onafhankelijk van of er spelers in zaten.
 Zo blijft de batterij-status van een paal up-to-date óók als er niemand
 in de buurt is. Node-RED bewaart de laatste waarde per paal in
 `global.status_batterijPaal`.
+
+### Formaat: drukknop
+
+```json
+{"paal":1,"knop":1}
+```
+
+De slave stuurt deze regel bij een **druk op de knop** (GPIO3, rising edge).
+Hook voor latere spellogica; de slave geeft tegelijk een puls op de rode LED.
+
+### Indicator-LED's (geen serieel bericht)
+
+- **Slave** knippert zijn ingebouwde LED (GPIO8, active-LOW) kort bij elke
+  **succesvolle ESP-NOW-zend**.
+- **Master** pulst zijn ingebouwde LED (GPIO2, active-HIGH) kort bij elke
+  **ontvangen slave-batch**.
 
 ### Debug-output
 

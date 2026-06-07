@@ -20,10 +20,11 @@ const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 // ====================================================================
 #define LED_DATA_PIN     0   // WS2812B data via 330Ohm
 #define MOSFET_PIN       1   // IRLZ44N gate via 220Ohm (10k pull-down)
-#define LIGHT_SENSOR_PIN 3   // TEMT6000 / LDR (ADC1 - werkt met WiFi)
+#define BUTTON_PIN       3   // Drukknop tussen 3V3 en GPIO3 (INPUT_PULLDOWN -> HIGH = ingedrukt)
 #define BATTERY_ADC_PIN  4   // Spanningsdeler 2x 100k (ADC1)
 #define BUZZER_PIN       5   // Passieve buzzer via 100Ohm (digitaal)
-#define WARNING_LED_PIN  6   // Rode LED via 150Ohm (batterij waarschuwing)
+#define WARNING_LED_PIN  6   // Rode LED via 150Ohm (batterij-waarschuwing + drukknop-puls)
+#define BUILTIN_LED_PIN  8   // Ingebouwde LED ESP32-C3 SuperMini (active-LOW) - knippert bij zenden
 
 // ====================================================================
 // LED STRIP
@@ -54,15 +55,23 @@ const unsigned long BATT_CHECK_INTERVAL = 5000;  // ms
 unsigned long laatsteBattCheck = 0;
 
 // ====================================================================
-// LICHT SENSOR (voor laser detectie)
+// DRUKKNOP (GPIO3 - tussen 3V3 en GPIO3, INPUT_PULLDOWN)
 // ====================================================================
-// Drempel: onder deze ADC-spanning is er GEEN laser (straal verbroken)
-// Kalibreer met jouw opstelling: meet licht_volt bij laser aan en uit
-const float LICHT_DREMPEL      = 1.5;   // V, pas aan na kalibratie
-const unsigned long LICHT_CHECK_INTERVAL = 100;  // ms
-unsigned long laatsteLichtCheck = 0;
-bool laserGedetecteerd = false;
-bool vorigeLaserStatus = false;
+// Het framework is altijd actief, met of zonder fysieke knop: zonder knop
+// houdt de pulldown de pin LOW -> geen valse triggers. Bij indrukken (HIGH)
+// geven we een korte puls op de rode LED (GPIO6) en sturen we een serieele
+// hook-regel naar de master (voor latere spellogica).
+const unsigned long KNOP_DEBOUNCE_MS = 30;     // ontdender-tijd
+const unsigned long KNOP_PULS_MS     = 150;    // duur rode-LED puls bij druk
+bool          vorigeKnopStatus  = false;       // voor rising-edge detectie
+unsigned long laatsteKnopWissel = 0;           // debounce-timer
+unsigned long rodeLedPulsTot    = 0;           // millis() tot wanneer puls actief
+
+// ====================================================================
+// INGEBOUWDE LED (GPIO8, active-LOW) - knippert bij succesvolle zend
+// ====================================================================
+const unsigned long ZEND_KNIPPER_MS = 40;      // duur knipper bij geslaagde zend
+volatile unsigned long ingebouwdeLedTot = 0;   // millis() tot wanneer LED aan
 
 // ====================================================================
 // ACTION IDs
@@ -162,6 +171,8 @@ NimBLEScan *pBLEScan = nullptr;
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   if (status == ESP_NOW_SEND_SUCCESS) {
     Serial.println("[ESP-NOW] Batch verzonden OK");
+    // Visuele zend-indicator: knipper de ingebouwde LED kort (niet-blokkerend).
+    ingebouwdeLedTot = millis() + ZEND_KNIPPER_MS;
   } else {
     Serial.println("[ESP-NOW] Verzending MISLUKT");
   }
@@ -246,6 +257,11 @@ float leesBatterijSpanning() {
   return v_batterij;
 }
 
+// Batterij-knippermodus: 0 = uit, 1 = langzaam (1Hz), 2 = snel (2Hz).
+// checkBatterij() bepaalt de modus periodiek; updateRodeLed() stuurt de LED
+// elke loop zodat de drukknop-puls voorrang kan krijgen.
+int battLedModus = 0;
+
 void checkBatterij() {
   if (millis() - laatsteBattCheck < BATT_CHECK_INTERVAL) return;
   laatsteBattCheck = millis();
@@ -254,41 +270,52 @@ void checkBatterij() {
   Serial.printf("[BATT] %.2fV\n", v_batt);
 
   if (v_batt < BATT_KRITIEK) {
-    // Snel knipperen (2Hz)
-    digitalWrite(WARNING_LED_PIN, (millis() / 250) % 2);
+    battLedModus = 2;        // snel knipperen
   } else if (v_batt < BATT_WAARSCHUWING) {
-    // Langzaam knipperen (1Hz)
-    digitalWrite(WARNING_LED_PIN, (millis() / 500) % 2);
+    battLedModus = 1;        // langzaam knipperen
+  } else {
+    battLedModus = 0;        // uit
+  }
+}
+
+// ====================================================================
+// DRUKKNOP CHECK (GPIO3, rising-edge met debounce)
+// ====================================================================
+// Detecteert een druk (LOW->HIGH). Zonder fysieke knop blijft de pin LOW via
+// de interne pulldown -> nooit een valse trigger. Bij een druk: rode-LED puls
+// + serieele hook-regel naar de master (voor latere spellogica).
+void checkKnop() {
+  bool knopNu = (digitalRead(BUTTON_PIN) == HIGH);
+  if (knopNu != vorigeKnopStatus &&
+      (millis() - laatsteKnopWissel) >= KNOP_DEBOUNCE_MS) {
+    laatsteKnopWissel = millis();
+    vorigeKnopStatus = knopNu;
+    if (knopNu) {  // rising edge = ingedrukt
+      rodeLedPulsTot = millis() + KNOP_PULS_MS;
+      Serial.printf("{\"paal\":%d,\"knop\":1}\n", PAAL_ID);
+    }
+  }
+}
+
+// ====================================================================
+// LED-AANSTURING (niet-blokkerend, elke loop)
+// ====================================================================
+// Rode LED (GPIO6): drukknop-puls heeft voorrang; anders batterij-status.
+void updateRodeLed() {
+  if (millis() < rodeLedPulsTot) {
+    digitalWrite(WARNING_LED_PIN, HIGH);     // puls: vol aan
+  } else if (battLedModus == 2) {
+    digitalWrite(WARNING_LED_PIN, (millis() / 250) % 2);   // snel (2Hz)
+  } else if (battLedModus == 1) {
+    digitalWrite(WARNING_LED_PIN, (millis() / 500) % 2);   // langzaam (1Hz)
   } else {
     digitalWrite(WARNING_LED_PIN, LOW);
   }
 }
 
-// ====================================================================
-// LICHT SENSOR CHECK (laser detectie)
-// ====================================================================
-float leesLichtSpanning() {
-  int adc_raw = analogRead(LIGHT_SENSOR_PIN);
-  float v_licht = (adc_raw / ADC_MAX_VALUE) * ADC_REF_VOLT;
-  return v_licht;
-}
-
-void checkLichtSensor() {
-  if (millis() - laatsteLichtCheck < LICHT_CHECK_INTERVAL) return;
-  laatsteLichtCheck = millis();
-
-  float v_licht = leesLichtSpanning();
-  laserGedetecteerd = (v_licht > LICHT_DREMPEL);
-
-  // Detecteer verandering
-  if (laserGedetecteerd != vorigeLaserStatus) {
-    if (laserGedetecteerd) {
-      Serial.printf("[LASER] Gedetecteerd (%.2fV)\n", v_licht);
-    } else {
-      Serial.printf("[LASER] Straal verbroken (%.2fV)\n", v_licht);
-    }
-    vorigeLaserStatus = laserGedetecteerd;
-  }
+// Ingebouwde LED (GPIO8, active-LOW): kort aan na een geslaagde zend.
+void updateIngebouwdeLed() {
+  digitalWrite(BUILTIN_LED_PIN, (millis() < ingebouwdeLedTot) ? LOW : HIGH);
 }
 
 // ====================================================================
@@ -405,13 +432,20 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   noTone(BUZZER_PIN);
 
-  // Waarschuwings-LED
+  // Waarschuwings-LED (gedeeld: batterij-waarschuwing + drukknop-puls)
   pinMode(WARNING_LED_PIN, OUTPUT);
   digitalWrite(WARNING_LED_PIN, LOW);
 
-  // ADC pinnen (input mode is standaard)
+  // Ingebouwde LED (active-LOW): uit bij start (HIGH = uit)
+  pinMode(BUILTIN_LED_PIN, OUTPUT);
+  digitalWrite(BUILTIN_LED_PIN, HIGH);
+
+  // Drukknop (tussen 3V3 en GPIO3): interne pulldown zodat de pin zonder
+  // aangesloten knop LOW blijft en er geen valse triggers ontstaan.
+  pinMode(BUTTON_PIN, INPUT_PULLDOWN);
+
+  // ADC pin (input mode is standaard)
   pinMode(BATTERY_ADC_PIN, INPUT);
-  pinMode(LIGHT_SENSOR_PIN, INPUT);
 
   // Startup batterij check
   float v_start = leesBatterijSpanning();
@@ -525,7 +559,9 @@ void loop() {
   unsigned long startWacht = millis();
   while (!commandoOntvangen && (millis() - startWacht < WACHT_TIMEOUT)) {
     checkBatterij();
-    checkLichtSensor();
+    checkKnop();
+    updateRodeLed();
+    updateIngebouwdeLed();
     updateMelodie();
     delay(1);
   }

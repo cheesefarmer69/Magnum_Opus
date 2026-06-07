@@ -32,8 +32,10 @@ loop()
       ├── esp_now_send() → master   (ALTIJD, ook bij 0 spelers)
       │
       ├── wacht max 200ms op OnDataRecv() callback
-      │    ├── checkBatterij()     elke 5s (binnenin de wacht-loop)
-      │    └── checkLichtSensor()  elke 100ms (binnenin de wacht-loop)
+      │    ├── checkBatterij()        elke 5s (binnenin de wacht-loop)
+      │    ├── checkKnop()            rising-edge drukknop GPIO3 (debounce)
+      │    ├── updateRodeLed()        GPIO6: knop-puls > batterij-waarschuwing
+      │    └── updateIngebouwdeLed()  GPIO8: knippert kort na geslaagde zend
       │
       └── [als commandoOntvangen] → voerActieUit()
 ```
@@ -53,8 +55,18 @@ loop()
 > de fase-vergrendeling tussen meerdere slaves zodat ze niet elke cyclus
 > tegelijk zenden en elkaars pakket wegdrukken bij de master.
 >
-> `checkBatterij()` en `checkLichtSensor()` worden aangeroepen tijdens het
-> 200ms wacht-venster na het verzenden — dat venster draait nu elke cyclus.
+> `checkBatterij()`, `checkKnop()` en de LED-updates worden aangeroepen tijdens
+> het 200ms wacht-venster na het verzenden — dat venster draait nu elke cyclus.
+>
+> **Drukknop (GPIO3):** tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. Een druk (rising
+> edge, met debounce) geeft een puls op de rode LED (GPIO6) en stuurt een
+> hook-regel `{"paal":N,"knop":1}` over serial. Het framework draait altijd,
+> ook zonder fysieke knop: de pulldown houdt de pin dan LOW → geen valse
+> triggers. De rode LED is gedeeld: een knop-puls (~150 ms) heeft voorrang op
+> de batterij-waarschuwing.
+>
+> **Ingebouwde LED (GPIO8, active-LOW):** knippert kort (~40 ms) bij elke
+> succesvolle ESP-NOW-zend als visuele zend-indicator.
 >
 > De BLE-scan blokkeert 1 seconde. Commando's die tijdens de scan
 > binnenkomen via ESP-NOW worden gebufferd in de callback en direct
@@ -73,7 +85,8 @@ loop()
 | `MAX_BACKOFF_MS` | ~16 | Bovengrens (ms) van de willekeurige zendvertraging |
 | `toegelatenBeacons[]` | ~80 | Whitelist van beacon-MAC-adressen |
 | `masterAddress[]` | ~89 | MAC-adres van de master — lees uit Serial Monitor van master |
-| `LICHT_DREMPEL` | ~56 | ADC-drempel (V) voor laser-detectie — kalibreer per opstelling |
+| `KNOP_DEBOUNCE_MS` | ~57 | Ontdender-tijd (ms) van de drukknop |
+| `KNOP_PULS_MS` | ~58 | Duur (ms) van de rode-LED puls bij een druk |
 | `BATT_WAARSCHUWING` | ~46 | Spanning (V) waaronder LED langzaam knippert |
 | `BATT_KRITIEK` | ~47 | Spanning (V) waaronder LED snel knippert |
 
@@ -124,7 +137,7 @@ De huidige code gebruikt de volgende volgorde:
 | `[ACTIE] LED 1` | Commando wordt uitgevoerd |
 | `[CMD] Timeout, geen commando` | Geen commando binnen 200ms na verzenden |
 | `[BATT] 3.87V` | Batterijspanning om de 5 seconden |
-| `[LASER] Straal verbroken` | Lichtdrempel onderschreden |
+| `{"paal":N,"knop":1}` | Drukknop ingedrukt (rising edge) |
 | `[ESP-NOW] Init MISLUKT!` | Fatale fout — ESP knippert warning-LED snel |
 
 ---

@@ -7,7 +7,8 @@
 #  - Dit script staat in pi/deploy.sh van de magnum-opus repo
 #  - De repo is gecloond op /home/pi/magnum-opus
 #  - Docker draait
-#  - /dev/ttyMaster1 bestaat (anders udev rule installeren, zie config/udev/)
+#  - Eén of meer masters (CH340 USB-UART) hangen aan de Pi, in om het even
+#    welke USB-poort. De bridge detecteert ze automatisch.
 #
 # Wijzigingen worden meteen actief; oude container wordt gestopt en vervangen.
 
@@ -26,12 +27,17 @@ echo "[deploy] Oude container stoppen..."
 docker stop serial-bridge 2>/dev/null || true
 docker rm serial-bridge 2>/dev/null || true
 
-echo "[deploy] Nieuwe container starten (host network, ttyMaster1, auto-restart)..."
+echo "[deploy] Nieuwe container starten (host network, alle USB-serial, auto-restart)..."
+# Geen vaste --device meer: de bridge detecteert zelf elke CH340-master, in
+# welke USB-poort ook. We geven de container toegang tot alle tty-devices via
+# een cgroup-regel (major 188 = USB-serial) + /dev mount, zodat ook een master
+# die later (her)ingeplugd wordt automatisch opgepikt wordt.
 docker run -d \
   --name serial-bridge \
   --restart unless-stopped \
   --network host \
-  --device=/dev/ttyMaster1 \
+  --device-cgroup-rule='c 188:* rmw' \
+  -v /dev:/dev \
   -e MQTT_BROKER=127.0.0.1 \
   -e MQTT_PORT=1883 \
   -e MQTT_DATA_TOPIC=plaatjes/data \

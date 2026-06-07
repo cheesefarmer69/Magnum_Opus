@@ -21,11 +21,17 @@ kan niets uit sync raken.
 | `[CONFIG] Paaltjeslijst`   | inject-node met de paaltjeslijst als JSON                    |
 | `Sla op als paaltjesLijst` | schrijft die naar `global.paaltjesLijst`                     |
 | `paaltjesLijst (controle)` | debug-node die de actieve lijst toont                        |
-| `[TEST] Buzzer paal N AAN/UIT` | inject-nodes die de buzzer van paal 1/2/3 aan/uit zetten |
-| `commando/master1`         | MQTT-out die de buzzer-testcommando's naar de master stuurt  |
+| `[TEST] LED (portaal-kleur)` | inject die een gekozen paal paars maakt (LED-test, `actie:1`) |
+| `[TEST] Zoemer (piep)`     | inject die een gekozen paal laat piepen (zoemer-test, `actie:3`) |
+| `commando/master1`         | MQTT-out die de test-commando's naar de master stuurt        |
 
-Beide inject-nodes staan op "inject once": ze vuren automatisch bij elke deploy
-en bij het herstarten van Node-RED. Je kan ze ook handmatig aanklikken.
+> ⚠️ **De twee `[CONFIG]`-inject-nodes zijn essentieel.** Zonder hen blijft
+> `global.spelersLijst` leeg → geen mac→naam-mapping → `spelerLocaties` vult niet
+> → het sim-dashboard toont geen spelers en events kiezen geen doelwit, en het
+> echte spel kan beacons niet mappen. Verwijder ze niet.
+
+Beide `[CONFIG]`-inject-nodes staan op "inject once": ze vuren automatisch bij
+elke deploy en bij het herstarten van Node-RED. Je kan ze ook handmatig aanklikken.
 
 ## Outputs (global context)
 
@@ -83,15 +89,18 @@ gebruikt die om te controleren of elke paal data stuurt.
    testen zet je hier enkel de palen die je echt aangesloten hebt.
 4. **Done** → **Deploy** → inject-node één keer aanklikken.
 
-## Buzzer-test (palen 1–3)
+## Hardware-test (LED + zoemer)
 
-Onderaan de tab staan inject-nodes om de buzzer van elk testbordje te testen:
-`[TEST] Buzzer paal 1 AAN` … `paal 3 UIT`. Ze publiceren een commando op
-`commando/master1` (`{"paal":N,"actie":3}` = aan, `actie:4` = uit; zie
-`docs/protocol.md`). Handig om per paal het buzzervolume/-gedrag te controleren
-zonder de Plates-of-Fate engine te starten.
+Onderaan de tab staan twee test-inject-nodes (zie ook Design_rules §9 — "exact 2
+test-injects"), met de **paal kiesbaar via de inject-payload**:
 
-> AAN blijft klinken tot je op de bijbehorende UIT-node drukt.
+- **`[TEST] LED (portaal-kleur)`** → `{"paal":N,"actie":1}`: maakt de LED van
+  paal N paars.
+- **`[TEST] Zoemer (piep)`** → `{"paal":N,"actie":3}`: laat paal N kort piepen.
+
+Ze publiceren op `commando/master1` (zie `docs/protocol.md` voor de actie-ids).
+Handig om per paal de hardware te controleren zonder de Plates-of-Fate engine
+te starten.
 
 ## Controleren of de configuratie geladen is
 
