@@ -80,10 +80,21 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 1  | `ACTIE_PORTAAL`     | LED strip **paars** continu (portaal-toestand), MOSFET aan |
 | 2  | `ACTIE_HAPPY_HOUR`  | LED strip **goud** continu (happy-hour-toestand), MOSFET aan |
 | 3  | `ACTIE_BUZZER_PIEP` | Eén duidelijke piep, 1500 Hz, 600 ms (niet-blokkend, auto-stop). Gebruikt om een afgeroepen **uur** hoorbaar te maken én als zoemer-test. |
+| 4  | `ACTIE_MEDICIJN`    | LED strip **felroze** (`CRGB(255,20,147)`) continu (medicijn-toestand, ziekte-event), MOSFET aan |
+| 5  | `ACTIE_ZIEK_W3`     | Zoemer: ziekenhuis-monitor-piep + **3** hartslagen (zieke speler, nog 3 events te gaan) |
+| 6  | `ACTIE_ZIEK_W2`     | Zoemer: ziekenhuis-monitor-piep + **2** hartslagen (nog 2 events) |
+| 7  | `ACTIE_ZIEK_W1`     | Zoemer: ziekenhuis-monitor-piep + **1** hartslag (nog 1 event) |
+| 8  | `ACTIE_NUKE`        | LED strip **geanimeerd** pulserend radioactief geel↔groen (NUKE-ring over alle palen) |
+| 9  | `ACTIE_MN_OPEN`     | LED strip **zacht wit** continu (middernacht-poort **open**) |
+| 10 | `ACTIE_MN_DICHT`    | LED strip **rood** continu (middernacht-poort **dicht**) |
+| 11 | `ACTIE_OOGST`       | LED strip **geanimeerd** dramatische wit/rood-strobe (middernacht-oogst bij een 0 in pi) |
 
-De LED-toestanden (1/2) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
-op basis van de actieve effecten; loopt een effect af of stopt het spel, dan stuurt
-Node-RED `ACTIE_NIETS`. Bij een kleur-actie wordt de MOSFET eerst HIGH gezet (5 ms delay)
+De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
+op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
+Node-RED `ACTIE_NIETS`. De zoemer-acties (3/5/6/7) zijn niet-blokkende melodieën op de slave
+(state-machine `updateMelodie()`); de hartslag-waarschuwingen (5/6/7) verschillen enkel in het
+aantal hartslagen na de monitor-piep. De **geanimeerde** acties (8 = nuke, 11 = oogst) worden op de
+slave gerenderd door `updateAnimatie()` (millis-gebaseerd, blijft animeren tot een nieuwe actie binnenkomt). Bij een kleur-actie wordt de MOSFET eerst HIGH gezet (5 ms delay)
 voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje bij inschakelen.
 
 ### Reliability: master retry-queue
@@ -193,10 +204,13 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
 | `sim/modus`        | browser → Node-RED | `{"sim24":true}` — simulator in simulatiemodus → Node-RED forceert een 24-uur veld (`palenActief`) |
 | `sim/locatie`      | browser → Node-RED | `[{"mac":"aa:..","paal":7}]` — exacte paal per speler (sim-modus, deterministisch, geen RSSI) |
-| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller |
+| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"getalWaarde2":null,"groepLabel":null,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller; `getalWaarde2` is het tweede getal `y` (bij `voorwaarde: "of"`, anders `null`); `doelwitType` kan `"groep"` zijn met `groepLabel` (`"kleur: rood"`) en afroep-prefix "een groep" |
 | `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"delta":-1,"tag":"-"}]}` — `delta` = toegekende/afgetrokken levensuren |
 | `pof/portalen`     | Node-RED → browser | `[{"palen":[12,20]}]` — actieve portaal-paren (retained); simulator tekent de verbindingslijn en teleporteert |
 | `pof/toestanden`   | Node-RED → browser | `[{"uur":12,"effect":"portaal","naam":"Portalen","resterendeRondes":3}]` — actieve uur-effecten (retained); voedt het sim-"Toestanden"-paneel |
+| `pof/ziekte`       | Node-RED → browser | `[{"speler":"Lilou","rondesOver":3,"uur":12}]` — actieve zieke spelers + events resterend (retained); voedt het sim-"Ziekte"-paneel (badge + hart-waarschuwing) |
+| `pof/middernacht`  | Node-RED → browser | `{"index":7,"open":true,"remaining":2,"eventsTotOogst":14,"paal":24}` — middernacht-poort: pi-cijfer-index, open/dicht, events in fase + tot volgende oogst (retained) |
+| `pof/dienaars`     | Node-RED → browser | `{"Maud":"Mien"}` — geoogste spelers → hun meester (retained); voedt sim-speler-menu + dashboard-tabel |
 
 ### Plates-of-Fate: doelwit-reveal en `pof/status`
 
@@ -211,7 +225,7 @@ reactietijd-aftelling (de sequencer triggert dan "Voer gevolg uit").
 - `doelwit`: volledige array van gekozen doelwitten.
 - `doelwitReveal`: de progressief opgebouwde tekst (`• naam\n• naam`), zodat
   de simulator dezelfde één-voor-één-onthulling toont als het dashboard.
-- `fase`: `idle` / `aanloop` / `bezig` / `reactie` / `wacht*`.
+- `fase`: `idle` / `aanloop` / `bezig` / `reactie` / `regroup` (NUKE-pauze) / `wacht*`.
 
 Zo tonen het Node-RED dashboard (ui_text "Doelwit") én de browser-simulator
 identieke informatie zonder browser-specifieke scripting.
@@ -221,7 +235,7 @@ identieke informatie zonder browser-specifieke scripting.
 Na de reactietijd controleert "Verifieer beweging" of elke speler aan de
 beweging-voorwaarde voldeed. Het resultaat wordt — naast de dashboard-tabel —
 ook gepubliceerd op `pof/controle`. Elke `status` (`OK`, `TE WEINIG`, `TE VEEL`,
-`OK (stil)`, `BEWOOG (mocht niet)`) is in feite een **foutcode** van het event
+`ONGELDIGE KEUZE`, `OK (stil)`, `BEWOOG (mocht niet)`) is in feite een **foutcode** van het event
 na zijn controle. De browser-simulator logt deze regels onder de checkbox
 "Foutcodes".
 

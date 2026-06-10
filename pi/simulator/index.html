@@ -19,10 +19,6 @@
             <label><input type="radio" name="modus" value="monitor" checked> Monitor</label>
             <label><input type="radio" name="modus" value="sim"> Simulatie</label>
         </div>
-        <div class="hdr-group">
-            <button id="btn-pause">Pause</button>
-            <span class="tick-label">Tick: 250 ms</span>
-        </div>
     </header>
 
     <main>
@@ -34,6 +30,7 @@
                 <g id="paaltjes"></g>
                 <g id="led-bolletjes"></g>
                 <g id="buzzers"></g>
+                <g id="ziekte-iconen"></g>
                 <g id="spelers"></g>
                 <g id="paal-labels"></g>
             </svg>
@@ -50,6 +47,8 @@
             </div>
             <h3>Doelwit</h3>
             <div id="pof-doelwit" class="pof-doelwit">—</div>
+            <h3>Volgende events</h3>
+            <ol id="pof-wachtrij" class="pof-wachtrij"><li class="pof-wachtrij-leeg">—</li></ol>
         </div>
 
         <aside id="zijbalk">
@@ -58,10 +57,20 @@
             <div class="aside-actions">
                 <button id="btn-add-speler">+ Speler</button>
                 <button id="btn-reset-spelers">Reset posities</button>
+                <button id="btn-out" title="Iedereen het veld uit (en terug) — voor het testen van NUKE">Out</button>
             </div>
             <h3>Toestanden</h3>
-            <div id="toestanden-lijst" class="toestanden-lijst">
-                <div class="toestand-leeg">Geen actieve toestanden.</div>
+            <div class="toestand-sectie">
+                <h4 class="toestand-sub">Uren</h4>
+                <div id="toestanden-lijst" class="toestanden-lijst">
+                    <div class="toestand-leeg">Geen actieve toestanden.</div>
+                </div>
+            </div>
+            <div class="toestand-sectie">
+                <h4 class="toestand-sub">Spelers</h4>
+                <div id="ziekte-lijst" class="ziekte-lijst">
+                    <div class="ziekte-leeg">Geen zieke spelers.</div>
+                </div>
             </div>
         </aside>
 
@@ -72,7 +81,25 @@
                 <div id="histo-lijst"><div class="histo-leeg">Nog geen events in dit spel.</div></div>
             </div>
         </aside>
+
+        <aside id="events-paneel">
+            <button id="events-toggle" title="Events tonen/verbergen">Events</button>
+            <div id="events-inhoud">
+                <h3>Events in het spel</h3>
+                <div id="events-lijst"><div class="events-leeg">Nog geen events ontvangen.</div></div>
+            </div>
+        </aside>
+
     </main>
+
+    <aside id="middernacht-paneel" class="open">
+        <div class="mn-kop">
+            <span class="mn-titel">Middernacht</span>
+            <label class="mn-aan" title="Middernacht-mechanisme aan/uit"><input type="checkbox" id="middernacht-aan" checked> Actief</label>
+            <button id="middernacht-toggle" title="In-/uitklappen">▾</button>
+        </div>
+        <div id="middernacht-lijst"><div class="middernacht-leeg">Nog geen data.</div></div>
+    </aside>
 
     <section id="log-paneel">
         <div id="log-resize-handle"></div>

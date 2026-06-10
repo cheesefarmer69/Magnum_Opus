@@ -39,11 +39,23 @@ Vóór de event-tekst roept de Pi eerst het **aantal getroffen doelwitten** af, 
 door het zelfstandig naamwoord (enkel/meervoud):
 `getallen/<aantal>.wav` → `woorden/<speler|spelers|uur|uren>.wav`
 
+Bij een **groep-event** (`doelwit.type: "groep"`) is de prefix in plaats daarvan
+`woorden/een_groep.wav` ("een groep"), en het doelwit (in de doelwit-fase) is het groep-label:
+`woorden/<veld>.wav` → `groepen/<waarde>.wav` (bv. `woorden/kleur.wav` → `groepen/rood.wav`),
+omsloten door `doelwit/voor.wav` … `doelwit/na.wav`. De individuele leden worden niet opgesomd.
+
 Daarna de event-tekst zelf (met eventueel getal):
 `events/<id>_voor.wav` → `getallen/<getal>.wav` → `events/<id>_na.wav`
 
+Heeft het event een **tweede getal** (`getal2`, bij `voorwaarde: "of"`), dan komt na het
+eerste getal het connector-woord `woorden/of.wav` en het tweede getal:
+`events/<id>_voor.wav` → `getallen/<x>.wav` → `woorden/of.wav` → `getallen/<y>.wav` → `events/<id>_na.wav`
+
 Voorbeeld event `verplaatsing2` dat 3 spelers raakt, met getal 3:
 > "drie" + "spelers" + "Maximum" + "drie" + "uur."  → *"3 spelers maximum 3 uur."*
+
+Voorbeeld event `of_verplaatsing` dat 2 spelers raakt, met x=2 en y=5:
+> "twee" + "spelers" + "twee" + "of" + "vijf" + "uur vooruit."  → *"2 spelers 2 of 5 uur vooruit."*
 
 Raakt het 1 speler: "één" + "speler" + … (enkelvoud).
 
@@ -60,8 +72,17 @@ Geef het event in de Node-RED `[CONFIG]`-inject de velden `audioVoor` en
 Leg dan `events/verplaatsing1_voor.wav` en `events/verplaatsing1_na.wav` klaar.
 
 Huidige toestand-events die audio verwachten (in `events/`):
-`portalen_voor.wav` / `portalen_na.wav` en `happy_hour_voor.wav` / `happy_hour_na.wav`.
-En de aantal-prefix-woorden in `woorden/`: `speler.wav`, `spelers.wav`, `uur.wav`, `uren.wav`.
+`portalen_voor.wav` / `portalen_na.wav`, `happy_hour_voor.wav` / `happy_hour_na.wav` en
+`ziekte_voor.wav` / `ziekte_na.wav` (afroep "… worden ziek") en `nuke.wav` (het woord "NUKE" voor het
+wereld-event). De ziekte-waarschuwing (ziekenhuis-monitor + hartslag) speelt op de **slave-buzzer**
+(acties 5/6/7), niet via de audio-player.
+Verplaatsing-events: `verplaatsing2_voor.wav` / `verplaatsing2_na.wav` en
+`of_verplaatsing_voor.wav` / `of_verplaatsing_na.wav` ("uur vooruit").
+En de prefix-/connector-woorden in `woorden/`: `speler.wav`, `spelers.wav`, `uur.wav`, `uren.wav`,
+`of.wav`, `een_groep.wav`, `kleur.wav`, `jaar.wav`. Groep-waarden in `groepen/`: `rood.wav`,
+`zwart.wav`, `blauw.wav`, `eerste.wav`, `tweede.wav`, `derde.wav`. Plus voor het voorbeeld-event
+`events/groep_verplaatsing_voor.wav` / `_na.wav`. (Ontbrekende WAV's worden gewoon overgeslagen — het
+event werkt ook zonder audio.)
 
 Ontbrekende bestanden worden gewoon overgeslagen (met een logregel) — de service
 blijft draaien.

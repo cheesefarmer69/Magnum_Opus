@@ -154,6 +154,20 @@ loopt een effect af of stopt het spel, dan stuurt Node-RED `ACTIE_NIETS`.
 | 1 | `ACTIE_PORTAAL` | LED strip paars continu (portaal-toestand) |
 | 2 | `ACTIE_HAPPY_HOUR` | LED strip goud continu (happy-hour-toestand) |
 | 3 | `ACTIE_BUZZER_PIEP` | Eén piep 1500 Hz, 600 ms (uur-afroep / zoemer-test) |
+| 4 | `ACTIE_MEDICIJN` | LED strip felroze continu (medicijn, ziekte-event) |
+| 5 | `ACTIE_ZIEK_W3` | Zoemer: ziekenhuis-monitor-piep + 3 hartslagen (zieke speler, nog 3 events) |
+| 6 | `ACTIE_ZIEK_W2` | Zoemer: monitor-piep + 2 hartslagen (nog 2 events) |
+| 7 | `ACTIE_ZIEK_W1` | Zoemer: monitor-piep + 1 hartslag (nog 1 event) |
+| 8 | `ACTIE_NUKE` | LED **geanimeerd**: pulserend radioactief geel↔groen (NUKE-ring) |
+| 9 | `ACTIE_MN_OPEN` | LED zacht wit continu (middernacht-poort open) |
+| 10 | `ACTIE_MN_DICHT` | LED rood continu (middernacht-poort dicht) |
+| 11 | `ACTIE_OOGST` | LED **geanimeerd**: dramatische wit/rood-strobe (middernacht-oogst) |
+
+De zoemer-acties (3/5/6/7) zijn niet-blokkende melodieën (`MELODIE_*` + `updateMelodie()`); de solide
+LED-acties (1/2/4/9/10) blijven continu tot Node-RED `ACTIE_NIETS` stuurt. De **geanimeerde** acties
+(8 = nuke, 11 = oogst) worden gerenderd door `updateAnimatie()` (millis-gebaseerd, gebruikt `CHSV` +
+`beatsin8`, aangeroepen in de wacht-loop naast `updateMelodie()`) en blijven animeren tot een nieuwe
+actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 
 ---
 

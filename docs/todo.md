@@ -43,7 +43,16 @@ en waarom het nodig is.
   wanneer een speler regels overtreedt (bv. illegaal tijdreizen of te ver
   verplaatsen). Het deficit-model is hiervan de basis.
 - [ ] **Minigames + cyclusbeheer** — afwisseling Plates of Fate ↔ minigame ↔
-  herstart (levensjaren-reset), zoals beschreven in `docs/spel.md`.
+  herstart (levensjaren-reset), zoals beschreven in `docs/spel/spel.md`.
+
+- [ ] **Sim ↔ hardware perfecte pad-pariteit (rand)** — de simulator publiceert nu de
+  **settled** paal (pas bij loslaten), wat voor élke realistische zet (afgelegde boog ≤ 12
+  palen) identiek scoort aan de hardware-hysterese. Enkel een bewuste "lange weg rond"
+  (>12 palen in één sleep) is uit losse settled-posities niet eenduidig af te leiden — op
+  hardware net zomin (zie `docs/spel/event-systeem.md` §8, "sensingkwaliteit = ondergrens").
+  Perfecte pariteit zou betekenen dat de sim de hardware-hysterese (grace + sustained-switch)
+  namaakt, of dat de zet als geordende enkel-stap-reeks i.p.v. één hop wordt opgenomen.
+  Lage prioriteit.
 
 ## Hardware / firmware
 
@@ -58,5 +67,5 @@ en waarom het nodig is.
 
 ## Spelontwerp
 
-- Zie `docs/spel.md` → sectie "Open vragen / nog uit te werken" voor openstaande
+- Zie `docs/spel/spel.md` → sectie "Open vragen / nog uit te werken" voor openstaande
   ontwerpbeslissingen (o.a. de rol voor uitgeschakelde spelers).

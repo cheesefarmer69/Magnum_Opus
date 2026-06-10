@@ -19,11 +19,14 @@ header button:hover { background: #00b0f0; }
 
 main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
-/* Veld — links tegen het scherm, geen padding-left */
+/* Veld — gecentreerd in zijn vak (symmetrische padding) */
 #veld-wrapper {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    padding: 8px 8px 8px 0; background: #f8f8f8; min-width: 0; min-height: 0; overflow: hidden;
+    padding: 8px; background: #f8f8f8; min-width: 0; min-height: 0; overflow: hidden;
 }
+/* NUKE-ontploffing: korte rood/geel-flits over het veldvak */
+#veld-wrapper.nuke-flits { animation: nuke-flits 0.9s ease-out; }
+@keyframes nuke-flits { 0% { background: #ff5252; } 15% { background: #ffd54f; } 100% { background: #f8f8f8; } }
 /* max-height:100% laat het vierkante veld krimpen i.p.v. boven/onder weg te vallen
    wanneer het log-paneel ruimte inneemt. */
 #veld { width: auto; height: auto; max-width: 700px; max-height: 100%; aspect-ratio: 1; background: #ffffff; border-radius: 8px; border: 1px solid #ddd; }
@@ -49,18 +52,33 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 #speler-lijst { list-style: none; padding: 0; margin: 0; }
 #speler-lijst li { display: flex; align-items: center; gap: 5px; padding: 4px 0; flex-wrap: wrap; }
 #speler-lijst .kleur-blok { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+#speler-lijst .groep-blok { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.25); }
+.speler-groep-blok { pointer-events: none; }
 #speler-lijst .naam { font-size: 0.88em; font-weight: 500; }
 #speler-lijst .speler-uur { font-size: 0.75em; color: #666; background: #e0e0e0; border-radius: 3px; padding: 1px 4px; }
+#speler-lijst .speler-uur-uit { color: #fff; background: #c62828; font-weight: 600; }
 #speler-lijst button { font-size: 0.75em; padding: 2px 6px; background: #ddd; color: #333; border: 0; border-radius: 3px; cursor: pointer; }
 #speler-lijst button.actief { background: #0094CE; color: white; }
 #speler-lijst button.del-knop { background: #c62828; color: white; font-weight: bold; }
 .aside-actions { margin-top: 8px; display: flex; gap: 6px; }
 .aside-actions button { flex: 1; padding: 4px; background: #ddd; color: #333; border: 0; border-radius: 3px; cursor: pointer; font-size: 0.85em; }
+.toestand-sectie { margin-bottom: 10px; }
+.toestand-sub { margin: 6px 0 3px 0; font-size: 0.78em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #777; }
 .toestanden-lijst { font-size: 0.85em; color: #444; }
 .toestand-groep { padding: 3px 0; border-bottom: 1px solid #eee; }
 .toestand-groep b { color: #9c27b0; }
 .toestand-rondes { color: #888; font-size: 0.9em; }
 .toestand-leeg { color: #888; padding: 4px 0; }
+
+/* Ziekte-paneel */
+.ziekte-lijst { font-size: 0.85em; color: #444; }
+.ziekte-rij { padding: 3px 0; border-bottom: 1px solid #eee; }
+.ziekte-rij b { color: #c2185b; }
+.ziekte-rondes { color: #888; font-size: 0.9em; }
+.ziekte-rij.ziekte-kritiek { color: #c62828; font-weight: 600; }
+.ziekte-hart { color: #e53935; animation: hart-klop 0.8s infinite ease-in-out; }
+.ziekte-leeg { color: #888; padding: 4px 0; }
+@keyframes hart-klop { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* Log-paneel met resize-handle bovenaan */
 #log-paneel { background: #f0f0f0; border-top: 1px solid #ccc; max-height: 240px; display: flex; flex-direction: column; flex-shrink: 0; }
@@ -98,8 +116,14 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .led { stroke: #bbb; stroke-width: 0.3; }
 .speler { stroke: #333; stroke-width: 0.4; cursor: grab; }
 .speler.dragging { cursor: grabbing; }
+.speler.speler-ziek { stroke: #e91e63; stroke-width: 1.4; stroke-dasharray: 1.6 1; }
+.speler.speler-uit { opacity: 0.4; stroke: #888; stroke-dasharray: 1 1; }
 .speler-label { fill: #111; font-size: 6px; font-weight: 600; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #fff; stroke-width: 0.6; }
+.speler-ziek-label { fill: #c2185b; font-size: 5.5px; font-weight: 700; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #fff; stroke-width: 0.6; }
+.speler-ziek-label.kritiek { fill: #c62828; }
 .buzzer-icoon { font-size: 9px; text-anchor: middle; pointer-events: none; }
+.medicijn-icoon { font-size: 9px; text-anchor: middle; pointer-events: none; }
+.hart-icoon { font-size: 7px; text-anchor: middle; pointer-events: none; fill: #e53935; animation: hart-klop 0.6s infinite ease-in-out; }
 
 /* LED-animaties (acties 11-16) */
 @keyframes knipperen-snel { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.1; } }
@@ -137,9 +161,74 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .histo-doel { color: #0277bd; }
 .histo-leeg { color: #888; font-size: 0.85em; padding: 8px 0; }
 
+/* Events-paneel (rechts, uitklapbaar) */
+#events-paneel { display: flex; flex-shrink: 0; border-left: 1px solid #ddd; background: #fafafa; }
+#events-toggle {
+    writing-mode: vertical-rl; text-orientation: mixed; cursor: pointer;
+    border: 0; background: #2e7d32; color: #fff; padding: 12px 6px; font-size: 0.9em;
+    letter-spacing: 1px;
+}
+#events-toggle:hover { background: #388e3c; }
+#events-inhoud { width: 0; overflow: hidden; transition: width 0.2s ease; }
+#events-paneel.open #events-inhoud { width: 300px; overflow-y: auto; padding: 12px; }
+#events-inhoud h3 { margin: 0 0 8px 0; font-size: 0.95em; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+
+/* Middernacht-paneel (vast, linksboven onder de broker-balk; max ~1/4 schermhoogte) */
+#middernacht-paneel {
+    position: fixed; top: 60px; left: 10px; z-index: 90;
+    width: 240px; max-height: 25vh; overflow-y: auto;
+    background: #fafafa; border: 1px solid #cdc3e8; border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.mn-kop {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    background: #4527a0; color: #fff; border-radius: 6px 6px 0 0;
+    position: sticky; top: 0; z-index: 1;
+}
+.mn-titel { font-weight: 700; flex: 1; font-size: 0.92em; }
+.mn-aan { display: flex; align-items: center; gap: 4px; font-size: 0.82em; cursor: pointer; white-space: nowrap; }
+.mn-aan input { cursor: pointer; accent-color: #b39ddb; }
+#middernacht-toggle { border: 0; background: transparent; color: #fff; cursor: pointer; font-size: 1em; line-height: 1; padding: 0 2px; }
+#middernacht-paneel:not(.open) { max-height: none; }
+#middernacht-paneel:not(.open) #middernacht-lijst { display: none; }
+#middernacht-paneel:not(.open) #middernacht-toggle { transform: rotate(-90deg); }
+#middernacht-lijst { padding: 10px; }
+.mn-poort { font-weight: 700; text-align: center; padding: 6px; border-radius: 5px; margin-bottom: 8px; }
+.mn-poort.mn-open { background: #e8f5e9; color: #2e7d32; }
+.mn-poort.mn-dicht { background: #ffebee; color: #c62828; }
+.mn-rij { font-size: 0.85em; padding: 3px 0; color: #444; }
+.mn-rij.mn-oogst { color: #b71c1c; }
+.mn-rij.mn-paal { color: #666; font-size: 0.8em; }
+.middernacht-leeg { color: #888; font-size: 0.85em; padding: 8px 0; }
+
+/* Dienaar-badge in het speler-menu */
+#speler-lijst .speler-dienaar { font-size: 0.72em; color: #fff; background: #6a1b9a; border-radius: 3px; padding: 1px 5px; }
+
+.events-cat-hdr { font-size: 0.72em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin: 10px 0 4px 0; }
+.events-cat-hdr:first-child { margin-top: 0; }
+.events-cat-hdr.events-cat-speler   { color: #0277bd; }
+.events-cat-hdr.events-cat-toestand { color: #6a1b9a; }
+.events-cat-hdr.events-cat-wereld   { color: #1b5e20; }
+
+.events-card { position: relative; border-radius: 5px; padding: 7px 10px 7px 10px; margin-bottom: 6px; border-left: 3px solid; }
+.events-actief-cb { position: absolute; top: 5px; right: 6px; cursor: pointer; accent-color: #2e7d32; }
+.events-uitgeschakeld { opacity: 0.42; }
+.events-card.events-cat-speler   { background: #e3f2fd; border-color: #0277bd; }
+.events-card.events-cat-toestand { background: #f3e5f5; border-color: #9c27b0; }
+.events-card.events-cat-wereld   { background: #e8f5e9; border-color: #2e7d32; }
+
+.events-naam  { font-weight: 600; font-size: 0.88em; margin-bottom: 2px; }
+.events-tekst { font-size: 0.80em; color: #555; font-style: italic; margin-bottom: 4px; }
+.events-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.events-chip  { background: rgba(0,0,0,0.08); border-radius: 3px; padding: 1px 5px; font-size: 0.73em; color: #333; }
+.events-leeg  { color: #888; font-size: 0.85em; padding: 8px 0; }
+
 /* PoF event-paneel */
 .pof-paneel { background: #ddeeff; border-radius: 6px; padding: 10px 12px; margin-top: 4px; flex: 1; }
 .pof-timer  { font-size: 2.4em; font-weight: bold; text-align: center; color: #0277bd; margin-bottom: 8px; line-height: 1; }
 .pof-meta   { color: #1a1a1a; padding: 3px 0; font-size: 1em; line-height: 1.5; word-break: break-word; }
 .pof-doelwit { background: #fff3e0; border-radius: 6px; padding: 10px 12px; margin-top: 4px;
     font-size: 1.05em; line-height: 1.6; white-space: pre-line; color: #4e342e; min-height: 40px; }
+.pof-wachtrij { margin: 4px 0 0 0; padding: 8px 12px 8px 30px; background: #eef4fb; border-radius: 6px; color: #1a2a3a; font-size: 0.95em; line-height: 1.5; }
+.pof-wachtrij li { padding: 1px 0; }
+.pof-wachtrij .pof-wachtrij-leeg { list-style: none; margin-left: -18px; color: #888; }

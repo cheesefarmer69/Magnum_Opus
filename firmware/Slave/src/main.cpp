@@ -86,11 +86,27 @@ volatile unsigned long ingebouwdeLedTot = 0;   // millis() tot wanneer LED aan
 //  1 | ACTIE_PORTAAL       | kleur  | Alle 7 LEDs continu paars (portaal-toestand)
 //  2 | ACTIE_HAPPY_HOUR    | kleur  | Alle 7 LEDs continu goud (happy-hour-toestand)
 //  3 | ACTIE_BUZZER_PIEP   | buzzer | 1x 1500 Hz, 600 ms (uur-afroep / zoemer-test)
+//  4 | ACTIE_MEDICIJN      | kleur  | Alle 7 LEDs continu felroze (medicijn, ziekte-event)
+//  5 | ACTIE_ZIEK_W3       | buzzer | Ziekenhuis-monitor-piep + 3 hartslagen (zieke: nog 3 events)
+//  6 | ACTIE_ZIEK_W2       | buzzer | Ziekenhuis-monitor-piep + 2 hartslagen (nog 2 events)
+//  7 | ACTIE_ZIEK_W1       | buzzer | Ziekenhuis-monitor-piep + 1 hartslag (nog 1 event)
+//  8 | ACTIE_NUKE          | anim   | Pulserend radioactief geel<->groen (NUKE-ring)
+//  9 | ACTIE_MN_OPEN       | kleur  | Zacht wit continu (middernacht-poort open)
+// 10 | ACTIE_MN_DICHT      | kleur  | Rood continu (middernacht-poort dicht)
+// 11 | ACTIE_OOGST         | anim   | Dramatische wit/rood-strobe (middernacht-oogst)
 //
 const uint8_t ACTIE_NIETS        = 0;
 const uint8_t ACTIE_PORTAAL      = 1;
 const uint8_t ACTIE_HAPPY_HOUR   = 2;
 const uint8_t ACTIE_BUZZER_PIEP  = 3;
+const uint8_t ACTIE_MEDICIJN     = 4;
+const uint8_t ACTIE_ZIEK_W3      = 5;
+const uint8_t ACTIE_ZIEK_W2      = 6;
+const uint8_t ACTIE_ZIEK_W1      = 7;
+const uint8_t ACTIE_NUKE         = 8;
+const uint8_t ACTIE_MN_OPEN      = 9;
+const uint8_t ACTIE_MN_DICHT     = 10;
+const uint8_t ACTIE_OOGST        = 11;
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -106,12 +122,41 @@ static const Noot MELODIE_PIEP[] = {
     {   0,   0}
 };
 
+// Ziekte-waarschuwing: een ziekenhuis-monitor-piep (3 korte hoge piepjes) gevolgd door
+// een "bonzend hart" (lub-dub) dat zo vaak klinkt als de speler nog events rest (3/2/1).
+// De passieve buzzer is het luidst rond 2-4 kHz; de monitor zit op 2200 Hz, het hart wat lager.
+// MONITOR = {2200,120},{0,160} x3, dan een korte rust voor het hart begint.
+// HART (lub-dub) = {1200,90},{0,60},{900,90},{0,500} per slag.
+static const Noot MELODIE_ZIEK_W3[] = {
+    {2200,120},{0,160},{2200,120},{0,160},{2200,120},{0,400},
+    {1200,90},{0,60},{900,90},{0,500},
+    {1200,90},{0,60},{900,90},{0,500},
+    {1200,90},{0,60},{900,90},{0,500},
+    {   0,   0}
+};
+static const Noot MELODIE_ZIEK_W2[] = {
+    {2200,120},{0,160},{2200,120},{0,160},{2200,120},{0,400},
+    {1200,90},{0,60},{900,90},{0,500},
+    {1200,90},{0,60},{900,90},{0,500},
+    {   0,   0}
+};
+static const Noot MELODIE_ZIEK_W1[] = {
+    {2200,120},{0,160},{2200,120},{0,160},{2200,120},{0,400},
+    {1200,90},{0,60},{900,90},{0,500},
+    {   0,   0}
+};
+
 struct MelodieState {
     uint8_t       type;     // 0 = inactief
     uint8_t       noot;     // huidige noot-index
     unsigned long startMs;  // millis() bij start huidige noot
 };
 MelodieState melodie = {0, 0, 0};
+
+// Huidige LED-actie + starttijd, voor de geanimeerde acties (8 = nuke, 11 = oogst).
+// updateAnimatie() leest deze en blijft tekenen tot een nieuwe actie binnenkomt.
+volatile uint8_t huidigeActie = ACTIE_NIETS;
+unsigned long actieStartMs = 0;
 
 // ====================================================================
 // FREERTOS MUTEX — beschermt FastLED.show() aanroepen
@@ -327,6 +372,9 @@ void updateIngebouwdeLed() {
 static const Noot* getMelodieSequentie(uint8_t type) {
   switch (type) {
     case ACTIE_BUZZER_PIEP:  return MELODIE_PIEP;
+    case ACTIE_ZIEK_W3:      return MELODIE_ZIEK_W3;
+    case ACTIE_ZIEK_W2:      return MELODIE_ZIEK_W2;
+    case ACTIE_ZIEK_W1:      return MELODIE_ZIEK_W1;
     default:                 return nullptr;
   }
 }
@@ -360,29 +408,80 @@ void updateMelodie() {
 }
 
 // ====================================================================
+// LED-ANIMATIES (millis-gebaseerd, geen aparte task)
+// ====================================================================
+// Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
+// vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
+void updateAnimatie() {
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST) return;
+  const unsigned long t = millis() - actieStartMs;
+
+  if (huidigeActie == ACTIE_NUKE) {
+    // Pulserend radioactief: geel<->groen, helderheid ademt via een sinus.
+    uint8_t hue = 64 + (uint8_t)(beatsin8(20, 0, 32));   // 64=groen .. 96 richting geel-groen
+    uint8_t val = beatsin8(40, 60, 255);                 // ademende helderheid
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, CHSV(hue, 255, val));
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+  } else {  // ACTIE_OOGST
+    // Eerste ~3 s felle wit/rood-strobe, daarna een rustige rode gloed.
+    CRGB kleur;
+    if (t < 3000) {
+      bool wit = ((t / 90) % 2) == 0;                    // ~11 Hz strobe
+      kleur = wit ? CRGB(255, 255, 255) : CRGB(200, 0, 0);
+    } else {
+      uint8_t val = beatsin8(15, 20, 120);               // trage rode gloed
+      kleur = CHSV(0, 255, val);
+    }
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, kleur);
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+  }
+}
+
+// ====================================================================
 // ACTIE UITVOEREN
 // ====================================================================
 // Kleuren/ACTIE_NIETS: neem mutex, teken direct, geef mutex.
-// Buzzer-piep: start eerste noot direct; updateMelodie() doet de rest.
+// Buzzer-melodie (piep / ziekte-waarschuwingen): start eerste noot direct; updateMelodie() doet de rest.
 void voerActieUit(uint8_t actie) {
 
-  // --- Buzzer-piep (3) -------------------------------------------------
-  if (actie == ACTIE_BUZZER_PIEP) {
-    const Noot* seq = getMelodieSequentie(actie);
-    if (!seq) return;
-    Serial.println("[ACTIE] Buzzer-piep");
+  // --- Buzzer-melodieën (3 = piep, 5/6/7 = ziekte-waarschuwing) --------
+  const Noot* seq = getMelodieSequentie(actie);
+  if (seq) {
+    Serial.printf("[ACTIE] Buzzer-melodie %d\n", actie);
     melodie.type    = actie;
     melodie.noot    = 0;
     melodie.startMs = millis();
     if (seq[0].freq > 0) tone(BUZZER_PIN, seq[0].freq);
+    return;   // buzzer-acties wijzigen huidigeActie (LED-staat) NIET
+  }
+
+  // Vanaf hier is het een LED-actie: onthoud ze voor updateAnimatie() en de geanimeerde acties.
+  huidigeActie = actie;
+  actieStartMs = millis();
+
+  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst): MOSFET aan, updateAnimatie() tekent ---
+  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST) {
+    digitalWrite(MOSFET_PIN, HIGH);
+    delay(5);
+    Serial.printf("[ACTIE] Animatie %d\n", actie);
+    updateAnimatie();   // teken meteen het eerste frame
     return;
   }
 
-  // --- LED-toestanden (0 = uit, 1 = portaal/paars, 2 = happy hour/goud) -
+  // --- Solid LED-toestanden (0 uit, 1 paars, 2 goud, 4 felroze, 9 wit, 10 rood) ---
   CRGB kleur;
   switch (actie) {
     case ACTIE_PORTAAL:     kleur = CRGB(128,   0, 255); break;   // paars
     case ACTIE_HAPPY_HOUR:  kleur = CRGB(255, 180,   0); break;   // goud
+    case ACTIE_MEDICIJN:    kleur = CRGB(255,  20, 147); break;   // felroze (deep pink)
+    case ACTIE_MN_OPEN:     kleur = CRGB(180, 200, 255); break;   // zacht wit (poort open)
+    case ACTIE_MN_DICHT:    kleur = CRGB(220,   0,   0); break;   // rood (poort dicht)
     case ACTIE_NIETS:
     default:                kleur = CRGB::Black;          break;
   }
@@ -518,6 +617,7 @@ void setup() {
 // ====================================================================
 void loop() {
   updateMelodie();   // nootovergangen bijhouden voor BLE-scan start
+  updateAnimatie();
 
   batchData.paal_id = PAAL_ID;
   batchData.aantalGevonden = 0;
@@ -532,6 +632,7 @@ void loop() {
   delay(20);
 
   updateMelodie();   // inhaal na BLE-scan (max ~1 s vertraging op nootovergang)
+  updateAnimatie();
 
   Serial.printf("[SCAN] Klaar, %d whitelisted gevonden (batt %.2fV)\n",
                 batchData.aantalGevonden, batchData.batterij_v);
@@ -563,6 +664,7 @@ void loop() {
     updateRodeLed();
     updateIngebouwdeLed();
     updateMelodie();
+    updateAnimatie();
     delay(1);
   }
 

@@ -1,8 +1,8 @@
 # Plates of Fate — events opstellen
 
 > **Werking & verplaatsingscontrole** (preconditie/effect/invariant, STAP/TELEPORT, scoring):
-> zie `docs/event-systeem.md` (leidend). **Per-categorie overzicht** van de events:
-> `docs/event-catalogus.md`. Dit document is de technische **schema-referentie** voor het
+> zie `docs/spel/event-systeem.md` (leidend). **Per-categorie overzicht** van de events:
+> `docs/spel/event-catalogus.md`. Dit document is de technische **schema-referentie** voor het
 > opstellen van een event-object. Houd deze drie consistent.
 
 Events worden bewaard in `global.pofEvents`, gevuld door de `[CONFIG] <categorie>-events`
@@ -20,13 +20,17 @@ Eén event is één object in die array.
   reactietijd_s: 15,         // VERPLICHT — seconden reactietijd vóór de controle
 
   doelwit: {                 // VERPLICHT — wie/wat het event raakt (mag type "geen")
-    type: "uur",             //   "speler" (spelers) | "uur" (palen) | "geen" (niemand)
+    type: "uur",             //   "speler" | "uur" | "groep" (gedeelde eigenschap) | "geen"
     selectie: "willekeurig", //   "willekeurig" (toeval) | "alle"
-    aantal: "laag"           //   "enkel"|"laag"|"midden"|"hoog" of een vast getal
+    aantal: "laag",          //   "enkel"|"laag"|"midden"|"hoog" of vast getal (niet bij groep)
+    // alleen bij type "groep":
+    veld: "willekeurig",     //   "kleur" | "jaar" | "willekeurig" (engine kiest kleur of jaar)
+    waarde: "rood"           //   OPTIONEEL — vaste groep-waarde; weglaten = willekeurig gekozen
   },
 
   getal: "midden",           // OPTIONEEL — rolt een getal en vult elke 'x' in de tekst in
-  voorwaarde: "min",         // OPTIONEEL — "min" | "max" | "geen" (beweging-controle)
+  getal2: [4, 6],            // OPTIONEEL — tweede getal (vult elke 'y' in de tekst); optie of [min,max]
+  voorwaarde: "min",         // OPTIONEEL — "min" | "max" | "of" | "geen" (beweging-controle)
   max: 1,                    // OPTIONEEL — max. aantal tegelijk actieve instanties (toestand)
   duratie: [2, 4],           // OPTIONEEL — hoelang de toestand blijft: getal | [min,max] | "kort"/"middel"/"lang"
   audioVoor: "id_voor.wav",  // OPTIONEEL — WAV vóór het getal in de afroep
@@ -47,11 +51,13 @@ Eén event is één object in die array.
 | `categorie`     | ja        | `speler` / `toestand` / `wereld` — bepaalt in welke `[CONFIG]`-inject het hoort. |
 | `tekst`         | ja        | Wat wordt voorgelezen. Een losse `x` wordt door `getal` vervangen. |
 | `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle. |
-| `doelwit`       | ja        | Wie/wat geraakt wordt — object met `type`, `selectie`, `aantal`. |
+| `doelwit`       | ja        | Wie/wat geraakt wordt — object met `type`, `selectie`, `aantal`. Bij `type: "groep"` ook `veld` (`"kleur"`/`"jaar"`/`"willekeurig"`) en optioneel `waarde` (vaste groepwaarde; weglaten = willekeurig). |
 | `getal`         | nee       | Optie/getal dat `x` in de tekst invult én de controle-waarde bepaalt. |
-| `voorwaarde`    | nee       | `min` / `max` / `geen` — beweging-controle na de reactietijd. |
+| `getal2`        | nee       | Tweede optie/getal dat `y` in de tekst invult (bv. de tweede keuze bij `voorwaarde: "of"`). Mag een optie (`laag`/…) of een `[min,max]`-bereik zijn. |
+| `voorwaarde`    | nee       | `min` / `max` / `of` / `geen` — beweging-controle na de reactietijd. Bij `of`: geldig als `voor` exact `x` óf exact `y` is. |
 | `max`           | nee       | Hoeveel instanties van dít event tegelijk actief mogen zijn (toestand). |
-| `duratie`       | nee       | Hoelang de toestand blijft (events/rondes): vast getal, `[min,max]`-bereik (willekeurig), of preset `kort`/`middel`/`lang`. Overschrijft per-gevolg `duurRondes`. |
+| `duratie`       | nee       | Hoelang de toestand blijft (events/rondes): vast getal, `[min,max]`-bereik (willekeurig), of preset `kort`/`middel`/`lang`. Overschrijft per-gevolg `duurRondes`. Bij `ziekte`: aantal events dat een zieke heeft. |
+| `regroup_s`     | nee       | Enkel bij het NUKE-event: seconden regroup-pauze ná de ontploffing vóór het spel verdergaat. |
 | `audioVoor` / `audioNa` | nee | WAV-bestandsnamen voor de afroep (knip-en-plak rond het getal). |
 | `gevolgen`      | ja        | Eén of meer gevolgen (`commando` / `score` / `effect` / `geen`). |
 
@@ -75,12 +81,31 @@ Bepaalt het soort event én in welke config-inject het hoort:
 |----------|-----------|------------|----------|
 | `speler` | kiest spelers | `willekeurig` / `alle` | aantal spelers |
 | `uur`    | kiest palen/uren | `willekeurig` / `alle` | aantal uren |
+| `groep`  | kiest alle spelers met een gedeelde eigenschap | `willekeurig` (+ `veld`, optioneel `waarde`) | — |
 | `geen`   | raakt niemand specifiek (wereld-events) | — | — |
 
 - **`willekeurig`** — een steekproef van `aantal` spelers/uren (zonder terugleggen).
 - **`alle`** — alle actieve spelers / alle actieve palen.
 - **Actieve spelers** = enkel spelers met een bekende positie (`spelerLocaties`) en niet
   gepauzeerd. **Actieve palen** = `palenActief` (in simulatiemodus 1..24, anders `paaltjesLijst`).
+
+#### Groep-doelwit (`type: "groep"`)
+
+Voor minder exclusieve events bij veel spelers richt een groep-event zich op **alle actieve
+spelers die een eigenschap delen**:
+
+- **`veld`** — de eigenschap-kolom om op te groeperen: `"kleur"` of `"jaar"` (zie `docs/spel/spelers.md`).
+  Met `"willekeurig"` (of weglaten) kiest de engine **per afvuring** willekeurig tussen kleur en jaar.
+- **`selectie: "willekeurig"`** — de engine kiest één **willekeurige waarde** die onder de actieve
+  spelers voorkomt (bv. `kleur` → `rood`/`zwart`/`blauw`). Met optioneel **`waarde`** (bv. `"rood"`)
+  zet je de groep vast.
+- Het **doelwit** = alle actieve spelers met die waarde; zij worden allemaal als doelwit
+  gecontroleerd (niet-leden moeten stil blijven).
+- **Afroep**: de prefix is **"een groep"** (i.p.v. een aantal), gevolgd door de event-tekst en het
+  groep-label **`veld: waarde`** (bv. "een groep … maximum 3 uur vooruit. kleur: rood"). De
+  individuele leden worden **niet** opgesomd.
+- Eigenschappen komen uit `global.spelerEigenschappen` (`{ naam: { kleur, jaar } }`), gevuld door de
+  `[CONFIG] Speler-eigenschappen`-inject.
 
 ### Opties `enkel` / `laag` / `midden` / `hoog`
 
@@ -117,6 +142,7 @@ het doelwit bewegen; anderen moeten stil blijven. `voor` = aantal STAP vooruit, 
 | doelwit `max`, `voor ≤ x` (geldig) | OK | **+voor** (×2 op happy-hour-eindpaal) |
 | doelwit `max`, `voor > x` | TE VEEL | **−(voor − x)** |
 | doelwit `min`, `voor < x` | TE WEINIG | **−voor** |
+| doelwit `of`, `voor ≠ x` én `voor ≠ y` | ONGELDIGE KEUZE | **−voor** |
 | doelwit, achterwaartse STAP | TERUG IN TIJD | **−achter** |
 | doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **−voor** |
 | niet-doelwit dat beweegt | BEWOOG (mocht niet) | **−(voor+achter)** |
@@ -124,7 +150,7 @@ het doelwit bewegen; anderen moeten stil blijven. `voor` = aantal STAP vooruit, 
 
 Zou Δ een speler **onder 0** brengen, dan blijft hij op 0 met **+1 sterfte** (hij speelt door).
 Doordat de TELEPORT niet als STAP telt en niet op richting wordt gecontroleerd, geeft een legale
-portaal-sprong (ook naar een lager uur) géén "TERUG IN TIJD". Volledige uitleg: `docs/event-systeem.md`.
+portaal-sprong (ook naar een lager uur) géén "TERUG IN TIJD". Volledige uitleg: `docs/spel/event-systeem.md`.
 
 ### Max-engine (`max`)
 
@@ -143,10 +169,27 @@ Elk gevolg is één object in de array; combineren mag.
 | `commando` | `actie` (0–3)                             | Stuurt `{paal, actie}` naar elk doel-uur via `commando/master1`. Bij speler-doelwit: de paal waar die speler staat. |
 | `score`    | `delta` (geheel, +/-)                     | Past direct de levensuren van de doel-spelers aan (clamp ≥ 0). |
 | `effect`   | `niveau`, `effect`, `duurRondes`, `data`  | Plaatst een **blijvend effect** (zie hieronder). |
+| `ziekte`   | —                                         | Maakt de doelwit-spelers **ziek** (`duratie` events) en plaatst **medicijn** op evenveel vrije uren. Zie hieronder. |
+| `nuke`     | —                                         | Wereld-event: na de aftelklok (`reactietijd_s`) ontploft iedereen die nog **gedetecteerd** is (uren 0 + sterfte); daarna een **regroup**-pauze van `regroup_s` s. Zie hieronder. |
 | `geen`     | —                                         | Geen neveneffect. Gebruik dit voor pure beweging-opdrachten (met `voorwaarde`). |
 
 `actie`-waarden (commando): `0` uit · `1` portaal (paars) · `2` happy hour (goud) ·
-`3` buzzer-piep (zie `docs/protocol.md`).
+`3` buzzer-piep · `4` medicijn (felroze) · `5/6/7` ziekte-waarschuwing 3/2/1 hartslagen
+(zie `docs/protocol.md`).
+
+### Ziekte-gevolg (`type: "ziekte"`)
+
+Een `ziekte`-gevolg start een **ziekte-episode**:
+- De doelwit-spelers worden **ziek** voor `duratie` events (standaard 10).
+- Evenveel **vrije uren** (palen zonder actief uur-effect) krijgen een `medicijn`-effect → **felroze** LED.
+- Een zieke speler doorloopt de **normale** verplaatsingscontrole (geen vrijstelling): hij verdient
+  **geen** levensuren, maar **verliest** ze bij onwettige zetten. Hij geneest **enkel** als hij via een
+  **wettelijke** zet (OK / OK (stil)) op een medicijn-uur eindigt — gewoon naar een medicijn wandelen
+  terwijl je niet mocht bewegen geneest **niet** (en geeft "BEWOOG (mocht niet)").
+  Komen twee zieken samen op één medicijn-uur, dan verdwijnt dat
+  medicijn. Na `duratie` events zonder medicijn **sterft** de speler (levensuren → 0, +1 sterfte).
+  Vanaf nog 3 events te gaan klinkt elke ronde een hartslag-waarschuwing op zijn uur (3/2/1 slagen).
+  Volledige lifecycle: `docs/spel/event-catalogus.md` en `docs/spel/event-systeem.md`.
 
 > **LED-toestanden hoef je normaal niet met een `commando` te zetten.** De centrale node
 > "Sync toestanden + LEDs" leidt de LED-kleur rechtstreeks af uit het actieve `effect`
@@ -214,6 +257,51 @@ Kiest 1–3 spelers, rolt een getal in plaats van `x`, en controleert na de reac
 spelers **hoogstens** dat aantal STAPpen vooruit zetten (een portaal-sprong telt 0). Niet-gekozen
 spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
 
+### Of-verplaatsing-event (speler, keuze tussen twee getallen) — Event D
+
+```js
+{ id:"of_verplaatsing", naam:"Of-verplaatsing", categorie:"speler",
+  tekst:"x of y uur vooruit.", reactietijd_s:15,
+  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"midden" },
+  getal:"laag", getal2:[4,6], voorwaarde:"of", gevolgen:[{ type:"geen" }] }
+```
+Rolt twee getallen: `x` uit `getal:"laag"` (1–3) en `y` uit `getal2:[4,6]` (4–6), allebei
+ingevuld in de tekst (bv. "2 of 5 uur vooruit."). De gekozen spelers moeten **exact `x` óf exact
+`y`** STAPpen vooruit zetten. Elk ander aantal (geen achterstap) is **ONGELDIGE KEUZE** → **−voor**.
+Een `[min,max]`-bereik voor `getal2` houdt `y` gegarandeerd boven `x` (de optie `midden` rolt 1–6
+en zou `y ≤ x` kunnen maken). Een portaal-sprong telt 0 STAPpen.
+
+### Groep-verplaatsing-event (speler, doelwit = groep)
+
+```js
+{ id:"groep_verplaatsing", naam:"Groep-verplaatsing", categorie:"speler",
+  tekst:"maximum x uur vooruit.", reactietijd_s:20,
+  doelwit:{ type:"groep", veld:"willekeurig", selectie:"willekeurig" },
+  getal:"midden", voorwaarde:"max",
+  audioVoor:"groep_verplaatsing_voor.wav", audioNa:"groep_verplaatsing_na.wav",
+  gevolgen:[{ type:"geen" }] }
+```
+Kiest één willekeurige groep onder de actieve spelers en richt zich op **alle** spelers in die
+groep: zij mogen hoogstens `x` STAPpen vooruit (zelfde `max`-controle als `verplaatsing2`).
+Met `veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar**; afroep bv.
+"een groep … maximum 3 uur vooruit. kleur: rood" of "… jaar: eerste". Vastzetten kan met
+`veld:"kleur"` of `veld:"jaar"`.
+
+### Groep-of-verplaatsing-event (speler, doelwit = groep, keuze tussen twee getallen)
+
+```js
+{ id:"groep_of_verplaatsing", naam:"Groep-of-verplaatsing", categorie:"speler",
+  tekst:"x of y uur vooruit.", reactietijd_s:20,
+  doelwit:{ type:"groep", veld:"willekeurig", selectie:"willekeurig" },
+  getal:"laag", getal2:[4,6], voorwaarde:"of",
+  audioVoor:"groep_of_verplaatsing_voor.wav", audioNa:"groep_of_verplaatsing_na.wav",
+  gevolgen:[{ type:"geen" }] }
+```
+Groep-variant van `of_verplaatsing`. Kiest één willekeurige **kleur** en richt zich op **alle**
+spelers met die kleur: zij moeten **exact `x` óf exact `y`** STAPpen vooruit zetten.
+`x` rolt uit `getal:"laag"` (1–3), `y` uit `getal2:[4,6]`. Controle identiek aan `of_verplaatsing`
+maar voor elk groepslid; niet-leden moeten stil blijven.
+
 ### Toestand-event (portaal: blijvend effect, max, paar-koppeling)
 
 ```js
@@ -226,7 +314,7 @@ spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
 Kiest 2 willekeurige uren; elk krijgt een `portaal`-effect met `data.partner` = het andere
 uur. De LED's worden paars via de centrale LED-node (geen `commando` nodig). `max: 1` houdt
 het bij één portaal tegelijk. Een sprong tussen de twee portaal-uren geeft **0 levensuren**
-(zie `docs/spel.md`).
+(zie `docs/spel/spel.md`).
 
 ### Toestand-event (happy hour: ×2-scoring)
 
@@ -239,7 +327,7 @@ het bij één portaal tegelijk. Een sprong tussen de twee portaal-uren geeft **0
 ```
 Kiest 1–3 willekeurige uren (afroep: "3 uren worden Happy Hour"). Die uren worden goud.
 Eindigt een speler een verplaatsing op een happy-hour-uur, dan tellen de verdiende
-levensuren dubbel (zie `docs/spel.md`). `max: 4` laat tot 4 happy-hour-uren tegelijk toe.
+levensuren dubbel (zie `docs/spel/spel.md`). `max: 4` laat tot 4 happy-hour-uren tegelijk toe.
 
 ### Toestand-event (score)
 
@@ -251,6 +339,20 @@ levensuren dubbel (zie `docs/spel.md`). `max: 4` laat tot 4 happy-hour-uren tege
   gevolgen:[ { type:"score", delta:3 } ] }
 ```
 
+### Toestand-event (ziekte: zieke spelers + medicijn-palen)
+
+```js
+{ id:"ziekte", naam:"Ziekte", categorie:"toestand",
+  tekst:"worden ziek.", reactietijd_s:15, max:1, duratie:10,
+  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
+  audioVoor:"ziekte_voor.wav", audioNa:"ziekte_na.wav",
+  gevolgen:[ { type:"ziekte" } ] }
+```
+Kiest 1–3 spelers (afroep: "3 spelers worden ziek") en maakt ze ziek; evenveel vrije uren worden
+felroze (medicijn). De zieken hebben `duratie` (10) events om een medicijn-uur te bereiken, anders
+sterven ze. `max: 1` houdt het bij één ziekte-episode tegelijk (de medicijnen blijven actief tot de
+episode voorbij is). Volledige uitleg: `docs/spel/event-catalogus.md`.
+
 ### Wereld-event (blijvend effect)
 
 ```js
@@ -259,3 +361,21 @@ levensuren dubbel (zie `docs/spel.md`). `max: 4` laat tot 4 happy-hour-uren tege
   doelwit:{ type:"geen" },
   gevolgen:[ { type:"effect", niveau:"wereld", effect:"events_sneller", duurRondes:3, data:{} } ] }
 ```
+
+> **Heeft een wereld-event een doelwit nodig?** Het `doelwit`-object is in het schema **verplicht**,
+> maar bij `categorie:"wereld"` zet je `type:"geen"` (raakt niemand specifiek). Een wereld-event geldt
+> voor het hele spel via zijn **gevolg**, niet via doelwit-selectie — er worden dus geen spelers/uren
+> gekozen of afgeroepen.
+
+### Wereld-event (NUKE: ontploffing + regroup)
+
+```js
+{ id:"nuke", naam:"Nuke", categorie:"wereld", tekst:"Nuke.",
+  reactietijd_s:5, regroup_s:60, max:1, doelwit:{ type:"geen" },
+  audioVoor:"nuke.wav", gevolgen:[ { type:"nuke" } ] }
+```
+Speelt "NUKE" af + een **aftelklok** van `reactietijd_s` (5 s, aanpasbaar) om weg te lopen. Bij de
+controle ontploft **elke speler die nog gedetecteerd is** (RSSI boven de vloer / binnen het veld):
+levensuren → 0 **en +1 sterfte**. Wie **ontkomen** is (onder de RSSI-vloer / buiten het veld → uit
+`spelerLocaties`) overleeft. Daarna een **regroup**-pauze van `regroup_s` s (60, aanpasbaar) vóór het
+spel verdergaat. `regroup_s` is een nieuw, optioneel veld; de fase heet `regroup` in `pof/status`.

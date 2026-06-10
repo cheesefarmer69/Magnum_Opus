@@ -25,6 +25,27 @@ De dag kent drie fases:
 
 Het is een *plates of fate*-spel: willekeurige events bepalen het verloop.
 
+### Middernacht — de poort van pi
+
+Middernacht (de hoogste paal, 00u) is **geen afroepbaar event** maar een **permanent mechanisme**: een
+**poort** die je enkel mag oversteken (van de hoogste paal naar 1) wanneer ze **open** staat. De poort-LED
+toont de staat: **zacht wit = open**, **rood = dicht**. Staat ze dicht, dan mag je middernacht **niet
+oversteken** (een voorwaartse oversteek = `MIDDERNACHT DICHT`, verlies van de gelopen uren); je beweegt
+elders gewoon, maar aan de poort zit je vast tot ze weer opent.
+
+De open/dicht-volgorde volgt de **cijfers van π** (de eerste 500, daarna opnieuw). De poort start **open**;
+elk cijfer is de duur (in events) van een fase, en daarna wisselt open↔dicht. Dus: **3 events open, 1 toe,
+4 events open, 1 toe, 5 events open, 9 toe, …** (π = 3,14159…).
+
+**De nul = de oogst.** Zodra de π-volgorde een **0** tegenkomt, worden **alle spelers die op dat moment op
+middernacht staan geoogst**: ze sterven (levensuren → 0, +1 sterfte) en worden voor de rest van het spel
+**dienaar** van de **armste** andere speler. Een dienaar verdient zelf **geen** levensuren meer — alles wat
+hij verdient gaat **rechtstreeks naar zijn meester** (en die kan het niet meer verliezen). De dienaar
+speelt gewoon door: events blijven op hem vallen en hij kan nog sterftes opbouwen (schadebeperking). De 0
+verandert de open/dicht-volgorde **niet** (bv. *dicht, 0, open*). De π-sequentie **loopt door** over
+gestopte/gestarte spellen heen; na 500 cijfers begint ze opnieuw. Een 0 geeft een **dramatische LED-animatie**
+over de hele ring.
+
 ### Hardware per uur
 
 Elk uur (elk van de 24 delen) is uitgerust met:
@@ -55,7 +76,7 @@ en ondertussen zoveel mogelijk levensuren verzamelen.
 ### Puntensysteem (scoren op controle)
 
 Levensuren worden **niet live** toegekend, maar **pas bij de controle** van een event, op basis
-van het **gelopen pad** (de geordende stappen, niet enkel begin/eind — zie `docs/event-systeem.md`).
+van het **gelopen pad** (de geordende stappen, niet enkel begin/eind — zie `docs/spel/event-systeem.md`).
 Een verplaatsing is een reeks atomaire acties:
 
 - **STAP** = één paal vooruit (de klok loopt rond; achteruit mag nooit) → **1 levensuur**.
@@ -132,7 +153,7 @@ Spelregels voor het portaal:
   achteruit in de tijd te gaan.
 
 De afdwinging van deze regels (de scoring) zit in flow 04 ("Bereken levensuren"); de
-duur, het paar en de `max` van het portaal staan in `docs/event-catalogus.md`.
+duur, het paar en de `max` van het portaal staan in `docs/spel/event-catalogus.md`.
 
 ### Toestanden op het veld: happy hour
 
@@ -140,7 +161,7 @@ Een **happy hour** maakt een uur tijdelijk extra waardevol, herkenbaar aan een *
 gouden LED**. Eindigt een speler een verplaatsing **op** een happy-hour-uur, dan tellen
 de levensuren die hij met díe verplaatsing verdient **dubbel**. Voorbeeld: een speler die
 3 uur vooruit gaat en op het happy-hour-uur landt, krijgt 6 levensuren in plaats van 3.
-Er kunnen meerdere happy-hour-uren tegelijk zijn (`max: 4`).
+Er kunnen meerdere happy-hour-uren tegelijk zijn (`max: 2`).
 
 ### Simulatie vs. echt spel
 

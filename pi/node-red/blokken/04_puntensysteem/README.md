@@ -3,10 +3,10 @@
 ## Doel
 
 Per speler de **levensuren** en **levensdagen** bijhouden — de score van het
-middagspel (zie `docs/spel.md`). Dit blok is de centrale plek voor alle
+middagspel (zie `docs/spel/spel.md`). Dit blok is de centrale plek voor alle
 speler-specifieke spelinformatie.
 
-## De regels (uit `docs/spel.md`)
+## De regels (uit `docs/spel/spel.md`)
 
 Het speelveld is een **cirkel** van palen. De beweging wordt gemeten op de ring
 van **aanwezige** palen (`global.paaltjesLijst`, gesorteerd): van de hoogste naar

@@ -52,7 +52,7 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
   **event-niveau**. Mag een **vast getal** (`3`), een **bereik** `[min,max]` (willekeurig
   gerold, bv. `[2,5]`), of een **preset**-string (`"kort"` 2-4 / `"middel"` 4-7 / `"lang"`
   7-12). Overschrijft de oude per-gevolg `duurRondes`.
-- **Documentatiestijl** (in `docs/events.md`): bij elk veld in het standaardformaat kort
+- **Documentatiestijl** (in `docs/spel/events.md`): bij elk veld in het standaardformaat kort
   vermelden **wat het is/doet en wat je kan invullen**. Langere uitleg in **aparte
   secties**, niet als lange inline-commentaar in het codevoorbeeld.
 - **`max`** = hoeveel instanties van hetzelfde toestand-event **tegelijk** actief mogen zijn
@@ -84,7 +84,7 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 
 ## 4. Puntensysteem (scoring) — geldt voor echt spel én sim
 
-> **Volledige spec: `docs/event-systeem.md` (leidend).** Hieronder de kernregels.
+> **Volledige spec: `docs/spel/event-systeem.md` (leidend).** Hieronder de kernregels.
 
 - **Pad, geen netto.** Een verplaatsing is een **geordende reeks atomaire acties**:
   **STAP** (1 paal vooruit, klok rond, nooit achteruit → 1 levensuur) en **TELEPORT** (sprong
@@ -161,11 +161,8 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 - **Gebruik enkel beproefde dashboard-widgets** (`ui-button`, `ui-switch`, `ui-text`,
   `ui-table`). Een onbeproefde widget (bv. `ui-text-input` met onvolledige schema) kan de
   **hele dashboard-pagina laten crashen** na een deploy — vermijden.
-- **Test-widgets-pagina ("Test widgets"):** een aparte dashboard-pagina, **los van het
-  spel** (eigen function-nodes + `ui-text`, géén game-globals), om widget-gedrag uit te
-  proberen — o.a. of een `ui-switch` **visueel live mee-toggelt zonder page-refresh**
-  (varianten: passthru/gekoppeld, decouple+feedback, passthru-uit+decouple). De **echte
-  bediening-balk wijzigt pas** als Nic op basis hiervan een widget kiest.
+- **`ui-switch` gebruikt het Schakelaar C-patroon** (`passthru: false`, `decouple: "true"`,
+  feedbacklus via function-node): visuele live-update zonder page-refresh.
 - **Sterftes resetten:** knop op de **Admin**-pagina (achter de twee-staps unlock,
   topic `reset_sterftes`). Globale stats volledig wissen: inject **[BEHEER] Wis globale stats**.
 
@@ -221,7 +218,7 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
   `{"paal":N,"knop":1}` over serial. De rode LED is **gedeeld**: knop-puls heeft voorrang
   op de batterij-waarschuwing.
 - **Geen lichtsensor/laser-tripwire.** Het TEMT6000-idee is volledig verwijderd; GPIO3 is nu
-  de drukknop. Pin-mapping: zie `docs/pcb/pinout.md` (single source of truth, klopt met de
+  de drukknop. Pin-mapping: zie `docs/hardware/pinout.md` (single source of truth, klopt met de
   firmware).
 
 ### Master-detectie (Pi serial-bridge)

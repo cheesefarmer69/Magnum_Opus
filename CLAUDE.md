@@ -39,7 +39,7 @@ de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
 - **Slaves**: ESP32-C3 SuperMini , één per paal, 24 palen
 - **Master/slave-indeling**: Master 1 stuurt slaves 1–7 aan, Master 2 slaves 8–16, Master 3 slaves 17–24
 - **Hub**: Raspberry Pi 4 model B 1GB RAM (IP 192.168.1.43, statisch), Raspberry Pi OS
-- **Custom PCB**: ontworpen in EasyEDA, besteld bij JLCPCB (zie docs/pcb/)
+- **Custom PCB**: ontworpen in EasyEDA, besteld bij JLCPCB (zie docs/hardware/)
 
 ## Software-stack
 

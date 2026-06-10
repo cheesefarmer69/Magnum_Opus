@@ -2,12 +2,12 @@
 
 ## Doel
 
-De centrale spel-engine van het middagspel (zie `docs/spel.md`). De engine kiest
+De centrale spel-engine van het middagspel (zie `docs/spel/spel.md`). De engine kiest
 periodiek een **event**, leest het voor (audio), kiest **wie/wat** het beïnvloedt
 en voert de **gevolgen** uit. Sommige gevolgen plaatsen **blijvende effecten** die
 over een aantal rondes aflopen.
 
-> Het **event-formaat en hoe je events opstelt** staat in `docs/events.md`.
+> Het **event-formaat en hoe je events opstelt** staat in `docs/spel/events.md`.
 > Dit document beschrijft de engine zelf.
 
 ## Engine-loop (timer-toestandsmachine)
@@ -29,7 +29,11 @@ Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
 ```
 
 - **CHOOSE** (instant): `Kies event` filtert eerst events weg die hun `max` bereikt
-  hebben (max-engine), rolt zo nodig `getal`/`x`, **selecteert meteen de doelwitten**
+  hebben (max-engine), rolt zo nodig `getal`/`x` (en `getal2`/`y` bij een `voorwaarde:"of"`-event —
+  `rol()` accepteert zowel een optie als een `[min,max]`-bereik). Bij `doelwit.type:"groep"` kiest het
+  één eigenschap-waarde (`veld` `kleur`/`jaar`, uit `global.spelerEigenschappen`) en richt het event op
+  alle actieve spelers met die waarde; de afroep krijgt prefix "een groep" + label `veld: waarde`.
+  Daarna **selecteert het meteen de doelwitten**
   (zodat het aantal vooraan in de afroep kan, bv. "3 spelers …") en bouwt de event-audio
   met die aantal-prefix; `Kies doelwit` **snapshot de beginposities** en bouwt de
   doelwit-reveal-audio; `Voer gevolg uit` voert de gevolgen uit en zet de fase op
@@ -40,8 +44,27 @@ Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
   (1 vooruit, nooit achteruit) of een **TELEPORT** (sprong tussen twee actieve portaal-palen, 0
   stappen, richting-agnostisch, max 1×/portaal). Géén netto begin/eind-vergelijking. Legaal
   vooruit `+voor` (×2 op happy-hour-eindpaal); te veel/te weinig/achteruit/niet-doelwit-dat-beweegt
-  trekt af; onder 0 → 0 + **+1 sterfte**. Volledige spec: `docs/event-systeem.md`. Resultaat →
+  trekt af; onder 0 → 0 + **+1 sterfte**. Volledige spec: `docs/spel/event-systeem.md`. Resultaat →
   tabel **Controle** + globale stats.
+- **ZIEKTE**: het gevolg `{type:"ziekte"}` (in `Voer gevolg uit`) maakt de doelwit-spelers ziek
+  (`global.ziekeSpelers`) en plaatst `medicijn`-effecten (felroze) op evenveel vrije uren. De node
+  **`Ziekte-beheer`** (na `Verifieer beweging`) regelt elke ronde de lifecycle: genezen op een
+  medicijn-uur, dubbel-genezing (medicijn verbruikt), aftellen, **dood** bij 0 (uren 0 + sterfte),
+  hartslag-waarschuwing (`commando/master1` acties 5/6/7) vanaf ≤ 3 events, en opschoning van de
+  medicijnen als er geen zieken meer zijn. Publiceert `pof/ziekte` voor de simulator. Genezen gebeurt
+  enkel bij een **wettelijke** zet (lijst `global.pofGenezen`, gevuld in "Verifieer beweging").
+- **NUKE** (wereld-event `{type:"nuke"}`): "Verifieer beweging" detecteert het en laat **elke nog
+  gedetecteerde speler** (`spelerLocaties`) ontploffen (uren 0 + sterfte); wie ontkomen is overleeft.
+  Een nuke **wist de wereld**: ze ruimt ook de lopende ziekte-episode (`ziekeSpelers` + medicijn-effecten)
+  en alle `dienaars` op; "Ziekte-beheer" (via output 1) herpubliceert dan lege `pof/ziekte`/`pof/dienaars`.
+  Daarna zet het de fase op **`regroup`** (`regroup_s` s) — de "Engine tick" telt die af en keert daarna
+  terug naar `aanloop`. Reset (`Stop`/`Herstart` in "Verwerk bediening") wist `ziekeSpelers`/`pofGenezen`
+  en triggert "Ziekte-beheer" om `pof/ziekte` leeg te publiceren.
+- **MIDDERNACHT aan/uit**: de simulator-checkbox "Middernacht actief" publiceert (retained) op
+  **`sim/middernacht-config`** `{aan: bool}`; de node **`Sla middernachtAan op`** zet `global.middernachtAan`.
+  Staat ze uit, dan zet de node **`Middernacht`** `middernachtActief=false` en behandelt de hoogste paal als
+  een **gewoon uur** (geen poort-LED, geen oversteek-blokkade in "Verifieer beweging", geen oogst). De
+  π-stand (`midnightIndex/Open/Remaining`) blijft bevroren en loopt verder bij heractivering.
 
 Besturing staat in de **bovenbalk** (Speltoestand-groep, volle breedte) op de **Bediening**-
 én **Simulatie**-pagina: een **Spel-schakelaar** (start/stop, node "Spel aan/uit"), een
@@ -61,7 +84,7 @@ deze schakelaars. De engine draait alleen als `pofActief` AAN staat én `spelToe
 Events staan in `global.pofEvents`, gevuld door **drie** config-injects —
 `[CONFIG] Speler-events`, `[CONFIG] Toestand-events`, `[CONFIG] Wereld-events` — die elk
 hun categorie in `pofEvents` mergen (`Sla pofEvents op (merge per categorie)`). Zo
-houd je events overzichtelijk per categorie. Schema + uitleg: `docs/events.md`.
+houd je events overzichtelijk per categorie. Schema + uitleg: `docs/spel/events.md`.
 
 > **Categorie** is `speler` / `toestand` / `wereld` (de oude waarde `uur` heet nu
 > `toestand`). `doelwit.type` mag nog steeds `uur` zijn — dat kiest een uur áls doelwit.
@@ -77,7 +100,7 @@ houd je events overzichtelijk per categorie. Schema + uitleg: `docs/events.md`.
 - `willekeurig` — N willekeurige spelers/uren.
 - `alle` — alle spelers/uren.
 
-Volledige veldreferentie + voorbeelden: `docs/events.md`.
+Volledige veldreferentie + voorbeelden: `docs/spel/events.md`.
 
 ## Gevolgen (C3)
 
