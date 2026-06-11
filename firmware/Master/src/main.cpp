@@ -2,6 +2,9 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
+#include <stdarg.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 
 const int WIFI_KANAAL = 1;
 
@@ -33,32 +36,65 @@ typedef struct __attribute__((packed)) commando_message {
 const int AANTAL_SLAVES = 3;
 
 uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
-  {0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},  
+  {0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},
   {0xAC, 0xA7, 0x04, 0xC0, 0xC6, 0x14},
   {0x8C, 0xFD, 0x49, 0x54, 0xC4, 0x38}
-  
+
 };
 
-// ---- COMMANDO-QUEUE MET RETRIES ----
-// Elk commando blijft in de queue tot OnDataSent met SUCCESS terugkomt
-// (= MAC-laag ACK van slave-radio). Bij FAIL of timeout retries automatisch
-// tot MAX_POGINGEN, daarna opgegeven met een log-regel.
-struct PendingCmd {
-  uint8_t  doelMac[6];
+// ---- SERIAL-LOG-QUEUE (één schrijver) ----
+// Serial-regels komen uit twee taken: OnDataRecv() draait op de WiFi-task, de
+// queue-/serieel-verwerking op de loop-task. Serial.print is niet atomair over
+// taken, dus konden regels door elkaar geweven raken (bridge.py dropt zo'n
+// half-gemengde regel stil). Oplossing: elke producent bouwt zijn regel volledig
+// op via logRegel() en zet die in een FreeRTOS-queue; ALLEEN loop() schrijft naar
+// Serial (verwerkLogQueue). Raakt de queue vol onder pieklast, dan tellen we de
+// verloren regels in logDrops en melden dat als {"status":"log_drop",...}.
+#define LOGREGEL_MAX      192
+#define LOG_QUEUE_DIEPTE  48
+static QueueHandle_t     logQueue = nullptr;
+static volatile uint32_t logDrops = 0;
+
+// Stelt één serial-regel samen en zet hem in de log-queue (niet-blokkerend).
+// Vóór queue-creatie (vroege setup-fase) valt hij terug op directe Serial-output.
+void logRegel(const char *fmt, ...) {
+  char buf[LOGREGEL_MAX];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+  if (logQueue == nullptr) { Serial.print(buf); return; }
+  if (xQueueSend(logQueue, buf, 0) != pdTRUE) logDrops++;
+}
+
+// Drijft de log-queue af: enige plek waar naar Serial geschreven wordt. Elke
+// regel gaat in één stuk naar de lijn → geen interleaving.
+void verwerkLogQueue() {
+  if (logQueue == nullptr) return;
+  char buf[LOGREGEL_MAX];
+  while (xQueueReceive(logQueue, buf, 0) == pdTRUE) {
+    Serial.print(buf);
+  }
+}
+
+// ---- COMMANDO-SLOTS MET RETRIES (één pending-slot per slave) ----
+// In plaats van één gedeelde FIFO houdt elke slave zijn eigen pending-slot bij.
+// De slots worden elke loop-tick PARALLEL verwerkt: een onbereikbare paal
+// doorloopt zijn eigen retry-cyclus zonder andere palen te blokkeren. Een nieuw
+// commando voor een paal die nog een pending commando heeft, overschrijft het
+// (laatste-wint — matcht de Node-RED-eindtoestandssemantiek). 24 palen = 24
+// slots: een veld-breed commando wordt nooit geweigerd.
+struct SlaveCmdSlot {
+  bool             actief;           // staat er een pending commando in dit slot?
   commando_message cmd;
-  uint8_t  pogingen;
-  uint32_t laatstVerstuurd;
-  bool     wachtOpAck;
+  uint8_t          pogingen;
+  uint32_t         laatstVerstuurd;
+  bool             wachtOpAck;       // wacht op OnDataSent()
 };
+SlaveCmdSlot cmdPerSlave[AANTAL_SLAVES] = {};   // index = paal - 1, zero-init
 
 static const uint8_t  MAX_POGINGEN    = 5;
 static const uint32_t RETRY_INTERVAL  = 250;   // ms
-static const uint8_t  QUEUE_SIZE      = 16;
-
-PendingCmd cmdQueue[QUEUE_SIZE];
-uint8_t    queueHead = 0;
-uint8_t    queueTail = 0;
-uint8_t    queueAantal = 0;
 
 // ---- HULPFUNCTIES ----
 // True als deze MAC-rij alleen uit nullen bestaat (placeholder-slot).
@@ -80,53 +116,54 @@ static int vindSlaveIndex(const uint8_t *mac) {
   return -1;
 }
 
-// Voeg commando toe aan FIFO-queue. Wordt async verstuurd door verwerkQueue().
+// Zet een commando in het pending-slot van zijn paal (overschrijft = laatste wint).
+// Een placeholder-paal (all-zero MAC) wordt direct geweigerd, zonder retry-cyclus.
 static bool enqueueCommando(uint8_t paal, uint8_t actie) {
-  if (queueAantal >= QUEUE_SIZE) {
-    Serial.printf("{\"status\":\"queue_vol\",\"paal\":%d}\n", paal);
+  int i = paal - 1;
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"onbekende paal\",\"paal\":%d}\n", paal);
     return false;
   }
-  PendingCmd &pc = cmdQueue[queueTail];
-  memcpy(pc.doelMac, slaveAdressen[paal - 1], 6);
-  pc.cmd.paal_id  = paal;
-  pc.cmd.actie_id = actie;
-  pc.pogingen     = 0;
-  pc.laatstVerstuurd = 0;
-  pc.wachtOpAck   = false;
-  queueTail = (queueTail + 1) % QUEUE_SIZE;
-  queueAantal++;
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return false;
+  }
+  SlaveCmdSlot &s = cmdPerSlave[i];
+  s.cmd.paal_id     = paal;
+  s.cmd.actie_id    = actie;
+  s.pogingen        = 0;
+  s.laatstVerstuurd = 0;
+  s.wachtOpAck      = false;
+  s.actief          = true;   // overschrijven: laatste commando wint
   return true;
 }
 
-// Drijft de queue: verstuurt het actieve commando, retried bij timeout,
-// geeft op na MAX_POGINGEN. Wordt elke loop()-tick aangeroepen.
+// Drijft alle slots af: verstuurt due commando's, retried bij timeout, geeft op
+// na MAX_POGINGEN. Parallel — elk slot is onafhankelijk. Elke loop()-tick.
 void verwerkQueue() {
-  if (queueAantal == 0) return;
-  PendingCmd &actief = cmdQueue[queueHead];
   uint32_t nu = millis();
+  for (int i = 0; i < AANTAL_SLAVES; i++) {
+    SlaveCmdSlot &s = cmdPerSlave[i];
+    if (!s.actief) continue;
+    if (s.wachtOpAck) continue;  // wacht op OnDataSent
+    if (s.pogingen > 0 && (nu - s.laatstVerstuurd) < RETRY_INTERVAL) continue;
 
-  if (actief.wachtOpAck) return;  // wacht op OnDataSent
+    if (s.pogingen >= MAX_POGINGEN) {
+      logRegel("{\"status\":\"opgegeven\",\"paal\":%d,\"actie\":%d,\"pogingen\":%d}\n",
+               s.cmd.paal_id, s.cmd.actie_id, s.pogingen);
+      s.actief = false;
+      continue;
+    }
 
-  if (actief.pogingen > 0 && (nu - actief.laatstVerstuurd) < RETRY_INTERVAL) return;
-
-  if (actief.pogingen >= MAX_POGINGEN) {
-    Serial.printf("{\"status\":\"opgegeven\",\"paal\":%d,\"actie\":%d,\"pogingen\":%d}\n",
-                  actief.cmd.paal_id, actief.cmd.actie_id, actief.pogingen);
-    queueHead = (queueHead + 1) % QUEUE_SIZE;
-    queueAantal--;
-    return;
-  }
-
-  actief.pogingen++;
-  actief.laatstVerstuurd = nu;
-  actief.wachtOpAck = true;
-  esp_err_t r = esp_now_send(actief.doelMac,
-                             (uint8_t *)&actief.cmd,
-                             sizeof(actief.cmd));
-  if (r != ESP_OK) {
-    actief.wachtOpAck = false;
-    Serial.printf("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n",
-                  actief.cmd.paal_id, actief.pogingen);
+    s.pogingen++;
+    s.laatstVerstuurd = nu;
+    s.wachtOpAck = true;
+    esp_err_t r = esp_now_send(slaveAdressen[i], (uint8_t *)&s.cmd, sizeof(s.cmd));
+    if (r != ESP_OK) {
+      s.wachtOpAck = false;
+      logRegel("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n",
+               s.cmd.paal_id, s.pogingen);
+    }
   }
 }
 
@@ -138,7 +175,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   // negeert deze master de slaves die bij een andere master horen.
   int paalIndex = vindSlaveIndex(mac);
   if (paalIndex < 0) {
-    Serial.printf("[GATE] Genegeerd: %02X:%02X:%02X:%02X:%02X:%02X (niet in slaveAdressen[])\n",
+    logRegel("[GATE] Genegeerd: %02X:%02X:%02X:%02X:%02X:%02X (niet in slaveAdressen[])\n",
       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return;
   }
@@ -146,21 +183,21 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   // Visuele ontvangst-indicator: pulst de ingebouwde LED kort (niet-blokkerend).
   ingebouwdeLedTot = millis() + RECV_KNIPPER_MS;
 
-  Serial.printf("[RECV] %d bytes van paal %d (%02X:%02X:%02X:%02X:%02X:%02X)\n",
+  logRegel("[RECV] %d bytes van paal %d (%02X:%02X:%02X:%02X:%02X:%02X)\n",
     len, paalIndex + 1, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
   if (len < (int)sizeof(batch_message)) {
-    Serial.printf("[RECV] Te kort: %d < %d, genegeerd\n", len, (int)sizeof(batch_message));
+    logRegel("[RECV] Te kort: %d < %d, genegeerd\n", len, (int)sizeof(batch_message));
     return;
   }
 
   memcpy(&inkomendeData, incomingData, sizeof(inkomendeData));
 
-  Serial.printf("[RECV] Paal %d, %d spelers, batt %.2fV\n",
+  logRegel("[RECV] Paal %d, %d spelers, batt %.2fV\n",
     inkomendeData.paal_id, inkomendeData.aantalGevonden, inkomendeData.batterij_v);
 
   for (int i = 0; i < inkomendeData.aantalGevonden; i++) {
-    Serial.printf("{\"paal\":%d,\"mac\":\"%s\",\"rssi\":%d}\n",
+    logRegel("{\"paal\":%d,\"mac\":\"%s\",\"rssi\":%d}\n",
       inkomendeData.paal_id,
       inkomendeData.spelers[i].speler_mac,
       inkomendeData.spelers[i].rssi);
@@ -169,54 +206,77 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   // Batterij-regel per batch, óók bij 0 spelers — zo blijft de batterij-status
   // in Node-RED actueel zelfs in een leeg vak. 0.0V = "niet gemeten", overslaan.
   if (inkomendeData.batterij_v > 0.0f) {
-    Serial.printf("{\"paal\":%d,\"batt\":%.2f}\n",
+    logRegel("{\"paal\":%d,\"batt\":%.2f}\n",
       inkomendeData.paal_id, inkomendeData.batterij_v);
   }
 }
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  if (queueAantal == 0) return;
-  PendingCmd &actief = cmdQueue[queueHead];
-  if (memcmp(actief.doelMac, mac_addr, 6) != 0) return;
+  // Vind het slot van de bestemmeling via zijn MAC — werkt met meerdere
+  // in-flight sends (één per slave) tegelijk.
+  int i = vindSlaveIndex(mac_addr);
+  if (i < 0) return;
+  SlaveCmdSlot &s = cmdPerSlave[i];
+  if (!s.actief) return;
 
-  actief.wachtOpAck = false;
+  s.wachtOpAck = false;
   if (status == ESP_NOW_SEND_SUCCESS) {
-    Serial.printf("{\"status\":\"ack\",\"paal\":%d,\"actie\":%d,\"pogingen\":%d}\n",
-                  actief.cmd.paal_id, actief.cmd.actie_id, actief.pogingen);
-    queueHead = (queueHead + 1) % QUEUE_SIZE;
-    queueAantal--;
+    logRegel("{\"status\":\"ack\",\"paal\":%d,\"actie\":%d,\"pogingen\":%d}\n",
+             s.cmd.paal_id, s.cmd.actie_id, s.pogingen);
+    s.actief = false;   // slot vrij
   }
   // Bij FAIL: blijft actief, verwerkQueue() retried na RETRY_INTERVAL.
 }
 
 // ---- SERIEEL COMMANDO VAN RASPBERRY PI ----
-void verwerkSerieel() {
-  if (!Serial.available()) return;
-
-  String lijn = Serial.readStringUntil('\n');
+// Parse één complete regel en zet het commando in het juiste paal-slot.
+void verwerkRegel(const char *regel) {
+  String lijn(regel);
   lijn.trim();
 
-  int paalIndex = lijn.indexOf("\"paal\":");
+  int paalIndex  = lijn.indexOf("\"paal\":");
   int actieIndex = lijn.indexOf("\"actie\":");
-
   if (paalIndex == -1 || actieIndex == -1) return;
 
-  int paal = lijn.substring(paalIndex + 7).toInt();
+  int     paal  = lijn.substring(paalIndex + 7).toInt();
   uint8_t actie = lijn.substring(actieIndex + 8).toInt();
 
-  // In queue zetten — verwerkQueue() drijft hem af tot ack of opgegeven.
   if (paal >= 1 && paal <= AANTAL_SLAVES) {
     if (enqueueCommando(paal, actie)) {
-      Serial.printf("{\"status\":\"queued\",\"paal\":%d,\"actie\":%d}\n", paal, actie);
+      logRegel("{\"status\":\"queued\",\"paal\":%d,\"actie\":%d}\n", paal, actie);
     }
   } else {
-    Serial.printf("{\"status\":\"onbekende paal\",\"paal\":%d}\n", paal);
+    logRegel("{\"status\":\"onbekende paal\",\"paal\":%d}\n", paal);
+  }
+}
+
+// Niet-blokkerend serieel lezen: byte per byte tot '\n'. Geen readStringUntil
+// (die blokkeert tot de default Stream-timeout van 1000 ms) → een trage of
+// partiële regel van de Pi bevriest de loop niet. Overflow = regel weggooien.
+void verwerkSerieel() {
+  static char   rxBuf[128];
+  static size_t rxLen = 0;
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      rxBuf[rxLen] = '\0';
+      verwerkRegel(rxBuf);
+      rxLen = 0;
+    } else if (rxLen < sizeof(rxBuf) - 1) {
+      rxBuf[rxLen++] = c;
+    } else {
+      rxLen = 0;   // overflow: gooi de regel weg
+    }
   }
 }
 
 // ---- SETUP ----
 void setup() {
   Serial.begin(115200);
+
+  // Log-queue vroeg aanmaken zodat alle output via één schrijver loopt.
+  logQueue = xQueueCreate(LOG_QUEUE_DIEPTE, LOGREGEL_MAX);
+
   delay(2000);
 
   // Ingebouwde LED (active-HIGH): uit bij start
@@ -227,11 +287,11 @@ void setup() {
   WiFi.disconnect();
   delay(100);
 
-  Serial.println("Master MAC: " + WiFi.macAddress());
-  Serial.println("Master kanaal: " + String(WiFi.channel()));
+  logRegel("Master MAC: %s\n", WiFi.macAddress().c_str());
+  logRegel("Master kanaal: %d\n", WiFi.channel());
 
   if (esp_now_init() != ESP_OK) {
-    Serial.println("ESP-NOW init MISLUKT");
+    logRegel("ESP-NOW init MISLUKT\n");
     return;
   }
 
@@ -242,7 +302,7 @@ void setup() {
 
   esp_wifi_set_ps(WIFI_PS_NONE);
 
-  Serial.println("Kanaal na fix: " + String(WiFi.channel()));
+  logRegel("Kanaal na fix: %d\n", WiFi.channel());
 
   esp_now_register_recv_cb(OnDataRecv);
   esp_now_register_send_cb(OnDataSent);
@@ -250,15 +310,8 @@ void setup() {
   // Alle slaves toevoegen als peer
   for (int i = 0; i < AANTAL_SLAVES; i++) {
     // Skip slaves met placeholder MAC (allemaal nullen)
-    bool isPlaceholder = true;
-    for (int j = 0; j < 6; j++) {
-      if (slaveAdressen[i][j] != 0x00) {
-        isPlaceholder = false;
-        break;
-      }
-    }
-    if (isPlaceholder) {
-      Serial.printf("[PEER] Paal %d overgeslagen (geen MAC ingevuld)\n", i + 1);
+    if (isPlaceholderMac(slaveAdressen[i])) {
+      logRegel("[PEER] Paal %d overgeslagen (geen MAC ingevuld)\n", i + 1);
       continue;
     }
 
@@ -269,21 +322,37 @@ void setup() {
     peerInfo.encrypt = false;
 
     if (esp_now_add_peer(&peerInfo) == ESP_OK) {
-      Serial.printf("[PEER] Paal %d toegevoegd: %02X:%02X:%02X:%02X:%02X:%02X\n",
+      logRegel("[PEER] Paal %d toegevoegd: %02X:%02X:%02X:%02X:%02X:%02X\n",
         i + 1, slaveAdressen[i][0], slaveAdressen[i][1], slaveAdressen[i][2],
         slaveAdressen[i][3], slaveAdressen[i][4], slaveAdressen[i][5]);
     } else {
-      Serial.printf("[PEER] Paal %d toevoegen MISLUKT!\n", i + 1);
+      logRegel("[PEER] Paal %d toevoegen MISLUKT!\n", i + 1);
     }
   }
 
-  Serial.println("=== Master klaar ===");
+  logRegel("=== Master klaar ===\n");
 }
 
 // ---- LOOP ----
 void loop() {
   verwerkSerieel();
   verwerkQueue();
+
+  // Verlies in de log-queue (pieklast) hooguit ~1×/s melden.
+  static uint32_t laatsteDropCheck = 0;
+  static uint32_t gemeldeDrops = 0;
+  uint32_t nu = millis();
+  if (nu - laatsteDropCheck > 1000) {
+    laatsteDropCheck = nu;
+    uint32_t d = logDrops;
+    if (d != gemeldeDrops) {
+      gemeldeDrops = d;
+      logRegel("{\"status\":\"log_drop\",\"aantal\":%u}\n", d);
+    }
+  }
+
+  verwerkLogQueue();   // enige Serial-schrijver
+
   // Ingebouwde LED (active-HIGH): aan zolang de ontvangst-puls loopt.
   digitalWrite(BUILTIN_LED_PIN, (millis() < ingebouwdeLedTot) ? HIGH : LOW);
 }

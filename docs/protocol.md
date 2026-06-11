@@ -97,23 +97,35 @@ aantal hartslagen na de monitor-piep. De **geanimeerde** acties (8 = nuke, 11 = 
 slave gerenderd door `updateAnimatie()` (millis-gebaseerd, blijft animeren tot een nieuwe actie binnenkomt). Bij een kleur-actie wordt de MOSFET eerst HIGH gezet (5 ms delay)
 voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje bij inschakelen.
 
-### Reliability: master retry-queue
+### Reliability: per-slave commando-slots
 
-De master verstuurt commando's niet meer fire-and-forget. Elk commando gaat
-in een interne FIFO-queue. Het actieve commando wordt verzonden met
-`esp_now_send()` en wacht op `OnDataSent()`:
+De master verstuurt commando's niet fire-and-forget. In plaats van één gedeelde
+FIFO-queue houdt hij **één pending-slot per slave** bij (`cmdPerSlave[AANTAL_SLAVES]`,
+index = `paal_id − 1`). Elk slot wordt onafhankelijk afgehandeld; de slots worden
+elke loop-tick **parallel** verwerkt.
+
+Per slot wordt het commando verzonden met `esp_now_send()` en gewacht op `OnDataSent()`:
 
 - **`ESP_NOW_SEND_SUCCESS`** = slave-radio heeft het pakket ontvangen
-  (MAC-laag ACK). Commando is dan klaar, volgende uit de queue.
+  (MAC-laag ACK). Het slot is dan klaar (vrijgegeven).
 - **`!SUCCESS`** of geen callback binnen 250 ms = retry. Tot max 5 pogingen.
-- Na 5 mislukte pogingen geeft de master het commando op met een
+- Na 5 mislukte pogingen geeft de master dat slot op met een
   `opgegeven`-log-regel. Dit verschijnt op Serial → Pi → Node-RED.
 
-Dit lost het probleem op waarbij een commando soms gemist werd omdat de
-slave net aan het BLE-scannen of zelf aan het zenden was. Snel achter
-elkaar verstuurde commando's blijven in volgorde dankzij de queue.
+Eigenschappen van dit model:
 
-Queue-grootte: 16. Bij vol stuurt master `{"status":"queue_vol"}` terug.
+- **Geen capaciteitslimiet meer.** 24 palen = 24 slots; een veld-breed commando wordt
+  nooit geweigerd. De status `queue_vol` bestaat niet meer.
+- **Geen head-of-line blocking.** Een onbereikbare paal (dode batterij, buiten bereik)
+  doorloopt zijn eigen retry-cyclus zonder de commando's naar andere palen te vertragen.
+- **Laatste-wint per paal.** Komt er een nieuw commando voor een paal die nog een pending
+  commando heeft, dan **overschrijft** het nieuwe het oude. Dat matcht de Node-RED-semantiek
+  (de gewenste eindtoestand sturen) en houdt het simpel.
+- **Placeholder-palen.** Een commando naar een slot met all-zero MAC wordt **direct geweigerd**
+  met `{"status":"geen_slave"}` — geen nutteloze retry-cyclus.
+
+Dit lost het probleem op waarbij een commando soms gemist werd omdat de
+slave net aan het BLE-scannen of zelf aan het zenden was.
 
 ## 3. Master → Pi (Serial USB)
 
@@ -167,6 +179,17 @@ Hook voor latere spellogica; de slave geeft tegelijk een puls op de rode LED.
 Niet-JSON regels (bijvoorbeeld `[SETUP] Master MAC: ...`) worden door
 bridge.py als debug-output behandeld: gelogd maar niet doorgestuurd naar MQTT.
 
+### Serial-output: één schrijver (geen interleaving)
+
+De master produceert serial-regels vanuit twee taken: `OnDataRecv()` draait op de
+WiFi-task, de queue-/serieel-verwerking op de loop-task. `Serial.print` is niet
+atomair over taken, dus twee regels konden vroeger door elkaar geweven raken — een
+half-gemengde regel werd door `bridge.py` als debug gezien en stil gedropt
+(verdwenen detecties/acks). Daarom bouwen alle producenten hun regel volledig op via
+`logRegel()` en zetten die in een FreeRTOS-queue; **alleen `loop()`** schrijft naar
+Serial. Elke regel komt zo in één stuk op de lijn. Raakt de log-queue onder pieklast
+vol, dan worden regels geteld en gemeld via `{"status":"log_drop","aantal":N}`.
+
 ## 4. Pi → Master (Serial USB)
 
 Pi stuurt commando's terug naar de master, doorgegeven vanuit Node-RED.
@@ -178,17 +201,18 @@ Pi stuurt commando's terug naar de master, doorgegeven vanuit Node-RED.
 ```
 
 Master valideert dat `paal_id` binnen `AANTAL_SLAVES` valt en zet het
-commando in de retry-queue (zie sectie 2 "Reliability"). Master antwoordt
-per regel met een status-JSON:
+commando in het pending-slot van die paal (zie sectie 2 "Reliability"). Master
+antwoordt per regel met een status-JSON:
 
 | Status         | Betekenis |
 |----------------|-----------|
-| `queued`       | Commando in queue gezet, wordt async verzonden. |
+| `queued`       | Commando in het paal-slot gezet, wordt async verzonden (overschrijft een eventueel pending commando voor diezelfde paal). |
 | `ack`          | Slave-radio bevestigd. Bevat `pogingen` (1 = direct gelukt). |
 | `send_err`     | `esp_now_send()` gaf geen ESP_OK. Retry volgt automatisch. |
 | `opgegeven`    | Na 5 mislukte pogingen — commando verloren. |
-| `queue_vol`    | Queue zit aan max (16), commando geweigerd. |
+| `geen_slave`   | `paal_id` wijst naar een leeg/placeholder slot (all-zero MAC) — geweigerd. |
 | `onbekende paal` | `paal_id` valt buiten `AANTAL_SLAVES`. |
+| `log_drop`     | De interne serial-log-queue zat vol; `aantal` regels gingen verloren onder pieklast. |
 
 ## 5. Pi ↔ Node-RED (MQTT)
 
@@ -362,6 +386,14 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-06-10: master-robuustheid (Batch 2). FIFO-queue (16) vervangen door
+  **per-slave pending-slots** (laatste-wint, parallelle retries) → geen
+  `queue_vol` meer en geen head-of-line blocking door een dode paal;
+  placeholder-palen worden direct geweigerd met `geen_slave`. Serieel lezen is
+  nu **niet-blokkerend** (eigen regelbuffer i.p.v. `readStringUntil`, geen 1 s
+  Stream-timeout). Alle serial-output loopt via één task (loop-gedraineerde
+  FreeRTOS-log-queue) tegen interleaving; verlies onder pieklast meldt
+  `log_drop`. Geen wire-format-wijziging — slaves niet herflashen.
 - 2026-05-29: master kreeg retry-queue voor commando's (max 5 pogingen per
   commando, 250 ms tussen retries, FIFO-queue van 16). Statusantwoorden
   uitgebreid: `queued`, `ack`, `send_err`, `opgegeven`, `queue_vol`. Lost

@@ -104,11 +104,17 @@ uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
 |----------|---------|-----------|
 | Master → Pi | `{"paal":N,"mac":"xx:xx","rssi":-NN}` | één regel per speler |
 | Pi → Master | `{"paal":N,"actie":N}` | één commando |
-| Master → Pi (bevestiging) | `{"status":"verstuurd","paal":N}` | na ontvangen commando |
+| Master → Pi (status) | `{"status":"queued"/"ack"/...,"paal":N}` | per commando, zie statustabel in `docs/protocol.md` §4 |
 | Master → Pi (debug) | `[RECV] ...` , `[PEER] ...` | worden genegeerd door bridge |
 
 Niet-JSON regels (die beginnen met `[`) worden door `bridge.py` als
 debug-output beschouwd en niet doorgestuurd naar MQTT.
+
+> **Niet-blokkerend serieel.** De master leest seriële input byte-per-byte in een
+> eigen regelbuffer (geen `readStringUntil`, dus geen 1 s Stream-timeout): een trage
+> of partiële regel van de Pi bevriest de loop niet. Alle serial-**output** loopt via
+> één task (de loop drijft een interne log-queue af) zodat regels nooit door elkaar
+> geweven raken — zie `docs/protocol.md` §3.
 
 ---
 
@@ -122,8 +128,11 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 | `{"paal":2,"mac":"...","rssi":-65}` | JSON doorgestuurd naar Pi (per gevonden speler) |
 | `{"paal":2,"batt":3.87}` | JSON met batterij-spanning, één regel per batch (`batt > 0`) |
 | `[RECV] Te kort: 10 < 206, genegeerd` | Corrupt/kort pakket ontvangen (206 = sizeof batch_message) |
-| `[SEND] Status: OK` | ESP-NOW commando succesvol verzonden naar slave |
-| `[SEND] Status: MISLUKT` | Slave niet bereikbaar |
+| `{"status":"queued","paal":3,"actie":2}` | Commando in het paal-slot gezet (overschrijft een pending commando voor diezelfde paal) |
+| `{"status":"ack","paal":3,...}` | Slave-radio bevestigde het commando (MAC-laag ACK) |
+| `{"status":"opgegeven","paal":3,...}` | Na 5 mislukte pogingen opgegeven — slave niet bereikbaar |
+| `{"status":"geen_slave","paal":3}` | Commando naar een leeg/placeholder slot (all-zero MAC) — geweigerd |
+| `{"status":"log_drop","aantal":N}` | Serial-log-queue zat vol onder pieklast; N regels verloren |
 | `[PEER] Paal 3 toegevoegd: ...` | Slave als peer geregistreerd bij startup |
 | `[PEER] Paal 1 overgeslagen` | Placeholder MAC, wordt niet geregistreerd |
 | `{"status":"onbekende paal","paal":25}` | Pi stuurde paal-ID buiten bereik |
