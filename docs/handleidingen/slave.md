@@ -8,11 +8,11 @@
 ## Wat doet de slave?
 
 1. Scant continu op BLE-advertenties van speler-beacons
-2. Filtert op een vaste whitelist van bekende beacon-MAC-adressen
-3. Stuurt gevonden spelers als batch via ESP-NOW naar de master
-4. Wacht kort op een terugkoppelingscommando van de master
-5. Voert dat commando uit (LED-kleur, buzzer)
-6. Bewaakt de batterijspanning en knippert een warning-LED bij lage spanning
+2. Filtert op **OUI-prefix** (`48:87:2d`) + **RSSI-drempel** (protocol v2 — geen hardcoded MAC-lijst meer)
+3. Stuurt gevonden spelers als `batch_message_v2` via ESP-NOW naar de master (tot 30 spelers)
+4. Wacht kort op een terugkoppelingscommando (`MSG_COMMANDO`) van de master
+5. Voert dat commando uit (LED-kleur, buzzer) en stuurt een `MSG_CMD_ACK` ná uitvoering
+6. Bewaakt de batterijspanning (warning-LED + `MSG_FOUT` bij kritiek) en stuurt periodiek een heartbeat
 
 ---
 
@@ -23,21 +23,28 @@ loop()
  └── scan-cyclus (elke ~1100-1300ms):
       ├── BLE scan (1 seconde, blokkerend)
       │    └── BeaconZoeker::onResult() per gevonden apparaat
-      │         └── MAC in whitelist? →
+      │         └── OUI == 48:87:2d EN rssi >= RSSI_DREMPEL? →
       │              ├── bestaat al in batch? → sterkste RSSI behouden
-      │              └── nieuw? → toevoegen (max 9 unieke MACs)
+      │              └── nieuw? → toevoegen (max 30 unieke MACs; >30 → MSG_FOUT)
+      │    └── verwerkCommandos()   (commando's van tijdens de scan afhandelen)
       │
       ├── random backoff (0..MAX_BACKOFF_MS) — willekeurige zendvertraging
       │
-      ├── esp_now_send() → master   (ALTIJD, ook bij 0 spelers)
+      ├── esp_now_send() batch_message_v2 → master   (ALTIJD, ook bij 0 spelers)
+      ├── [elke HEARTBEAT_INTERVAL_S] → MSG_HEARTBEAT
+      ├── verwerkCommandos()
       │
-      ├── wacht max 200ms op OnDataRecv() callback
-      │    ├── checkBatterij()        elke 5s (binnenin de wacht-loop)
-      │    ├── checkKnop()            rising-edge drukknop GPIO3 (debounce)
+      ├── luistervenster 200ms (servicet hardware + draineert de ring elke iteratie)
+      │    ├── checkBatterij()        elke 5s; bij kritiek → MSG_FOUT
+      │    ├── checkKnop()            rising-edge GPIO3 → MSG_KNOP (ESP-NOW)
       │    ├── updateRodeLed()        GPIO6: knop-puls > batterij-waarschuwing
-      │    └── updateIngebouwdeLed()  GPIO8: knippert kort na geslaagde zend
+      │    ├── updateIngebouwdeLed()  GPIO8: knippert kort na geslaagde zend
+      │    └── verwerkCommandos()     → per commando: voerActieUit() + MSG_CMD_ACK
       │
-      └── [als commandoOntvangen] → voerActieUit()
+      └── verwerkCommandos() (laatste keer ná het venster)
+
+OnDataRecv() (producent) pusht elk MSG_COMMANDO in een SPSC-ringbuffer (8 slots);
+verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 ```
 
 > **Altijd versturen:** de slave stuurt elke cyclus een batch, óók bij 0
@@ -60,17 +67,26 @@ loop()
 >
 > **Drukknop (GPIO3):** tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. Een druk (rising
 > edge, met debounce) geeft een puls op de rode LED (GPIO6) en stuurt een
-> hook-regel `{"paal":N,"knop":1}` over serial. Het framework draait altijd,
-> ook zonder fysieke knop: de pulldown houdt de pin dan LOW → geen valse
-> triggers. De rode LED is gedeeld: een knop-puls (~150 ms) heeft voorrang op
-> de batterij-waarschuwing.
+> `MSG_KNOP` via **ESP-NOW** naar de master (v2 — in v1 ging dit naar de eigen
+> USB-CDC en bereikte het de Pi nooit). De master vertaalt dat naar
+> `{"paal":N,"knop":1}` op `plaatjes/data`. Het framework draait altijd, ook
+> zonder fysieke knop: de pulldown houdt de pin dan LOW → geen valse triggers.
+> De rode LED is gedeeld: een knop-puls (~150 ms) heeft voorrang op de
+> batterij-waarschuwing.
 >
 > **Ingebouwde LED (GPIO8, active-LOW):** knippert kort (~40 ms) bij elke
 > succesvolle ESP-NOW-zend als visuele zend-indicator.
 >
-> De BLE-scan blokkeert 1 seconde. Commando's die tijdens de scan
-> binnenkomen via ESP-NOW worden gebufferd in de callback en direct
-> na de scan verwerkt — ze gaan niet verloren.
+> **Commando-ringbuffer (geen verloren/overschreven commando's):** `OnDataRecv` is de
+> producent en pusht elk `MSG_COMMANDO` als `{actie, cmd_seq}` in een SPSC-ringbuffer (8 slots,
+> `volatile` indices — geen mutex nodig op de single-core C3). `verwerkCommandos()` is de
+> consument en draineert hem **in volgorde** op meerdere punten in de cyclus. Hierdoor:
+> - gaat een commando dat binnenkomt tijdens de 1 s BLE-scan, `voerActieUit()` of de `delay(50)`
+>   **niet verloren** (er is geen flag-reset bovenaan de loop meer);
+> - worden **twee** commando's binnen één cyclus (bv. piep + portaal) **allebei** uitgevoerd;
+> - is de afhandeling **idempotent** op `cmd_seq` (een master-retry voert niet dubbel uit, maar
+>   her-ACK't wel). Bij een volle buffer wordt de nieuwste gedropt en `cmdDrops` opgehoogd
+>   (zichtbaar als `[CMD] Ringbuffer-drops: N`).
 
 ---
 
@@ -83,8 +99,12 @@ loop()
 | `SCAN_DUUR_S` | ~11 | BLE-scanduur in seconden |
 | `WACHT_TIMEOUT` | ~12 | Max wachttijd (ms) op commando na verzenden |
 | `MAX_BACKOFF_MS` | ~16 | Bovengrens (ms) van de willekeurige zendvertraging |
-| `toegelatenBeacons[]` | ~80 | Whitelist van beacon-MAC-adressen |
-| `masterAddress[]` | ~89 | MAC-adres van de master — lees uit Serial Monitor van master |
+| `BUZZER_FREQ` | ~20 | Per-paal piep-frequentie (Hz) — kalibreer voor max. volume |
+| `BEACON_OUI[3]` | ~175 | OUI-prefix (eerste 3 MAC-bytes) van de toegelaten beacons |
+| `RSSI_DREMPEL` | ~176 | Minimale RSSI (dBm) om een beacon door te laten |
+| `HEARTBEAT_INTERVAL_S` | ~34 | Interval (s) van het "ik leef"-bericht |
+| `FW_VERSIE` | ~33 | Firmware-versie meegestuurd in de heartbeat |
+| `masterMacs[3][6]` | ~200 | MAC's van master 1/2/3 — de slave kiest automatisch op `PAAL_ID` (1–7→m1, 8–16→m2, 17–24→m3) |
 | `KNOP_DEBOUNCE_MS` | ~57 | Ontdender-tijd (ms) van de drukknop |
 | `KNOP_PULS_MS` | ~58 | Duur (ms) van de rode-LED puls bij een druk |
 | `BATT_WAARSCHUWING` | ~46 | Spanning (V) waaronder LED langzaam knippert |
@@ -95,9 +115,10 @@ loop()
 > Dat laatste meet op de ESP32-C3 structureel enkele procenten te laag.
 >
 > **Buzzervolume:** een passieve buzzer is het luidst rond zijn resonantie­frequentie
-> (typisch 2–4 kHz). De buzzer-piep (`ACTIE_BUZZER_PIEP`) gebruikt 1500 Hz; klinkt hij
-> te stil, pas dan de frequentie in `MELODIE_PIEP` aan. Een actieve buzzer (met ingebouwde
-> oscillator) hoort NIET met `tone()` aangestuurd te worden maar met `digitalWrite(HIGH)`.
+> (typisch 2–4 kHz). De buzzer-piep (`ACTIE_BUZZER_PIEP`) gebruikt de **per-paal** constante
+> `BUZZER_FREQ` (default 1500 Hz; `setup()` zet die in `MELODIE_PIEP[0]`). Klinkt een paal te
+> stil, meet dan zijn luidste frequentie en zet die in `BUZZER_FREQ` voor dat bordje. Een actieve
+> buzzer (met ingebouwde oscillator) hoort NIET met `tone()` aangestuurd te worden maar met `digitalWrite(HIGH)`.
 
 ---
 
@@ -127,17 +148,19 @@ De huidige code gebruikt de volgende volgorde:
 | Prefix | Betekenis |
 |--------|-----------|
 | `[SCAN] Start...` | Nieuwe BLE-scan gestart |
-| `[BLE] Whitelisted: xx:xx RSSI: -67` | Speler gevonden en toegevoegd aan batch |
-| `[SCAN] Klaar, 2 whitelisted gevonden (batt 3.87V)` | Scan klaar, 2 spelers in batch, huidige batterij-spanning |
+| `[BLE] Beacon 48:87:2d:.. RSSI: -67` | Beacon (OUI + sterk genoeg) toegevoegd aan batch |
+| `[SCAN] Klaar, 2 beacons gevonden (batt 3870 mV)` | Scan klaar, 2 spelers in batch, batterij in mV |
 | `[BACKOFF] 87 ms` | Willekeurige zendvertraging vóór verzenden |
 | `[SEND] Versturen naar master (2 spelers)...` | Batch wordt verstuurd (ook bij 0 spelers) |
-| `[ESP-NOW] Batch verzonden OK` | Master heeft pakket ontvangen |
+| `[ESP-NOW] Batch verzonden OK` | Master heeft pakket ontvangen (MAC-laag) |
 | `[ESP-NOW] Verzending MISLUKT` | Master niet bereikbaar (kanaal? MAC?) |
-| `[CMD] Actie ontvangen: 1` | Commando 1 (PORTAAL/paars) ontvangen van master |
-| `[ACTIE] LED 1` | Commando wordt uitgevoerd |
-| `[CMD] Timeout, geen commando` | Geen commando binnen 200ms na verzenden |
+| `[ESP-NOW] Commando voor paal 1, actie 1, seq 42` | `MSG_COMMANDO` ontvangen van master |
+| `[CMD] Actie 1 uitvoeren (seq 42)` | Commando uit de ringbuffer wordt uitgevoerd, daarna MSG_CMD_ACK |
+| `[CMD] Seq 42 al uitgevoerd, alleen her-ACK` | Idempotent: retry van een al uitgevoerd commando |
+| `[CMD] Ringbuffer-drops: N` | N commando's gedropt omdat de ringbuffer vol zat |
+| `[BLE] Overflow: N beacons boven 30 genegeerd` | >30 spelers in dit vak → MSG_FOUT |
+| `[KNOP] paal N ingedrukt -> MSG_KNOP` | Drukknop ingedrukt (rising edge), via ESP-NOW |
 | `[BATT] 3.87V` | Batterijspanning om de 5 seconden |
-| `{"paal":N,"knop":1}` | Drukknop ingedrukt (rising edge) |
 | `[ESP-NOW] Init MISLUKT!` | Fatale fout — ESP knippert warning-LED snel |
 
 ---
@@ -173,7 +196,9 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 
 ## Nieuwe slave in gebruik nemen
 
-1. Stel `PAAL_ID` in op het gewenste paal-nummer
+1. Stel `PAAL_ID` in op het gewenste paal-nummer. De slave kiest daaruit **automatisch** zijn master-MAC
+   (1–7→master1, 8–16→master2, 17–24→master3, uit `masterMacs[]`) — verder niets per slave in te stellen.
+   Bij opstart logt hij `[SETUP] Paal N -> master M`.
 2. Flash de slave met PlatformIO (`Upload`)
 3. Open Serial Monitor — bij het opstarten toont de slave eenmalig een
    banner met zijn MAC-adres:
@@ -182,8 +207,12 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
      SLAVE MAC-ADRES : xx:xx:xx:xx:xx:xx
    ============================================
    ```
-4. Voeg dit MAC-adres toe aan de master (zie master-handleiding)
-5. Herflash de master
+4. Vul dit MAC-adres in op rij `paal − PAAL_MIN` in het juiste `MASTER_NR`-blok van
+   `firmware/Master/include/slave_macs.h` (zie master-handleiding)
+5. Herflash de juiste master-environment
+
+> Staat een master-MAC in `masterMacs[]` nog op `0x00…` (master 2/3 nog niet gebouwd), dan kunnen
+> slaves 8–24 nog niet zenden — vul die MAC's in zodra die masters bestaan.
 
 ---
 
@@ -194,8 +223,9 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 Check: `[SETUP] WiFi kanaal:` in Serial Monitor van beide apparaten.
 
 **Geen spelers gevonden terwijl beacon actief is**
-→ MAC-adres staat niet in `toegelatenBeacons[]`, of beacon adverteert niet (batterij leeg?).
-Check: zet tijdelijk een `Serial.printf` in `onResult()` voor de whitelist-check.
+→ Beacon-OUI komt niet overeen met `BEACON_OUI` (`48:87:2d`), RSSI is zwakker dan `RSSI_DREMPEL`,
+of de beacon adverteert niet (batterij leeg?). Check: zet tijdelijk een `Serial.printf` in `onResult()`
+vóór het OUI/RSSI-filter, of verlaag tijdelijk `RSSI_DREMPEL`.
 
 **Commando's komen niet aan**
 → Slave is tijdens scan (1s) — commando wordt wél gebufferd en direct erna verwerkt.

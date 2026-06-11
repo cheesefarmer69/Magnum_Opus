@@ -9,20 +9,29 @@ en waarom het nodig is.
 
 ## Protocol & communicatie
 
-- [ ] **Error messaging protocol opstellen**
-  Een gestructureerd protocol voor foutmeldingen door het hele systeem
-  (slave → master → Pi → Node-RED). Moet vastleggen: foutcodes, ernst-niveaus
-  (info / waarschuwing / fout) en een transportformaat. Zo kunnen blokken zoals
-  de pre-flight check fouten op een uniforme manier tonen en doorsturen.
-  Voorlopig toont de pre-flight check enkel lokaal in Node-RED afgeleide fouten;
-  dit protocol maakt echte foutmeldingen vanuit de hardware mogelijk.
+- [x] **Error messaging protocol opstellen** *(Batch 1 — protocol v2: transport klaar)*
+  Het ESP-NOW-transport is er: `MSG_FOUT` met `ernst` (info/waarschuwing/fout) + `foutcode`
+  + `detail`, vertaald naar `{"paal","fout","ernst","detail"}` op `plaatjes/data` (foutcode-tabel
+  in `docs/protocol.md` §3). De slave stuurt al fouten voor batterij-kritiek, ESP-NOW-zendfout en
+  BLE-overflow. **Follow-up:** Node-RED-zijde (pre-flight check de foutcodes laten tonen/aggregeren).
 
-- [ ] **Slave heartbeat / keepalive**
-  Slaves sturen nu enkel data wanneer ze een beacon detecteren. Daardoor kan
-  Node-RED niet betrouwbaar zien of een slave zonder spelers in de buurt nog
-  leeft. Een periodiek "ik leef"-bericht (ook zonder detectie) is nodig zodat de
-  pre-flight check echte connectiviteit per paal kan vaststellen i.p.v. enkel
-  "ooit data gezien".
+- [x] **Slave heartbeat / keepalive** *(Batch 1 — protocol v2)*
+  De slave stuurt elke `HEARTBEAT_INTERVAL_S` (10 s) een `MSG_HEARTBEAT` (uptime, batt, fw-versie),
+  ook zonder detecties → `{"paal","hb":1,...}` op `plaatjes/data`. **Follow-up:** Node-RED de
+  heartbeats laten gebruiken voor echte connectiviteit-per-paal in de pre-flight check.
+
+- [x] **Knop-event bereikt de Pi niet** *(Batch 1 — protocol v2)*
+  Opgelost: de slave stuurt nu `MSG_KNOP` via **ESP-NOW** naar de master; die vertaalt het naar
+  `{"paal":N,"knop":1}` op `plaatjes/data` (was de dode USB-CDC).
+
+- [x] **Payload-plafond `spelers[9]` per batch** *(Batch 1 — protocol v2)*
+  Opgelost: `batch_message_v2` draagt tot **30** spelers (binaire MAC's, 215 B). Bij >30 in één vak
+  wordt niet meer stil gedropt maar een `MSG_FOUT` (BLE-overflow) gestuurd.
+
+- [ ] **Multi-master indexering / `commando/masterN`-routing** *(Batch 4)*
+  De simulator en de routing volgen nu alleen `commando/master1`. Voor 3 masters /
+  24 palen moeten `commando/master2`/`master3` toegevoegd worden (sim-subscriptions
+  én Node-RED-routing per `paal_id`-bereik 1–7 / 8–16 / 17–24).
 
 ## Node-RED blokken
 
@@ -60,10 +69,13 @@ en waarom het nodig is.
   Buzzers uit dezelfde batch verschillen in volume op dezelfde frequentie
   (productiespreiding op de resonantiefrequentie). Per buzzer de luidste
   frequentie opmeten en die per slave instellen, zodat alle palen even
-  hoorbaar zijn. Nu staat `BUZZER_FREQ` als één globale constante in
-  `firmware/Slave/src/main.cpp`; dit moet een per-paal waarde worden
-  (bv. naast `PAAL_ID`, of een kleine kalibratietabel). Zie de aanpak in
-  het antwoord/handleiding hieronder.
+  hoorbaar zijn. Sinds Batch 1 staat `BUZZER_FREQ` als **per-paal constante** naast `PAAL_ID`
+  in `firmware/Slave/src/main.cpp` (gebruikt in `MELODIE_PIEP`); de waarden zijn nu nog allemaal
+  1500 Hz. **Resteert:** per bordje de luidste frequentie opmeten en die waarde invullen.
+  Aanpak: per buzzer een frequentiesweep afspelen en de luidste frequentie
+  opmeten (gehoor of dB-meter); die waarde per slave vastleggen — ofwel als
+  `PAAL_ID`-afhankelijke constante in de firmware, ofwel via een kleine
+  kalibratietabel `{paal → freq}` zodat één firmware-build alle palen dekt.
 
 ## Spelontwerp
 

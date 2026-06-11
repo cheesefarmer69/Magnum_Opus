@@ -102,7 +102,8 @@ Kijk passief mee met een echt spel zonder enig risico.
 4. Druk **Connect** — status linksbovenaan wordt groen ("online").
 5. Selecteer modus **Monitor** (standaard).
 6. Wat je nu ziet:
-   - **LED-bolletjes** naast de palen kleuren mee bij elk `commando/master1`-bericht.
+   - **LED-bolletjes** naast de palen kleuren mee bij elk `commando/master1`-bericht. *(De simulator
+     volgt momenteel alleen `commando/master1`; `commando/master2`/`master3` komen bij Batch 4.)*
    - **Speler-posities** volgen de **uitkomst van het locatie-algoritme** (topic
      `locatie/spelers`), niet de ruwe paal-berichten — dus geen geflikker meer.
    - **Huidig event** toont enkel de tekst die effectief voorgelezen wordt
@@ -238,6 +239,8 @@ bij het eerste laden (daarna gecached door de browser).
 
 - Geen scenario-opname of -replay (gepland voor v2).
 - Geen log-export naar bestand.
+- Volgt momenteel alleen `commando/master1`. De topics `commando/master2`/`master3` worden
+  toegevoegd bij de multi-master refactor (Batch 4).
 - Geen RSSI-/signaalsimulatie: de simulator test het spelverloop, niet de
   radioprestaties van de hardware. Voor RSSI-diagnose zie `docs/locatiebepaling.md`
   (ruwe-RSSI-tabel met echte hardware).

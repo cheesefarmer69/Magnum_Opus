@@ -24,11 +24,16 @@ Slave → ESP-NOW → OnDataRecv()
                     ├── sender-MAC gate (vindSlaveIndex)
                     │    ├── in slaveAdressen[]? → ga door
                     │    └── onbekend?           → [GATE] log, drop
-                    └── per speler: Serial.printf JSON → Pi
+                    └── dispatch op msg_type (eerste byte):
+                         ├── MSG_BATCH     → per speler JSON (binair MAC → string) + batt
+                         ├── MSG_CMD_ACK   → slot vrij + {"status":"uitgevoerd","seq"}
+                         ├── MSG_HEARTBEAT → {"paal","hb":1,..}
+                         ├── MSG_FOUT      → {"paal","fout",..}
+                         └── MSG_KNOP      → {"paal","knop":1}
 
 Pi → Serial → verwerkSerieel()
-               ├── parse paal + actie
-               └── esp_now_send() → slave[paal - 1]
+               ├── parse paal + actie  (master kent cmd_seq toe)
+               └── per-slave FIFO (4) → esp_now_send() head commando_message_v2; retry tot MSG_CMD_ACK
 ```
 
 ### Richting 1: Slave → Pi
@@ -56,33 +61,59 @@ De Pi stuurt een commando als JSON-regel:
 {"paal":3,"actie":2}
 ```
 
-De master parset dit, zoekt het slave-MAC op in `slaveAdressen[paal-1]`
-en stuurt een `commando_message` via ESP-NOW.
+De master kent het commando een `cmd_seq` toe, zet het in de **per-slave FIFO** van die paal
+(diepte 4) en stuurt het head-item als `commando_message_v2` via ESP-NOW. Het commando geldt pas
+als **uitgevoerd** wanneer de slave een `MSG_CMD_ACK` terugstuurt (applicatie-ACK, ná uitvoering) —
+niet bij de MAC-laag-ACK. Komt er binnen ~1,5 s geen ACK, dan stuurt de master hetzelfde `cmd_seq`
+opnieuw (idempotent); na `MAX_POGINGEN` volgt `opgegeven` en gaat de FIFO verder met het volgende item.
+
+> **Geen laatste-wint meer:** twee snel opeenvolgende, verschillende commando's naar dezelfde paal
+> (bv. buzzer-piep + portaal) blijven **allebei** in de FIFO en worden in volgorde afgeleverd. Stapelen
+> er meer dan 4 op (bv. een dode paal), dan wordt het **oudste** gedropt (`fifo_vol`).
 
 ---
 
-## Slaves registreren
+## Multi-master: drie environments, één codebase
 
-```cpp
-const int AANTAL_SLAVES = 3;
+Het veld heeft **3 masters**: master 1 → palen **1–7**, master 2 → **8–16**, master 3 → **17–24**.
+Eén codebase, drie PlatformIO-environments in `platformio.ini`:
 
-uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
-  {0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},  // paal 1
-  {0xAC, 0xA7, 0x04, 0xB9, 0xE1, 0xC0},  // paal 2
-  {0x48, 0x87, 0x2d, 0x9d, 0xbb, 0x7d},  // paal 3
-};
+```ini
+[env:master1]  build_flags = -DPAAL_MIN=1  -DPAAL_MAX=7  -DMASTER_NR=1
+[env:master2]  build_flags = -DPAAL_MIN=8  -DPAAL_MAX=16 -DMASTER_NR=2
+[env:master3]  build_flags = -DPAAL_MIN=17 -DPAAL_MAX=24 -DMASTER_NR=3
 ```
 
-- Index 0 = paal 1, index 1 = paal 2, etc.
-- Rijen met alleen `0x00` worden overgeslagen (placeholder)
-- Slave-MAC lees je uit de Serial Monitor van de slave: de banner
-  `SLAVE MAC-ADRES : ...` die bij het opstarten eenmalig wordt getoond
+In de code: `AANTAL_SLAVES = PAAL_MAX − PAAL_MIN + 1` en `paalNaarIndex(paal) = paal − PAAL_MIN` (de
+globale paal-ID → 0-based index; index 0 = `PAAL_MIN`). Het verzonden commando draagt de **globale**
+`paal_id` (`PAAL_MIN + index`). Een commando buiten het bereik → `{"status":"buiten_bereik","paal":N,"master":M}`.
 
-**Nieuwe slave toevoegen:**
-1. Flash slave, lees MAC uit Serial Monitor
-2. Voeg MAC toe aan `slaveAdressen[]`
-3. Verhoog `AANTAL_SLAVES`
-4. Herflash master
+> **Selecteer de juiste env** onderin de VS Code-statusbalk en flash die naar de bijbehorende fysieke
+> master. `pio run` (zonder `-e`) bouwt alle drie.
+
+## Slaves registreren
+
+De slave-MAC's staan **per master** in `firmware/Master/include/slave_macs.h`, in `#if MASTER_NR`-blokken:
+
+```cpp
+#if MASTER_NR == 1            // palen 1..7
+uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
+  {0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},  // paal 1
+  {0xAC, 0xA7, 0x04, 0xC0, 0xC6, 0x14},  // paal 2
+  {0x8C, 0xFD, 0x49, 0x54, 0xC4, 0x38},  // paal 3
+  {0x00, ...},                            // paal 4..7 (placeholders)
+};
+#elif MASTER_NR == 2 ...      // palen 8..16
+```
+
+- Rij-index = `paal − PAAL_MIN` (master2: paal 8 = index 0). Rijen met alleen `0x00` zijn placeholders
+  (overgeslagen bij peer-registratie én de ontvangst-gate).
+- Elke master kent **uitsluitend zijn eigen** slaves → de sender-MAC gate segmenteert automatisch.
+
+**Nieuwe slave toevoegen/wijzigen:**
+1. Flash slave (zet `PAAL_ID`), lees MAC uit de Serial Monitor-banner `SLAVE MAC-ADRES : ...`
+2. Vul het MAC in op rij `paal − PAAL_MIN` in het juiste `MASTER_NR`-blok van `slave_macs.h`
+3. Herflash de juiste master-environment (`AANTAL_SLAVES` is afgeleid — niet meer handmatig ophogen)
 
 ---
 
@@ -128,14 +159,20 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 | `{"paal":2,"mac":"...","rssi":-65}` | JSON doorgestuurd naar Pi (per gevonden speler) |
 | `{"paal":2,"batt":3.87}` | JSON met batterij-spanning, één regel per batch (`batt > 0`) |
 | `[RECV] Te kort: 10 < 206, genegeerd` | Corrupt/kort pakket ontvangen (206 = sizeof batch_message) |
-| `{"status":"queued","paal":3,"actie":2}` | Commando in het paal-slot gezet (overschrijft een pending commando voor diezelfde paal) |
-| `{"status":"ack","paal":3,...}` | Slave-radio bevestigde het commando (MAC-laag ACK) |
-| `{"status":"opgegeven","paal":3,...}` | Na 5 mislukte pogingen opgegeven — slave niet bereikbaar |
+| `{"status":"queued","paal":3,"actie":2}` | Commando achteraan de per-slave FIFO gezet (in volgorde, geen laatste-wint) |
+| `{"status":"fifo_vol","paal":3,"gedropt_seq":40}` | FIFO van die paal zat vol (4) — oudste commando gedropt |
+| `{"status":"uitgevoerd","paal":3,"seq":42}` | Slave bevestigde **uitvoering** (`MSG_CMD_ACK status 0`) — vervangt de v1 `ack` |
+| `{"status":"geweigerd","paal":3,"seq":42}` | Slave gaf `MSG_CMD_ACK status 1` (onbekende/geweigerde actie) |
+| `{"status":"opgegeven","paal":3,...}` | Na `MAX_POGINGEN` zonder applicatie-ACK — slave niet bereikbaar |
 | `{"status":"geen_slave","paal":3}` | Commando naar een leeg/placeholder slot (all-zero MAC) — geweigerd |
+| `{"paal":3,"hb":1,"batt":3.87,"uptime":1234,"fw":2}` | Heartbeat van een slave (uit `MSG_HEARTBEAT`) |
+| `{"paal":3,"fout":1,"ernst":2,"detail":3150}` | Foutmelding van een slave (uit `MSG_FOUT`) |
+| `{"paal":3,"knop":1}` | Drukknop op een slave (uit `MSG_KNOP`, via ESP-NOW) |
 | `{"status":"log_drop","aantal":N}` | Serial-log-queue zat vol onder pieklast; N regels verloren |
 | `[PEER] Paal 3 toegevoegd: ...` | Slave als peer geregistreerd bij startup |
 | `[PEER] Paal 1 overgeslagen` | Placeholder MAC, wordt niet geregistreerd |
-| `{"status":"onbekende paal","paal":25}` | Pi stuurde paal-ID buiten bereik |
+| `[SETUP] Master 2, palen 8-16 (9 slaves)` | Opstart-banner: welke master + paalbereik (uit de env) |
+| `{"status":"buiten_bereik","paal":25,"master":2}` | Pi stuurde een paal buiten het bereik van deze master → routeringsfout |
 
 ---
 

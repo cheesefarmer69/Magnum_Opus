@@ -13,6 +13,103 @@ Dit voorkomt dat componenten uit sync raken.
 [Slaves (ESP32-C3)] <--ESP-NOW-- [Master (ESP32 WROOM)] <--Serial USB-- [Pi: bridge.py] <--MQTT-------+
 ```
 
+## 0. ESP-NOW wire-format v2 — berichttypes
+
+> **Protocol v2.** Alle ESP-NOW-berichten beginnen met een **discriminator-byte `msg_type`**; het
+> berichttype wordt **op type** onderscheiden, niet meer impliciet op lengte. Alle structs zijn
+> `__attribute__((packed))` aan beide kanten (Xtensa WROOM ↔ RISC-V C3).
+
+| `msg_type` | Constante | Richting | Struct | Grootte |
+|-----------:|-----------|----------|--------|--------:|
+| `0x01` | `MSG_BATCH`     | slave → master | `batch_message_v2` | **variabel**: 5 + `aantal`×7 B (5–215) |
+| `0x02` | `MSG_COMMANDO`  | master → slave | `commando_message_v2` | 5 B |
+| `0x03` | `MSG_CMD_ACK`   | slave → master (ná uitvoering) | `cmd_ack_message` | 5 B |
+| `0x04` | `MSG_HEARTBEAT` | slave → master (periodiek) | `heartbeat_message` | 9 B |
+| `0x05` | `MSG_FOUT`      | slave → master | `fout_message` | 8 B |
+| `0x06` | `MSG_KNOP`      | slave → master (bij druk) | `knop_message` | 2 B |
+
+```cpp
+#define MSG_BATCH      0x01
+#define MSG_COMMANDO   0x02
+#define MSG_CMD_ACK    0x03
+#define MSG_HEARTBEAT  0x04
+#define MSG_FOUT       0x05
+#define MSG_KNOP       0x06
+
+typedef struct __attribute__((packed)) {        // 0x01 — slave → master
+  uint8_t  msg_type;        // = MSG_BATCH
+  uint8_t  paal_id;         // 1..24
+  uint8_t  aantal;          // aantal spelers in deze batch (0..30)
+  uint16_t batt_mv;         // batterijspanning in mV (0 = niet gemeten)
+  struct {
+    uint8_t mac[6];         // binair MAC-adres (big-endian, zoals weergegeven)
+    int8_t  rssi;           // dBm, bereik ~ -30..-90
+  } spelers[30];            // 7 B/speler -> max 5 + 30*7 = 215 B <= 250 B ESP-NOW-limiet
+} batch_message_v2;
+static_assert(sizeof(batch_message_v2) <= 250, "batch_message_v2 te groot voor ESP-NOW");
+// VERZONDEN LENGTE IS VARIABEL: de slave stuurt enkel het gebruikte deel —
+// offsetof(spelers) + aantal*7 = 5 + aantal*7 bytes (5 bij 0 spelers, 215 bij 30).
+// Korte frames = minder airtime = robuuster op de C3 (BLE/WiFi-coexistence).
+// Master-validatie: len >= 5, daarna aantal (byte 2) <= 30, daarna len >= 5 + aantal*7.
+
+typedef struct __attribute__((packed)) {        // 0x02 — master → slave
+  uint8_t  msg_type;        // = MSG_COMMANDO
+  uint8_t  paal_id;
+  uint8_t  actie_id;        // zie actie-tabel §2
+  uint16_t cmd_seq;         // volgnummer; retries hergebruiken hetzelfde nummer
+} commando_message_v2;
+
+typedef struct __attribute__((packed)) {        // 0x03 — slave → master, NÁ uitvoering
+  uint8_t  msg_type;        // = MSG_CMD_ACK
+  uint8_t  paal_id;
+  uint16_t cmd_seq;         // echo van het uitgevoerde commando
+  uint8_t  status;          // 0 = uitgevoerd, 1 = geweigerd/onbekende actie
+} cmd_ack_message;
+
+typedef struct __attribute__((packed)) {        // 0x04 — slave → master, periodiek
+  uint8_t  msg_type;        // = MSG_HEARTBEAT
+  uint8_t  paal_id;
+  uint16_t batt_mv;
+  uint32_t uptime_s;
+  uint8_t  fw_versie;
+} heartbeat_message;
+
+typedef struct __attribute__((packed)) {        // 0x05 — slave → master
+  uint8_t  msg_type;        // = MSG_FOUT
+  uint8_t  paal_id;
+  uint8_t  ernst;           // 0 = info, 1 = waarschuwing, 2 = fout
+  uint8_t  foutcode;        // zie foutcode-tabel §3
+  uint32_t detail;          // vrij veld (bv. spanning in mV, een teller)
+} fout_message;
+
+typedef struct __attribute__((packed)) {        // 0x06 — slave → master, bij knopdruk
+  uint8_t  msg_type;        // = MSG_KNOP
+  uint8_t  paal_id;
+} knop_message;
+```
+
+### Dispatch + lengte-validatie
+
+- **Master `OnDataRecv`**: check `len ≥ 1`, dan `switch (incomingData[0])`. Valideer per type de **exacte
+  lengte** (`len >= sizeof(<struct>)`) vóór `memcpy`. Onbekend `msg_type` of verkeerde lengte → log + drop.
+  De sender-MAC-gate (`vindSlaveIndex` tegen `slaveAdressen[]`) blijft als eerste filter staan.
+- **Slave `OnDataRecv`**: accepteert **alleen** `MSG_COMMANDO` (`incomingData[0] == 0x02` + lengtecheck);
+  al het andere wordt genegeerd.
+
+### Applicatie-ACK (afronding ná uitvoering)
+
+Een commando geldt pas als **afgeleverd** wanneer de slave het **heeft uitgevoerd** en een `MSG_CMD_ACK`
+terugstuurt — niet bij de MAC-laag-ACK van de radio (die zegt enkel "pakket ontvangen door de radio").
+
+- De slave stuurt `MSG_CMD_ACK` **ná** `voerActieUit()`, met `status` 0 (uitgevoerd) of 1 (onbekende actie).
+- **Idempotent**: de slave onthoudt het laatst uitgevoerde `cmd_seq`. Komt hetzelfde `cmd_seq` opnieuw binnen
+  (master deed een retry omdat de ACK verloren ging), dan voert de slave **niet opnieuw uit** maar stuurt hij
+  **wél opnieuw een ACK**.
+- De master koppelt de ACK aan het **head-item** van de per-slave FIFO via `cmd_seq` en popt het dan.
+- **Timing**: de slave verwerkt een commando pas aan het einde van zijn ~1 s blokkerende scan-cyclus. De
+  ACK-round-trip is daardoor ~1–1,3 s; de master-retry-timeout (`APP_ACK_TIMEOUT`) staat daarom op **~1500 ms**
+  (niet de 250 ms MAC-interval). Retries hergebruiken hetzelfde `cmd_seq`; na `MAX_POGINGEN` volgt `opgegeven`.
+
 ## 1. Slave → Master (ESP-NOW)
 
 Slave detecteert BLE-beacons van spelers en stuurt batches naar de master.
@@ -20,26 +117,42 @@ Het systeem heeft **3 masters**, elk met **8 slaves** (palen). Totaal 24 palen.
 
 ### Datastruct (C++)
 
+De batch is `batch_message_v2` (`msg_type = MSG_BATCH`, zie §0): **binaire** MAC's (6 B) en `int8 rssi`
+i.p.v. een 18-byte string + `int32`, en `uint16 batt_mv` i.p.v. `float`. Daardoor passen **30 spelers**
+in één pakket (max 215 B ≤ 250 B), tegen 9 in v1. De slave verstuurt **alleen het gebruikte deel**
+(`5 + aantal×7` bytes; 5 B bij een leeg vak): kortere frames = minder airtime = betrouwbaarder op de
+single-antenne C3 direct na de BLE-scan.
+
 ```cpp
 typedef struct __attribute__((packed)) {
-    int paal_id;              // 1, 2, 3, ... (uniek per slave, hardcoded)
-    int aantalGevonden;       // aantal gedetecteerde spelers in deze batch
-    float batterij_v;         // gemeten batterijspanning in volt (0.0 = onbekend)
-    struct {
-        char speler_mac[18];  // formaat: "aa:bb:cc:dd:ee:ff" (lowercase)
-        int rssi;             // signaalsterkte in dBm (typisch -30 tot -90)
-    } spelers[9];             // max 9 spelers per batch
-} batch_message;
+  uint8_t  msg_type;        // = MSG_BATCH (0x01)
+  uint8_t  paal_id;         // 1..24 (uniek per slave, hardcoded)
+  uint8_t  aantal;          // aantal gedetecteerde spelers in deze batch (0..30)
+  uint16_t batt_mv;         // batterijspanning in mV (0 = niet gemeten)
+  struct {
+    uint8_t mac[6];         // binair MAC-adres (big-endian, zoals weergegeven)
+    int8_t  rssi;           // dBm, bereik ~ -30..-90
+  } spelers[30];
+} batch_message_v2;
 ```
 
 **Belangrijk:**
 - `__attribute__((packed))` aan beide kanten — voorkomt alignment-issues
-  tussen Xtensa (WROOM, master) en RISC-V (C3, slave)
-- MAC-adressen lowercase — NimBLE returnt ze lowercase
-- `spelers[9]` is een vaste array, niet dynamisch; ongebruikte slots
-  hebben `aantalGevonden` als afsluiting
-- `batterij_v` wordt elke batch meegestuurd. De slave meet via een
-  spanningsdeler op `BATTERY_ADC_PIN`. Waarde `0.0` betekent "niet gemeten".
+  tussen Xtensa (WROOM, master) en RISC-V (C3, slave).
+- MAC's zijn nu **binair** (6 bytes). De master vertaalt ze terug naar de string-vorm
+  `"aa:bb:cc:dd:ee:ff"` (lowercase) in de serial-JSON naar de Pi, zodat de Node-RED-flows ongewijzigd blijven.
+- `spelers[30]` is een vaste array; `aantal` geeft het aantal geldige slots aan.
+- `batt_mv` wordt elke batch meegestuurd (mV; `0` = niet gemeten). De master deelt door 1000 voor de
+  `{"batt":3.87}`-regel.
+
+### Whitelist (v2): OUI-prefix + RSSI-drempel
+
+In v1 stond een **hardcoded lijst van beacon-MAC's** in elke slave — elke beacon-wissel vereiste 24 palen
+herflashen. In v2 filtert de slave op **OUI-prefix** (de eerste 3 MAC-bytes van de beacons, `48:87:2d`)
+**én** een **RSSI-drempel** (`rssi ≥ RSSI_DREMPEL`, bv. −85 dBm). Voordelen: geen herflash bij beacon-wissel
+(zolang dezelfde fabrikant-OUI), en omstanders/telefoons (andere OUI, of te zwak) vallen weg. De ruime
+30-slot array vangt resterende ruis op. Bij **>30** gedetecteerde spelers in één vak wordt niet meer stil
+gedropt maar een teller bijgehouden en een `MSG_FOUT` (foutcode "BLE-overflow") gestuurd.
 
 ### Frequentie en timing
 
@@ -48,10 +161,10 @@ typedef struct __attribute__((packed)) {
 - Batch wordt **elke** scan-cyclus verzonden, óók bij 0 gevonden spelers.
   Zo herkent het systeem een leeggelopen vak en blijft de stand niet hangen.
 - **Dedup binnen een batch**: een beacon adverteert meerdere keren per seconde,
-  maar elke whitelisted MAC komt maximaal één keer voor in `spelers[]`. Bij
-  meerdere advertenties van dezelfde beacon binnen één scan houdt de slave de
-  sterkste RSSI. Zonder deze dedup zou `spelers[9]` volstromen met duplicaten
-  en zou de master tientallen JSON-regels per seconde doorsturen voor één paal.
+  maar elke MAC die het OUI/RSSI-filter passeert komt maximaal één keer voor in
+  `spelers[]`. Bij meerdere advertenties van dezelfde beacon binnen één scan houdt
+  de slave de sterkste RSSI. Zonder deze dedup zou `spelers[30]` volstromen met
+  duplicaten en zou de master tientallen JSON-regels per seconde doorsturen voor één paal.
 - Vóór verzenden wacht de slave een willekeurige tijd (`0..MAX_BACKOFF_MS`,
   standaard 150 ms, hardware-RNG `esp_random()`). Deze random backoff
   ontkoppelt de zendmomenten van meerdere slaves zodat hun pakketten elkaar
@@ -65,10 +178,16 @@ Master stuurt commando's naar specifieke slaves voor uitvoer (LED, geluid, etc.)
 
 ```cpp
 typedef struct __attribute__((packed)) {
-    int paal_id;       // doel-slave (1, 2, 3, ...)
-    uint8_t actie_id;  // wat te doen
-} commando_message;
+  uint8_t  msg_type;   // = MSG_COMMANDO (0x02)
+  uint8_t  paal_id;    // doel-slave (1..24)
+  uint8_t  actie_id;   // wat te doen (zie tabel hieronder)
+  uint16_t cmd_seq;    // volgnummer; de slave echo't dit in MSG_CMD_ACK
+} commando_message_v2;
 ```
+
+`cmd_seq` wordt door de **master** toegekend (de Pi/Node-RED stuurt enkel `{"paal","actie"}`); retries van
+hetzelfde commando hergebruiken hetzelfde `cmd_seq` zodat de slave dubbel-uitvoeren kan detecteren (§0,
+"Applicatie-ACK"). De slave bevestigt met `cmd_ack_message` (`MSG_CMD_ACK`) **ná** uitvoering.
 
 ### Geldige `actie_id` waarden
 
@@ -97,35 +216,51 @@ aantal hartslagen na de monitor-piep. De **geanimeerde** acties (8 = nuke, 11 = 
 slave gerenderd door `updateAnimatie()` (millis-gebaseerd, blijft animeren tot een nieuwe actie binnenkomt). Bij een kleur-actie wordt de MOSFET eerst HIGH gezet (5 ms delay)
 voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje bij inschakelen.
 
-### Reliability: per-slave commando-slots
+### Reliability: per-slave commando-FIFO + applicatie-ACK
 
-De master verstuurt commando's niet fire-and-forget. In plaats van één gedeelde
-FIFO-queue houdt hij **één pending-slot per slave** bij (`cmdPerSlave[AANTAL_SLAVES]`,
-index = `paal_id − 1`). Elk slot wordt onafhankelijk afgehandeld; de slots worden
-elke loop-tick **parallel** verwerkt.
+De master verstuurt commando's niet fire-and-forget. Hij houdt **per slave een kleine FIFO** bij
+(`cmdPerSlave[AANTAL_SLAVES]`, diepte `CMD_FIFO_DIEPTE` = 4, index = `paal_id − 1`); de FIFO's worden elke
+loop-tick **parallel** verwerkt. Het **HEAD-item** is in-flight en draagt zijn eigen `cmd_seq`.
 
-Per slot wordt het commando verzonden met `esp_now_send()` en gewacht op `OnDataSent()`:
+Afronding in v2 gebeurt op de **applicatie-ACK** (`MSG_CMD_ACK`), niet op de MAC-laag-ACK:
 
-- **`ESP_NOW_SEND_SUCCESS`** = slave-radio heeft het pakket ontvangen
-  (MAC-laag ACK). Het slot is dan klaar (vrijgegeven).
-- **`!SUCCESS`** of geen callback binnen 250 ms = retry. Tot max 5 pogingen.
-- Na 5 mislukte pogingen geeft de master dat slot op met een
-  `opgegeven`-log-regel. Dit verschijnt op Serial → Pi → Node-RED.
+- De master verstuurt het head-item als `commando_message_v2` met `esp_now_send()`. `OnDataSent` (MAC-ACK)
+  wordt nog enkel gebruikt voor **radio-logging** (`send_err` bij FAIL) en een hint om meteen opnieuw te
+  proberen — het rondt het commando **niet** af.
+- Het head-item wordt **gepopt** zodra een `MSG_CMD_ACK` met matchend `cmd_seq` binnenkomt. De master meldt
+  dan `{"status":"uitgevoerd","paal":N,"seq":S}` (of `"geweigerd"` bij `status == 1`) en stuurt het volgende
+  item.
+- Komt er binnen `APP_ACK_TIMEOUT` (~1500 ms, afgestemd op de ~1 s slave-scancyclus) geen ACK, dan
+  **resend** met **hetzelfde** `cmd_seq`. Na `MAX_POGINGEN` (~4) geeft de master het head-item op met
+  `{"status":"opgegeven",...}` en gaat verder met het volgende.
 
 Eigenschappen van dit model:
 
-- **Geen capaciteitslimiet meer.** 24 palen = 24 slots; een veld-breed commando wordt
-  nooit geweigerd. De status `queue_vol` bestaat niet meer.
-- **Geen head-of-line blocking.** Een onbereikbare paal (dode batterij, buiten bereik)
-  doorloopt zijn eigen retry-cyclus zonder de commando's naar andere palen te vertragen.
-- **Laatste-wint per paal.** Komt er een nieuw commando voor een paal die nog een pending
-  commando heeft, dan **overschrijft** het nieuwe het oude. Dat matcht de Node-RED-semantiek
-  (de gewenste eindtoestand sturen) en houdt het simpel.
-- **Placeholder-palen.** Een commando naar een slot met all-zero MAC wordt **direct geweigerd**
-  met `{"status":"geen_slave"}` — geen nutteloze retry-cyclus.
+- **Volgorde-behoud (geen laatste-wint).** Twee snel opeenvolgende, verschillende commando's naar dezelfde
+  paal (bv. buzzer-piep + portaal) worden **beide** in volgorde afgeleverd — vroeger overschreef het laatste
+  het eerste, waardoor bv. de piep wegviel.
+- **Geen head-of-line blocking tussen palen.** Een onbereikbare paal doorloopt zijn eigen retry-cyclus
+  zonder de commando's naar andere palen te vertragen. (Binnen één paal is de FIFO wel ordelijk: het head-item
+  blokkeert tot het ge-ACK't of opgegeven is.)
+- **Drop-oudste bij volle FIFO.** Stapelen er meer dan `CMD_FIFO_DIEPTE` commando's op (bv. een dode paal),
+  dan wordt het **oudste** gedropt met `{"status":"fifo_vol","paal":N,"gedropt_seq":S}`.
+- **Placeholder-palen.** Een commando naar een paal met all-zero MAC wordt direct geweigerd met
+  `{"status":"geen_slave"}` — geen nutteloze retry-cyclus.
+- **Idempotent.** Door het vaste `cmd_seq` per (re)send voert de slave een herhaald commando niet dubbel uit
+  (hij her-ACK't enkel), zodat een verloren ACK geen dubbele uitvoering veroorzaakt.
 
-Dit lost het probleem op waarbij een commando soms gemist werd omdat de
-slave net aan het BLE-scannen of zelf aan het zenden was.
+Dit dicht het afleveringsgat van v1, waar een MAC-ACK al "afgeleverd" betekende terwijl de slave het
+commando daarna alsnog kon mislopen.
+
+### Slave: luistervenster + commando-ringbuffer
+
+De slave verwerkt binnenkomende commando's via een **SPSC-ringbuffer** (`CMD_BUF_SLOTS` = 8), niet via één
+variabele. `OnDataRecv` is de **producent** (pusht `{actie, cmd_seq}`, dropt de nieuwste bij volle buffer +
+`cmdDrops++`); de loop is de **consument** (`verwerkCommandos()`) die de buffer **in volgorde** leegmaakt,
+elk commando idempotent uitvoert (op `cmd_seq`) en daarna `MSG_CMD_ACK` stuurt. De consument draait op
+meerdere punten per cyclus (ná de BLE-scan, ná het zenden, in en na het 200 ms-luistervenster), zodat een
+commando dat binnenkomt tijdens de scan, `voerActieUit()` of de afsluitende `delay()` **nooit verloren gaat
+of overschreven wordt**. De drop-teller is zichtbaar in de seriële debug (`[CMD] Ringbuffer-drops: N`).
 
 ## 3. Master → Pi (Serial USB)
 
@@ -164,8 +299,44 @@ in de buurt is. Node-RED bewaart de laatste waarde per paal in
 {"paal":1,"knop":1}
 ```
 
-De slave stuurt deze regel bij een **druk op de knop** (GPIO3, rising edge).
-Hook voor latere spellogica; de slave geeft tegelijk een puls op de rode LED.
+De slave detecteert een **druk op de knop** (GPIO3, rising edge) en stuurt een `MSG_KNOP`-pakket via
+**ESP-NOW** naar de master (tegelijk een puls op de rode LED). De master vertaalt dat naar de regel
+hierboven op de Pi. *(In v1 ging dit naar de eigen USB-CDC van de slave en bereikte het de Pi nooit; v2
+lost dat op.)*
+
+### Formaat: heartbeat
+
+```json
+{"paal":1,"hb":1,"batt":3.87,"uptime":1234,"fw":2}
+```
+
+Periodiek "ik leef"-bericht (uit `MSG_HEARTBEAT`), ook zonder spelers in de buurt — interval is een
+firmware-constante (`HEARTBEAT_INTERVAL_S`, default 10 s). `uptime` in seconden, `fw` = firmware-versie.
+Hiermee kan de pre-flight check in Node-RED echte connectiviteit per paal vaststellen.
+
+### Formaat: fout
+
+```json
+{"paal":1,"fout":1,"ernst":2,"detail":3150}
+```
+
+Gestructureerde foutmelding (uit `MSG_FOUT`). `ernst`: 0 = info, 1 = waarschuwing, 2 = fout. `detail` is een
+vrij veld (bv. spanning in mV of een teller).
+
+| `fout` | Betekenis | `detail` |
+|-------:|-----------|----------|
+| `1` | Batterij kritiek | spanning in mV |
+| `2` | ESP-NOW-zend mislukt | `esp_err_t`-code |
+| `3` | BLE-overflow (>30 spelers in dit vak) | aantal extra gedetecteerd |
+
+### Formaat: commando-uitvoering (ACK)
+
+```json
+{"status":"uitgevoerd","paal":1,"seq":42}
+```
+
+De master meldt dit zodra de slave een commando **heeft uitgevoerd** (`MSG_CMD_ACK`, `status 0`); bij een
+onbekende/geweigerde actie `"geweigerd"` (`status 1`). Vervangt de v1 MAC-ACK-gebaseerde `"ack"`.
 
 ### Indicator-LED's (geen serieel bericht)
 
@@ -200,18 +371,20 @@ Pi stuurt commando's terug naar de master, doorgegeven vanuit Node-RED.
 {"paal":1,"actie":1}
 ```
 
-Master valideert dat `paal_id` binnen `AANTAL_SLAVES` valt en zet het
-commando in het pending-slot van die paal (zie sectie 2 "Reliability"). Master
+De Pi/Node-RED stuurt enkel `{"paal","actie"}`; de master kent zelf het `cmd_seq` toe en zet het commando
+(`commando_message_v2`) achteraan de **per-slave FIFO** van die paal (zie sectie 2 "Reliability"). Master
 antwoordt per regel met een status-JSON:
 
 | Status         | Betekenis |
 |----------------|-----------|
-| `queued`       | Commando in het paal-slot gezet, wordt async verzonden (overschrijft een eventueel pending commando voor diezelfde paal). |
-| `ack`          | Slave-radio bevestigd. Bevat `pogingen` (1 = direct gelukt). |
-| `send_err`     | `esp_now_send()` gaf geen ESP_OK. Retry volgt automatisch. |
-| `opgegeven`    | Na 5 mislukte pogingen — commando verloren. |
+| `queued`       | Commando achteraan de per-slave FIFO gezet, wordt in volgorde async verzonden (geen laatste-wint). |
+| `fifo_vol`     | De FIFO van die paal zat vol (`CMD_FIFO_DIEPTE`) — het oudste commando is gedropt (`gedropt_seq`). |
+| `uitgevoerd`   | Slave heeft het commando **uitgevoerd** (`MSG_CMD_ACK status 0`). Bevat `seq`. Vervangt de v1 `ack`. |
+| `geweigerd`    | Slave gaf `MSG_CMD_ACK status 1` (onbekende/geweigerde actie). Bevat `seq`. |
+| `send_err`     | `esp_now_send()` gaf geen ESP_OK (radio). Retry volgt automatisch. |
+| `opgegeven`    | Na `MAX_POGINGEN` zonder applicatie-ACK — commando verloren. |
 | `geen_slave`   | `paal_id` wijst naar een leeg/placeholder slot (all-zero MAC) — geweigerd. |
-| `onbekende paal` | `paal_id` valt buiten `AANTAL_SLAVES`. |
+| `buiten_bereik` | `paal_id` valt buiten het paalbereik van deze master (`PAAL_MIN..PAAL_MAX`). Bevat `master`. Hoort nooit te gebeuren (de bridge routeert op `paal_id`) → wijst op een routeringsfout. |
 | `log_drop`     | De interne serial-log-queue zat vol; `aantal` regels gingen verloren onder pieklast. |
 
 ## 5. Pi ↔ Node-RED (MQTT)
@@ -358,7 +531,25 @@ Plates-of-Fate LED-toestanden worden centraal gestuurd op het bestaande
 
 ## 6. Slave-registratie en sender-MAC gate (master code)
 
-MAC-adressen van slaves zijn hardcoded in master's `slaveAdressen[]` array.
+### Multi-master: één codebase, drie environments
+
+Het veld heeft **3 masters**: master 1 bedient palen **1–7**, master 2 **8–16**, master 3 **17–24**.
+Eén master-codebase, drie PlatformIO-environments (`master1/2/3` in `firmware/Master/platformio.ini`) die
+elk `PAAL_MIN`/`PAAL_MAX`/`MASTER_NR` via `build_flags` zetten. Afgeleid:
+
+- `AANTAL_SLAVES = PAAL_MAX − PAAL_MIN + 1` en `paalNaarIndex(paal) = paal − PAAL_MIN` (de **globale**
+  paal-ID wordt zo de juiste 0-based array-index — index 0 = `PAAL_MIN`).
+- Een commando voor een paal **buiten** `PAAL_MIN..PAAL_MAX` wordt geweigerd met
+  `{"status":"buiten_bereik","paal":N,"master":M}` (hoort nooit te gebeuren; de bridge routeert al op
+  `paal_id`).
+- Het verzonden commando draagt de **globale** `paal_id` (`PAAL_MIN + index`), zodat de slave op zijn
+  eigen `PAAL_ID` matcht.
+- De slave-MAC's per master staan in `firmware/Master/include/slave_macs.h` (`#if MASTER_NR`-blokken) —
+  elke master kent **uitsluitend zijn eigen** slaves, zodat de sender-MAC gate automatisch segmenteert.
+- De **slave** kiest zijn master-MAC uit `PAAL_ID` (1–7→master1, 8–16→master2, 17–24→master3) via een
+  tabel `masterMacs[3][6]` — niets extra per slave te configureren behalve `PAAL_ID`.
+
+MAC-adressen van slaves staan per master in `slave_macs.h` (geladen in `slaveAdressen[]`).
 Deze array vervult **twee** rollen:
 
 1. **Peer-lijst voor zenden**: alle MACs worden via `esp_now_add_peer()`
@@ -374,11 +565,11 @@ Deze array vervult **twee** rollen:
 > alle 24 slaves in het veld — terwijl één master maar 8 specifieke slaves
 > hoort te bedienen.
 
-Bij het toevoegen van een nieuwe slave:
-1. Flash slave en lees MAC uit Serial Monitor (banner `SLAVE MAC-ADRES : ...`)
-2. Voeg toe aan master's `slaveAdressen[]`
-3. Verhoog `AANTAL_SLAVES`
-4. Herflash master
+Bij het toevoegen/wijzigen van een slave:
+1. Flash slave (zet `PAAL_ID`) en lees MAC uit Serial Monitor (banner `SLAVE MAC-ADRES : ...`)
+2. Vul het MAC in op de juiste rij in `firmware/Master/include/slave_macs.h` (in het `MASTER_NR`-blok
+   van de master die die paal bedient; rij-index = `paal − PAAL_MIN`)
+3. Herflash de juiste master-environment (`AANTAL_SLAVES` is afgeleid uit het bereik — niet meer handmatig)
 
 Slots met placeholder MAC `0x00:0x00:0x00:0x00:0x00:0x00` worden overgeslagen
 bij zowel peer-registratie als de ontvangst-gate, zodat je veilig vooruit
@@ -386,6 +577,25 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-06-11: **MSG_BATCH variabele lengte** (veldfix). De slave verstuurde altijd het volle 215-byte
+  frame (30 slots), óók bij 0 spelers; in de praktijk bereikten die lange frames de master niet terwijl
+  de kleine v2-frames (heartbeat 9 B) wél aankwamen. De slave verstuurt nu enkel het gebruikte deel
+  (`5 + aantal×7` B); de master valideert in twee stappen (header ≥ 5, `aantal` ≤ 30, `len ≥ 5 + aantal×7`)
+  en accepteert ook nog volle frames. Vereist herflash van slave(s) + master(s).
+- 2026-06-11: **slave commando-race + master FIFO** (Batch 3). Slave: commando's via een **SPSC-ringbuffer**
+  (8 slots) i.p.v. één variabele; de flag-reset bovenaan de loop is weg en `verwerkCommandos()` draineert op
+  meerdere punten → geen verloren/overschreven commando's, twee commando's per cyclus allebei uitgevoerd,
+  idempotent op `cmd_seq`, `cmdDrops`-teller. Master: het enkele per-slave slot (laatste-wint) is vervangen
+  door een **per-slave FIFO** (diepte 4, drop-oudste = `fifo_vol`), zodat bv. piep + portaal allebei in
+  volgorde de slave bereiken. Geen wire-format-wijziging t.o.v. v2 (zelfde flash-moment als Batch 1).
+- 2026-06-11: **protocol v2** (Batch 1) — één ESP-NOW wire-format revisie (vereist herflash van alle
+  slaves + master). Elk bericht krijgt een **`msg_type`-discriminator** (dispatch op type i.p.v. lengte).
+  `batch_message` → `batch_message_v2`: **binaire MAC's** (6 B) + `int8 rssi` + `uint16 batt_mv`, en
+  **`spelers[30]`** (215 B ≤ 250 B) i.p.v. 9 — geen stille drop meer bij >9 spelers. Nieuwe berichttypes:
+  `MSG_CMD_ACK` (applicatie-ACK ná uitvoering → master meldt `uitgevoerd`/`geweigerd` i.p.v. MAC-ack `ack`,
+  met `cmd_seq` voor idempotente retries), `MSG_HEARTBEAT`, `MSG_FOUT` (foutcode-tabel), `MSG_KNOP` (knop nu
+  via ESP-NOW i.p.v. de dode USB-CDC). Whitelist v2: **OUI-prefix + RSSI-drempel** op de slave i.p.v. een
+  hardcoded MAC-lijst. `bridge.py` ongewijzigd (inhoud-agnostisch). Buzzer-frequentie nu per-paal constante.
 - 2026-06-10: master-robuustheid (Batch 2). FIFO-queue (16) vervangen door
   **per-slave pending-slots** (laatste-wint, parallelle retries) → geen
   `queue_vol` meer en geen head-of-line blocking door een dode paal;
@@ -418,4 +628,6 @@ kunt definiëren.
 - 2026-05-18: slave verstuurt nu elke cyclus (ook bij 0 spelers) + random
   backoff vóór verzenden tegen botsende ESP-NOW-pakketten van meerdere slaves
 - 2026-05-17: actie_id tabel bijgewerkt — alle 5 acties (0–4) geïmplementeerd in slave firmware
+  *(correctie: destijds waren het 4 acties, 0–3 — `NIETS`/`PORTAAL`/`HAPPY_HOUR`/`BUZZER_PIEP`; de
+  acties 4–11 zijn er later bij gekomen, zie de actietabel in §2)*
 - 2026-05-10: initieel document, opgesteld bij overstap naar VS Code + GitHub workflow

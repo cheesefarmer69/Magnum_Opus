@@ -16,12 +16,14 @@ versie hier vermeld vs. de werkelijkheid op je systeem? Zie de verificatie-comma
 |-----------|--------|------|
 | PlatformIO platform | `espressif32 @ 6.5.0` | `firmware/Master/platformio.ini` |
 | Board | `esp32dev` | idem |
+| Environments | `master1` / `master2` / `master3` | per master een paalbereik via `build_flags` (`PAAL_MIN/PAAL_MAX/MASTER_NR`) |
 | Framework | Arduino | idem |
 | ESP32 Arduino core | 2.0.17 | volgt uit platform 6.5.0 |
 | Monitor baud | 115200 | idem |
 | Upload baud | 921600 | idem |
 
 **Geen externe libraries** — master gebruikt alleen Arduino core (`WiFi`, `esp_now`, `esp_wifi`).
+Slave-MAC's per master in `firmware/Master/include/slave_macs.h`.
 
 ### Slave — ESP32-C3 SuperMini
 
@@ -35,6 +37,15 @@ versie hier vermeld vs. de werkelijkheid op je systeem? Zie de verificatie-comma
 | FastLED | 3.10.3 | voor WS2812B LED-strip |
 | Monitor baud | 115200 | idem |
 | Upload baud | 921600 | idem |
+
+### ESP-NOW wire-format
+
+| Component | Versie | Bron |
+|-----------|--------|------|
+| Protocol | **v2** (msg_type-discriminator, binaire MAC's, app-ACK, heartbeat/fout/knop) | `docs/protocol.md` |
+| Slave `FW_VERSIE` | 2 | `firmware/Slave/src/main.cpp` (meegestuurd in `MSG_HEARTBEAT`) |
+
+> Protocol v2 vereist dat **master én alle slaves** samen herflasht worden (gewijzigd wire-format).
 
 ---
 
@@ -126,4 +137,10 @@ docker exec magnum-Opus node-red --version
 
 ## Wijzigingsgeschiedenis
 
+- **2026-06-11**: **multi-master** (Batch 4). Master-firmware: drie PlatformIO-envs (`master1/2/3`) met
+  paalbereik via `build_flags`; slave-MAC's per master in `include/slave_macs.h`. Slave kiest master-MAC
+  uit `PAAL_ID`. Simulator volgt `commando/master1..3`. Geen wire-format-wijziging.
+- **2026-06-11**: ESP-NOW **protocol v2** (Batch 1). Master + slave firmware naar het nieuwe wire-format
+  (msg_type-dispatch, binaire MAC's, `spelers[30]`, applicatie-ACK, heartbeat/fout/knop). Slave `FW_VERSIE = 2`.
+  Vereist herflash van master + alle slaves. `bridge.py` ongewijzigd.
 - **2026-05-10**: initieel document. PIO-platform en libraries gepind. Container-images nog op `latest`.

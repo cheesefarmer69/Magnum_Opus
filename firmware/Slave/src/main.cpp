@@ -15,6 +15,26 @@ const int PAAL_ID        = 1;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
+// Per-paal buzzer-resonantiefrequentie (productiespreiding op de passieve piezo).
+// Voorlopig overal 1500 Hz; kalibreer per bordje voor maximaal volume (zie docs/todo.md).
+const uint16_t BUZZER_FREQ = 1500;
+
+// ---- PROTOCOL v2 ----
+#define MSG_BATCH      0x01   // slave -> master
+#define MSG_COMMANDO   0x02   // master -> slave
+#define MSG_CMD_ACK    0x03   // slave -> master, NA uitvoering
+#define MSG_HEARTBEAT  0x04   // slave -> master, periodiek
+#define MSG_FOUT       0x05   // slave -> master
+#define MSG_KNOP       0x06   // slave -> master, bij druk
+
+const uint8_t       FW_VERSIE            = 2;
+const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
+
+// Foutcodes (zie docs/protocol.md §3)
+#define FOUT_BATT_KRITIEK   1
+#define FOUT_ESPNOW_ZEND    2
+#define FOUT_BLE_OVERFLOW   3
+
 // ====================================================================
 // PIN MAPPING (komt overeen met PCB schema)
 // ====================================================================
@@ -117,7 +137,8 @@ struct Noot {
 };
 
 // Buzzer-piep: één duidelijke toon bij het afroepen van een uur. Einde = {0,0}.
-static const Noot MELODIE_PIEP[] = {
+// Niet-const: setup() zet [0].freq op de per-paal BUZZER_FREQ (kalibratie).
+static Noot MELODIE_PIEP[] = {
     {1500, 600},
     {   0,   0}
 };
@@ -166,49 +187,107 @@ unsigned long actieStartMs = 0;
 SemaphoreHandle_t xLedMutex = NULL;
 
 // ====================================================================
-// WHITELIST
+// WHITELIST (v2): OUI-prefix + RSSI-drempel
 // ====================================================================
-const char *toegelatenBeacons[] = {
-  "48:87:2d:9d:bb:7d",
-  "48:87:2d:9d:ba:5c",
-  "48:87:2d:9d:ba:cc",
-  "48:87:2d:9d:ba:5f",
-  "48:87:2d:9d:bb:0b",
-  "48:87:2d:9d:ba:a5",
-};
-const int aantalBeacons = 6;
+// Geen hardcoded MAC-lijst meer (die vereiste herflashen bij elke beacon-wissel).
+// We laten alleen MAC's door met het beacon-OUI-prefix (de eerste 3 bytes van de
+// fabrikant) EN een RSSI boven de drempel. Zo vallen omstanders/telefoons (ander
+// OUI of te zwak) weg en hoeft een beacon-wissel geen herflash.
+const uint8_t BEACON_OUI[3] = { 0x48, 0x87, 0x2d };
+const int8_t  RSSI_DREMPEL  = -85;   // dBm; zwakker dan dit wordt genegeerd
 
 // ====================================================================
-// MAC ADRES MASTER
+// MAC ADRES MASTER (afgeleid uit PAAL_ID)
 // ====================================================================
-uint8_t masterAddress[] = { 0xF0, 0x24, 0xF9, 0x5A, 0x01, 0x90 };
+// Eén bron van waarheid: de slave kiest zijn master-MAC op basis van PAAL_ID
+// (1-7 -> master1, 8-16 -> master2, 17-24 -> master3). Niets extra per slave te
+// configureren behalve PAAL_ID. masterAddress wordt in setup() gevuld.
+uint8_t masterMacs[3][6] = {
+  { 0xF0, 0x24, 0xF9, 0x5A, 0x01, 0x90 },   // master 1 (palen 1-7)
+  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },   // master 2 (palen 8-16)  TODO: MAC invullen
+  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },   // master 3 (palen 17-24) TODO: MAC invullen
+};
+uint8_t masterAddress[6];   // gevuld in setup() uit masterMacs[groep]
 
 // ====================================================================
 // DATASTRUCTS
 // ====================================================================
-typedef struct __attribute__((packed)) batch_message {
-  int32_t paal_id;
-  int32_t aantalGevonden;
-  float   batterij_v;       // gemeten batterijspanning (0.0 = niet gemeten)
-  struct {
-    char speler_mac[18];
-    int32_t rssi;
-  } spelers[9];
-} batch_message;
-batch_message batchData;
+#define MAX_SPELERS 30
 
-typedef struct __attribute__((packed)) commando_message {
-  int32_t paal_id;
-  uint8_t actie_id;
-} commando_message;
+typedef struct __attribute__((packed)) batch_message_v2 {
+  uint8_t  msg_type;        // = MSG_BATCH
+  uint8_t  paal_id;         // 1..24
+  uint8_t  aantal;          // aantal spelers in deze batch (0..30)
+  uint16_t batt_mv;         // batterijspanning in mV (0 = niet gemeten)
+  struct {
+    uint8_t mac[6];         // binair MAC-adres (big-endian, zoals weergegeven)
+    int8_t  rssi;           // dBm
+  } spelers[MAX_SPELERS];
+} batch_message_v2;
+static_assert(sizeof(batch_message_v2) <= 250, "batch_message_v2 te groot voor ESP-NOW");
+batch_message_v2 batchData;
+
+typedef struct __attribute__((packed)) commando_message_v2 {
+  uint8_t  msg_type;        // = MSG_COMMANDO
+  uint8_t  paal_id;
+  uint8_t  actie_id;
+  uint16_t cmd_seq;
+} commando_message_v2;
+
+typedef struct __attribute__((packed)) cmd_ack_message {
+  uint8_t  msg_type;        // = MSG_CMD_ACK
+  uint8_t  paal_id;
+  uint16_t cmd_seq;
+  uint8_t  status;          // 0 = uitgevoerd, 1 = geweigerd/onbekende actie
+} cmd_ack_message;
+
+typedef struct __attribute__((packed)) heartbeat_message {
+  uint8_t  msg_type;        // = MSG_HEARTBEAT
+  uint8_t  paal_id;
+  uint16_t batt_mv;
+  uint32_t uptime_s;
+  uint8_t  fw_versie;
+} heartbeat_message;
+
+typedef struct __attribute__((packed)) fout_message {
+  uint8_t  msg_type;        // = MSG_FOUT
+  uint8_t  paal_id;
+  uint8_t  ernst;           // 0 = info, 1 = waarschuwing, 2 = fout
+  uint8_t  foutcode;
+  uint32_t detail;
+} fout_message;
+
+typedef struct __attribute__((packed)) knop_message {
+  uint8_t  msg_type;        // = MSG_KNOP
+  uint8_t  paal_id;
+} knop_message;
 
 // ====================================================================
 // TOESTANDSVARIABELEN
 // ====================================================================
-volatile bool commandoOntvangen = false;
-volatile uint8_t ontvangenActie = ACTIE_NIETS;
+// Commando-ringbuffer (SPSC): OnDataRecv is de PRODUCENT (schrijft alleen cmdTail),
+// loop()/verwerkCommandos() is de CONSUMENT (schrijft alleen cmdHead). Op de single-core
+// C3 volstaat dit met volatile indices, zonder mutex. Zo gaat een commando dat binnenkomt
+// tijdens voerActieUit()/delay() niet verloren (was: één variabele die bovenaan de loop
+// gewist werd), en worden twee commando's in één cyclus allebei in volgorde uitgevoerd.
+#define CMD_BUF_SLOTS 8
+struct CmdItem { uint8_t actie; uint16_t seq; };
+volatile CmdItem cmdBuf[CMD_BUF_SLOTS];
+volatile uint8_t  cmdHead = 0;   // alleen loop schrijft (consument)
+volatile uint8_t  cmdTail = 0;   // alleen OnDataRecv schrijft (producent)
+volatile uint16_t cmdDrops = 0;  // commando's gedropt bij volle buffer
+uint16_t          gemeldeCmdDrops = 0;             // laatst gemelde drop-stand
+
+uint16_t          laatsteUitgevoerdeSeq = 0xFFFF;  // sentinel: nog niets uitgevoerd
+unsigned long     laatsteHeartbeat  = 0;           // millis() laatste heartbeat
+uint16_t          bleOverflowTeller = 0;           // >MAX_SPELERS in deze batch
+int               vorigeBattModus   = 0;           // voor fout-transitie batterij-kritiek
 
 NimBLEScan *pBLEScan = nullptr;
+
+// Forward-declaratie: de zend-helpers hieronder gebruiken de batterijmeting,
+// die pas verderop gedefinieerd is.
+float leesBatterijSpanning();
 
 // ====================================================================
 // ESP-NOW CALLBACKS
@@ -224,20 +303,53 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 }
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
-  if (len < (int)sizeof(commando_message)) {
-    Serial.println("[ESP-NOW] Commando te kort");
+  // De slave ontvangt alleen MSG_COMMANDO. PRODUCENT van de ringbuffer: kort houden
+  // (geen zware Serial-printf), valideren en in de buffer pushen. De consument
+  // (verwerkCommandos) logt en voert uit.
+  if (len < 1) return;
+  if (incomingData[0] != MSG_COMMANDO) return;
+  if (len < (int)sizeof(commando_message_v2)) return;
+
+  commando_message_v2 ontvangen;
+  memcpy(&ontvangen, incomingData, sizeof(ontvangen));
+  if (ontvangen.paal_id != PAAL_ID) return;
+
+  uint8_t next = (cmdTail + 1) % CMD_BUF_SLOTS;
+  if (next == cmdHead) {            // buffer vol -> nieuwste droppen
+    cmdDrops++;
     return;
   }
-  commando_message ontvangen;
-  memcpy(&ontvangen, incomingData, sizeof(ontvangen));
+  cmdBuf[cmdTail].actie = ontvangen.actie_id;
+  cmdBuf[cmdTail].seq   = ontvangen.cmd_seq;
+  cmdTail = next;
+}
 
-  Serial.printf("[ESP-NOW] Commando voor paal %d, actie %d\n",
-                ontvangen.paal_id, ontvangen.actie_id);
+// ====================================================================
+// ESP-NOW ZEND-HELPERS (slave -> master)
+// ====================================================================
+void stuurCmdAck(uint16_t seq, uint8_t status) {
+  cmd_ack_message m = { MSG_CMD_ACK, (uint8_t)PAAL_ID, seq, status };
+  esp_now_send(masterAddress, (uint8_t *)&m, sizeof(m));
+}
 
-  if (ontvangen.paal_id == PAAL_ID) {
-    ontvangenActie = ontvangen.actie_id;
-    commandoOntvangen = true;
-  }
+void stuurHeartbeat() {
+  heartbeat_message m;
+  m.msg_type  = MSG_HEARTBEAT;
+  m.paal_id   = PAAL_ID;
+  m.batt_mv   = (uint16_t)(leesBatterijSpanning() * 1000.0f);
+  m.uptime_s  = millis() / 1000;
+  m.fw_versie = FW_VERSIE;
+  esp_now_send(masterAddress, (uint8_t *)&m, sizeof(m));
+}
+
+void stuurFout(uint8_t ernst, uint8_t foutcode, uint32_t detail) {
+  fout_message m = { MSG_FOUT, (uint8_t)PAAL_ID, ernst, foutcode, detail };
+  esp_now_send(masterAddress, (uint8_t *)&m, sizeof(m));
+}
+
+void stuurKnop() {
+  knop_message m = { MSG_KNOP, (uint8_t)PAAL_ID };
+  esp_now_send(masterAddress, (uint8_t *)&m, sizeof(m));
 }
 
 // ====================================================================
@@ -245,42 +357,39 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 // ====================================================================
 class BeaconZoeker : public NimBLEAdvertisedDeviceCallbacks {
   void onResult(NimBLEAdvertisedDevice *apparaat) override {
-    std::string gevondenMac = apparaat->getAddress().toString();
     int rssi = apparaat->getRSSI();
 
-    // Alleen whitelisted beacons doorlaten
-    bool whitelisted = false;
-    for (int i = 0; i < aantalBeacons; i++) {
-      if (gevondenMac == toegelatenBeacons[i]) {
-        whitelisted = true;
-        break;
-      }
-    }
-    if (!whitelisted) return;
+    // Binair MAC ophalen. NimBLE bewaart het adres LSB-first (omgekeerd t.o.v. de
+    // weergave); we draaien het om naar big-endian zodat mac[0..2] het OUI is.
+    // NB: adres in een lokale var houden — getNative() wijst naar interne opslag.
+    NimBLEAddress adres = apparaat->getAddress();
+    const uint8_t *native = adres.getNative();
+    uint8_t mac[6];
+    for (int i = 0; i < 6; i++) mac[i] = native[5 - i];
 
-    // Dedup binnen deze batch: dezelfde MAC mag maar één keer voorkomen.
-    // Een beacon adverteert meerdere keren per seconde — zonder dedup zou
-    // batchData[] volstromen met duplicaten van dezelfde speler.
-    // Bestaat de MAC al? Behoud de sterkste RSSI van deze scan.
-    for (int i = 0; i < batchData.aantalGevonden; i++) {
-      if (gevondenMac == batchData.spelers[i].speler_mac) {
-        if (rssi > batchData.spelers[i].rssi) {
-          batchData.spelers[i].rssi = rssi;
-        }
+    // Whitelist v2: alleen het beacon-OUI-prefix EN sterk genoeg signaal doorlaten.
+    if (mac[0] != BEACON_OUI[0] || mac[1] != BEACON_OUI[1] || mac[2] != BEACON_OUI[2]) return;
+    if (rssi < RSSI_DREMPEL) return;
+
+    // Dedup binnen deze batch: dezelfde MAC mag maar één keer voorkomen. Een beacon
+    // adverteert meerdere keren per seconde — zonder dedup zou spelers[] volstromen
+    // met duplicaten. Bestaat de MAC al? Behoud de sterkste RSSI van deze scan.
+    for (int i = 0; i < batchData.aantal; i++) {
+      if (memcmp(mac, batchData.spelers[i].mac, 6) == 0) {
+        if ((int8_t)rssi > batchData.spelers[i].rssi) batchData.spelers[i].rssi = (int8_t)rssi;
         return;
       }
     }
 
-    // Nieuwe MAC: toevoegen als er nog plek is.
-    if (batchData.aantalGevonden < 9) {
-      strncpy(
-        batchData.spelers[batchData.aantalGevonden].speler_mac,
-        gevondenMac.c_str(), 17);
-      batchData.spelers[batchData.aantalGevonden].speler_mac[17] = '\0';
-      batchData.spelers[batchData.aantalGevonden].rssi = rssi;
-      batchData.aantalGevonden++;
-      Serial.printf("[BLE] Whitelisted: %s RSSI: %d\n",
-                    gevondenMac.c_str(), rssi);
+    // Nieuwe MAC: toevoegen als er nog plek is; anders tellen voor een MSG_FOUT.
+    if (batchData.aantal < MAX_SPELERS) {
+      memcpy(batchData.spelers[batchData.aantal].mac, mac, 6);
+      batchData.spelers[batchData.aantal].rssi = (int8_t)rssi;
+      batchData.aantal++;
+      Serial.printf("[BLE] Beacon %02x:%02x:%02x:%02x:%02x:%02x RSSI: %d\n",
+                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], rssi);
+    } else {
+      bleOverflowTeller++;   // >MAX_SPELERS in dit vak -> fout na de scan
     }
   }
 };
@@ -321,6 +430,12 @@ void checkBatterij() {
   } else {
     battLedModus = 0;        // uit
   }
+
+  // Fout-melding bij de transitie naar kritiek (niet elke check opnieuw spammen).
+  if (battLedModus == 2 && vorigeBattModus != 2) {
+    stuurFout(2, FOUT_BATT_KRITIEK, (uint32_t)(v_batt * 1000.0f));
+  }
+  vorigeBattModus = battLedModus;
 }
 
 // ====================================================================
@@ -337,7 +452,8 @@ void checkKnop() {
     vorigeKnopStatus = knopNu;
     if (knopNu) {  // rising edge = ingedrukt
       rodeLedPulsTot = millis() + KNOP_PULS_MS;
-      Serial.printf("{\"paal\":%d,\"knop\":1}\n", PAAL_ID);
+      stuurKnop();   // MSG_KNOP via ESP-NOW naar de master (v2; was de dode USB-CDC)
+      Serial.printf("[KNOP] paal %d ingedrukt -> MSG_KNOP\n", PAAL_ID);
     }
   }
 }
@@ -508,6 +624,32 @@ void voerActieUit(uint8_t actie) {
 }
 
 // ====================================================================
+// COMMANDO-RINGBUFFER DRAINEN (consument)
+// ====================================================================
+// Draineert de ring in volgorde en voert elk commando uit. Wordt op meerdere
+// punten in de loop aangeroepen (na de scan, na het zenden, in het luistervenster)
+// zodat een commando nooit blijft hangen of gewist wordt. Idempotent op cmd_seq:
+// een master-retry van een al uitgevoerd commando wordt niet opnieuw uitgevoerd,
+// maar wél opnieuw bevestigd (MSG_CMD_ACK). ACK altijd NA de uitvoering.
+void verwerkCommandos() {
+  while (cmdHead != cmdTail) {
+    uint8_t  actie = cmdBuf[cmdHead].actie;
+    uint16_t seq   = cmdBuf[cmdHead].seq;
+    cmdHead = (cmdHead + 1) % CMD_BUF_SLOTS;
+
+    uint8_t ackStatus = (actie <= ACTIE_OOGST) ? 0 : 1;   // 1 = onbekende actie
+    if (seq != laatsteUitgevoerdeSeq) {
+      Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
+      if (ackStatus == 0) voerActieUit(actie);
+      laatsteUitgevoerdeSeq = seq;
+    } else {
+      Serial.printf("[CMD] Seq %u al uitgevoerd, alleen her-ACK\n", seq);
+    }
+    stuurCmdAck(seq, ackStatus);
+  }
+}
+
+// ====================================================================
 // SETUP
 // ====================================================================
 void setup() {
@@ -530,6 +672,7 @@ void setup() {
   // Buzzer pin
   pinMode(BUZZER_PIN, OUTPUT);
   noTone(BUZZER_PIN);
+  MELODIE_PIEP[0].freq = BUZZER_FREQ;   // per-paal kalibratie van de piep-toon
 
   // Waarschuwings-LED (gedeeld: batterij-waarschuwing + drukknop-puls)
   pinMode(WARNING_LED_PIN, OUTPUT);
@@ -591,6 +734,11 @@ void setup() {
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
 
+  // Kies de master-MAC op basis van PAAL_ID (1-7 -> m1, 8-16 -> m2, 17-24 -> m3).
+  int groep = (PAAL_ID <= 7) ? 0 : (PAAL_ID <= 16) ? 1 : 2;
+  memcpy(masterAddress, masterMacs[groep], 6);
+  Serial.printf("[SETUP] Paal %d -> master %d\n", PAAL_ID, groep + 1);
+
   esp_now_peer_info_t peerInfo;
   memset(&peerInfo, 0, sizeof(peerInfo));
   memcpy(peerInfo.peer_addr, masterAddress, 6);
@@ -619,11 +767,13 @@ void loop() {
   updateMelodie();   // nootovergangen bijhouden voor BLE-scan start
   updateAnimatie();
 
-  batchData.paal_id = PAAL_ID;
-  batchData.aantalGevonden = 0;
-  batchData.batterij_v = leesBatterijSpanning();
-  commandoOntvangen = false;
-  ontvangenActie = ACTIE_NIETS;
+  batchData.msg_type = MSG_BATCH;
+  batchData.paal_id  = PAAL_ID;
+  batchData.aantal   = 0;
+  batchData.batt_mv  = (uint16_t)(leesBatterijSpanning() * 1000.0f);
+  bleOverflowTeller  = 0;
+  // GEEN flag-reset meer: pending commando's blijven in de ringbuffer staan tot ze
+  // gedraineerd zijn, ongeacht waar in de cyclus ze binnenkwamen.
 
   Serial.println("\n[SCAN] Start...");
 
@@ -633,9 +783,10 @@ void loop() {
 
   updateMelodie();   // inhaal na BLE-scan (max ~1 s vertraging op nootovergang)
   updateAnimatie();
+  verwerkCommandos();   // commando's die tijdens de scan binnenkwamen meteen afhandelen
 
-  Serial.printf("[SCAN] Klaar, %d whitelisted gevonden (batt %.2fV)\n",
-                batchData.aantalGevonden, batchData.batterij_v);
+  Serial.printf("[SCAN] Klaar, %d beacons gevonden (batt %u mV)\n",
+                batchData.aantal, batchData.batt_mv);
 
   // Random backoff: ontkoppelt de zendmomenten van meerdere slaves zodat ze
   // niet elke cyclus in fase blijven en elkaar wegdrukken. esp_random() is
@@ -646,33 +797,55 @@ void loop() {
 
   // Altijd versturen, ook bij 0 spelers: zo weet de master (en het dashboard)
   // dat een leeg vak ook echt leeg is. Bij overslaan blijft de oude stand staan.
-  Serial.printf("[SEND] Versturen naar master (%d spelers)...\n",
-                batchData.aantalGevonden);
+  // VARIABELE LENGTE: enkel het gebruikte deel (header + aantal*7) gaat de lucht in —
+  // 5 B bij een leeg vak i.p.v. altijd 215 B. Kortere frames = minder airtime =
+  // betrouwbaarder op de single-antenne C3 direct na de BLE-scan.
+  size_t batchLen = offsetof(batch_message_v2, spelers)
+                  + (size_t)batchData.aantal * sizeof(batchData.spelers[0]);
+  Serial.printf("[SEND] Versturen naar master (%d spelers, %u bytes)...\n",
+                batchData.aantal, (unsigned)batchLen);
 
   esp_err_t result = esp_now_send(masterAddress,
                                    (uint8_t *)&batchData,
-                                   sizeof(batchData));
+                                   batchLen);
 
   if (result != ESP_OK) {
     Serial.printf("[SEND] esp_now_send fout: %d\n", result);
+    stuurFout(2, FOUT_ESPNOW_ZEND, (uint32_t)result);
   }
 
+  // BLE-overflow (>MAX_SPELERS in dit vak): geen stille drop meer, maar een fout.
+  if (bleOverflowTeller > 0) {
+    Serial.printf("[BLE] Overflow: %u beacons boven %d genegeerd\n", bleOverflowTeller, MAX_SPELERS);
+    stuurFout(1, FOUT_BLE_OVERFLOW, bleOverflowTeller);
+  }
+
+  // Periodieke heartbeat ("ik leef"), onafhankelijk van detecties.
+  if (millis() - laatsteHeartbeat >= HEARTBEAT_INTERVAL_S * 1000UL) {
+    laatsteHeartbeat = millis();
+    stuurHeartbeat();
+  }
+
+  verwerkCommandos();   // commando's die net binnen het zendmoment kwamen meteen afhandelen
+
+  // Luistervenster: blijf de ring draineren én de hardware servicen tot de timeout.
   unsigned long startWacht = millis();
-  while (!commandoOntvangen && (millis() - startWacht < WACHT_TIMEOUT)) {
+  while (millis() - startWacht < WACHT_TIMEOUT) {
     checkBatterij();
     checkKnop();
     updateRodeLed();
     updateIngebouwdeLed();
     updateMelodie();
     updateAnimatie();
+    verwerkCommandos();
     delay(1);
   }
+  verwerkCommandos();   // laatste keer ná het venster
 
-  if (commandoOntvangen) {
-    Serial.printf("[CMD] Actie ontvangen: %d\n", ontvangenActie);
-    voerActieUit(ontvangenActie);
-  } else {
-    Serial.println("[CMD] Timeout, geen commando");
+  // Drop-teller van de ringbuffer melden zodra hij toeneemt (diagnose).
+  if (cmdDrops != gemeldeCmdDrops) {
+    Serial.printf("[CMD] Ringbuffer-drops: %u\n", cmdDrops);
+    gemeldeCmdDrops = cmdDrops;
   }
 
   delay(50);

@@ -14,6 +14,13 @@ MQTT_DATA_TOPIC = os.getenv("MQTT_DATA_TOPIC", "plaatjes/data")
 # CH340 USB-UART (op de master-bordjes). Poort-onafhankelijk: we detecteren
 # ALLE CH340-poorten automatisch i.p.v. een vaste /dev/ttyMaster1. Zo werkt het
 # ongeacht in welke USB-poort een master zit en schaalt het naar 3 masters.
+#
+# Protocol v2 (Batch 1): de bridge is INHOUD-AGNOSTISCH. De master vertaalt alle
+# binaire ESP-NOW-berichten al naar JSON-regels; de bridge publiceert elke geldige
+# JSON-regel ongewijzigd op plaatjes/data. De nieuwe v2-types (heartbeat {"hb":1},
+# fout {"fout":..}, knop {"knop":1}, uitvoering {"status":"uitgevoerd","seq":..})
+# stromen dus vanzelf door — geen wijziging hier nodig. Routing leert nog steeds uit
+# paal_id (zie paal_naar_topic).
 CH340_VID = 0x1A86
 CH340_PID = 0x7523
 SERIEEL_BAUD = 115200

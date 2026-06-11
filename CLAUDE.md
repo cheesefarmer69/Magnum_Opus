@@ -77,7 +77,7 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 
 - Geen `delay()` in main loops — alles non-blocking met `millis()`
 - Seriële baudrate altijd 115200
-- Slave MAC-adressen worden hardcoded in master's `slaveAdressen[]` array
+- Slave MAC-adressen staan per master in `firmware/Master/include/slave_macs.h` (`#if MASTER_NR`-blokken), niet meer los in `main.cpp`
 - Commentaar in het Nederlands waar logisch, code-namen in het Engels
 - C++ structs voor ESP-NOW: altijd `__attribute__((packed))`
 - Python: f-strings, type hints waar logisch, geen overdreven OOP
@@ -86,7 +86,12 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 
 ### Firmware
 1. Bewerk in VS Code via PlatformIO
-2. Selecteer environment (Master of Slave) onderin de status bar
+2. Selecteer de environment onderin de status bar:
+   - **Master**: `master1` (palen 1–7), `master2` (8–16) of `master3` (17–24). Eén codebase;
+     het paalbereik + de slave-MAC-set komen uit `build_flags` (`PAAL_MIN/PAAL_MAX/MASTER_NR`) en
+     `firmware/Master/include/slave_macs.h`. Flash de juiste env naar de juiste fysieke master.
+   - **Slave**: één env; zet enkel `PAAL_ID` per bordje — de slave kiest zijn master-MAC automatisch
+     uit `PAAL_ID` (1–7→master1, 8–16→master2, 17–24→master3).
 3. Build (vinkje) → Upload (pijl) → Serial Monitor (stekker)
 
 ### Pi-code
@@ -111,7 +116,8 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 
 ## Belangrijke configbestanden
 
-- `firmware/Master/platformio.ini` — versies en build config master
+- `firmware/Master/platformio.ini` — versies + de drie master-envs (`master1/2/3`, paalbereik via `build_flags`)
+- `firmware/Master/include/slave_macs.h` — slave-MAC's per master (geselecteerd op `MASTER_NR`)
 - `firmware/Slave/platformio.ini` — versies en build config slave
 - `pi/serial-bridge/bridge.py` — Python bridge code
 - `pi/serial-bridge/Dockerfile` — bridge container definitie
@@ -121,13 +127,13 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 - `pi/deploy.sh` — deploy script voor de serial-bridge
 - `pi/deploy-audio.sh` — deploy script voor de audio-player container
 - `config/mqtt/mosquitto.conf` — MQTT broker config (anonymous access toegestaan, lokaal netwerk)
-- `config/udev/99-esp-masters.rules` — udev rule voor stabiele /dev/ttyMaster1 symlink
+- `config/udev/99-esp-masters.rules` — udev rule die alle CH340-tty's op `MODE 0666` zet (poort-onafhankelijk; bridge detecteert masters zelf)
 
 ## Bekende valkuilen en aandachtspunten
 
-- udev rule is gebonden aan fysieke USB-poort 1-1.4 op de Pi. Master in andere poort = geen ttyMaster1.
+- udev rule is **poort-onafhankelijk**: ze zet enkel `MODE 0666` op elke CH340-tty zodat de bridge-container erbij kan, ongeacht de USB-poort. De serial-bridge detecteert masters zelf (CH340 VID/PID) en routeert per `paal_id` — geen vaste `ttyMaster1`-symlink meer nodig.
 - BLE-scan op C3 moet wijken voor ESP-NOW listening — de C3 heeft maar 1 antenne. Volgorde: WiFi.mode → esp_now_init → NimBLEDevice.init (BLE eerst initialiseren breekt ESP-NOW).
-- `esp_now_peer_info_t` als static declareren in setup om stack-corruption te vermijden.
+- `esp_now_peer_info_t` mag **lokaal** in setup gedeclareerd worden, mits volledig ge-`memset` en alleen gebruikt vóór `esp_now_add_peer()` terugkeert (die kopieert de struct). De oude valkuil betrof een struct die búíten zijn scope nog gebruikt werd — niet de lokale declaratie zelf.
 - Container `serial-bridge` draait in `--network host` mode. Andere containers (Node-RED) in default bridge mode.
 - Docker image tags zijn nog `latest` voor Mosquitto en Node-RED. Aandachtspunt: pin naar specifieke versies wanneer projecten stabiel zijn.
 - Mosquitto WebSocket-listener op poort 9001 vereist `log_dest stdout` in `config/mqtt/mosquitto.conf`. Bij `log_dest file ...` crasht de container omdat `/mosquitto/log/` niet bestaat in het Docker-image.

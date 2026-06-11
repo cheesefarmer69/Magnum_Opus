@@ -10,7 +10,7 @@
 // Visualisatie: bovenaanzicht van het speelveld zoals beschreven
 // in docs/playfield.md (24-hoek, R=11.50 m), met per paal een
 // LED-bolletje dat de actuele kleur toont op basis van
-// commando/master1-berichten (actie 0=uit, 1=portaal, 2=happy hour, 3=piep).
+// commando/master1..3-berichten (actie 0=uit, 1=portaal, 2=happy hour, 3=piep).
 // ============================================================
 
 // --- VELD-GEOMETRIE (uit docs/playfield.md) ---
@@ -138,7 +138,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "locatie/spelers", "spel/historie"]);
+        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "locatie/spelers", "spel/historie"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
         publishUitgeslotenEvents();   // synchroniseer de event-checkboxes (retained)
         publishMiddernachtConfig();   // synchroniseer de middernacht-aan/uit-checkbox (retained)
@@ -165,7 +165,7 @@ function verwerkBericht(topic, raw) {
     let data;
     try { data = JSON.parse(raw); } catch { log("err", `Bad JSON op ${topic}: ${raw}`); return; }
 
-    if (topic === "commando/master1") {
+    if (topic.startsWith("commando/master")) {
         const paal = data.paal, actie = data.actie;
         if (paal >= 1 && paal <= AANTAL_PALEN) {
             if (actie === ACTIE_BUZZER_PIEP) {

@@ -19,6 +19,11 @@ Master (USB Serial)  ←→  bridge.py  ←→  MQTT broker  ←→  Node-RED
 - **MQTT → Master:** ontvangt commando's van topics `commando/master1..3`,
   schrijft ze naar de juiste seriële poort
 
+> **Inhoud-agnostisch (protocol v2):** de bridge kent het ESP-NOW-wire-format niet — de **master**
+> vertaalt alle binaire v2-berichten al naar JSON-regels. De bridge publiceert elke geldige JSON-regel
+> ongewijzigd door. De v2-types (heartbeat `{"hb":1}`, fout `{"fout":..}`, knop `{"knop":1}`,
+> uitvoering `{"status":"uitgevoerd","seq":..}`) stromen dus vanzelf mee — bridge.py wijzigde niet voor v2.
+
 ---
 
 ## Poort-detectie (poort-onafhankelijk, schaalt naar 3 masters)
