@@ -401,6 +401,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
 | `sim/modus`        | browser → Node-RED | `{"sim24":true}` — simulator in simulatiemodus → Node-RED forceert een 24-uur veld (`palenActief`) |
 | `sim/locatie`      | browser → Node-RED | `[{"mac":"aa:..","paal":7}]` — exacte paal per speler (sim-modus, deterministisch, geen RSSI) |
+| `sim/bediening`    | client → Node-RED | UTF-8 string-commando om de engine programmatisch te besturen (AI-testharnas, zie `tools/speltest/`). Geldige waarden: `start`/`aan`, `stop`/`uit`, `manueel-aan`, `manueel-uit`, `volgende`, `controle`, `wis-stats`. **Werkt enkel in sim-modus** (`simVeld24 === true`) — buiten sim-modus wordt het genegeerd zodat een echt spel nooit geraakt wordt. |
 | `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"getalWaarde2":null,"groepLabel":null,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller; `getalWaarde2` is het tweede getal `y` (bij `voorwaarde: "of"`, anders `null`); `doelwitType` kan `"groep"` zijn met `groepLabel` (`"kleur: rood"`) en afroep-prefix "een groep" |
 | `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"delta":-1,"tag":"-"}]}` — `delta` = toegekende/afgetrokken levensuren |
 | `pof/portalen`     | Node-RED → browser | `[{"palen":[12,20]}]` — actieve portaal-paren (retained); simulator tekent de verbindingslijn en teleporteert |
@@ -577,6 +578,13 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-06-12: **`sim/bediening`-topic** toegevoegd (AI-testharnas `tools/speltest/`). Een UTF-8
+  string-commando (`start`/`stop`/`manueel-aan`/`manueel-uit`/`volgende`/`controle`/`wis-stats`)
+  waarmee de Plates-of-Fate-engine **programmatisch over MQTT** bestuurd kan worden i.p.v. via de
+  dashboard-knoppen. Node-RED-zijde: één mqtt-in + functie-node "Verwerk sim-bediening" die naar de
+  bestaande besturingsnodes routeert (`Spel aan/uit`, `Sla pofManueel op`, `Engine tick`,
+  `Wis globale stats`). **Werkt enkel in sim-modus** (`simVeld24 === true`). Geen wire-format- of
+  firmware-wijziging; enkel een Node-RED-flow-edit (chirurgisch, daarna `deploy-flows.ps1`).
 - 2026-06-11: **MSG_BATCH variabele lengte** (veldfix). De slave verstuurde altijd het volle 215-byte
   frame (30 slots), óók bij 0 spelers; in de praktijk bereikten die lange frames de master niet terwijl
   de kleine v2-frames (heartbeat 9 B) wél aankwamen. De slave verstuurt nu enkel het gebruikte deel

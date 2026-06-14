@@ -63,6 +63,12 @@ het onderwerp:
 - `pi/serial-bridge/bridge.py` (+ `pi/deploy.sh`), `pi/audio-player/player.py`,
   of `pi/simulator/sim.js` — naargelang wat je aanpakt.
 
+**Bij autonoom testen (bugs/crashes/exploits):**
+- `tools/speltest/` — AI-agent testharnas dat het Plates-of-Fate-spel via MQTT speelt en
+  elke ronde tegen een orakel toetst. Start: `tools/speltest/README.md`; live-agent-modus:
+  `tools/speltest/AGENT.md`. Steunt op `docs/spel/event-systeem.md`, `docs/invarianten.md`
+  en het `sim/bediening`-topic (`docs/protocol.md` §5).
+
 > Tip: je hoeft zelden álles te geven. `CLAUDE.md` + `Design_rules.md` +
 > `docs/invarianten.md` + de 1–3 files van het onderwerp volstaan meestal. Claude leest
 > de rest zelf bij via de verwijzingen in die documenten.

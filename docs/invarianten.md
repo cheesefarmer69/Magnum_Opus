@@ -135,6 +135,7 @@ bundelt alle invarianten van het systeem op één plek.
 | SIM2 | `simVeld24 === true` → alleen `Sim directe locatie` schrijft `spelerLocaties`; hardware-input wordt genegeerd. |
 | SIM3 | `simVeld24 !== true` → alleen de echte locatiebepaling schrijft `spelerLocaties`; sim doet niets. |
 | SIM4 | **Stop spel** op beide pagina's reset dezelfde partij-staat (gedeeld). Een simulatie kan het echte spel niet vervuilen. |
+| SIM5 | Het `sim/bediening`-commando (engine-besturing voor het AI-testharnas, `tools/speltest/`) wordt **alleen uitgevoerd als `simVeld24 === true`** (sim-modus). Buiten sim-modus negeert "Verwerk sim-bediening" elk commando — een testharnas kan een echt spel dus nooit starten/stoppen/wissen. |
 
 ---
 

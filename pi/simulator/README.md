@@ -235,6 +235,15 @@ bij het eerste laden (daarna gecached door de browser).
 
 ---
 
+## Autonoom AI-agent testen (`tools/speltest/`)
+
+Naast deze handmatige browser-simulator bestaat er een **autonoom testharnas** dat
+hetzelfde spel speelt zónder browser: het publiceert dezelfde `sim/*`-topics en bestuurt
+de engine via het nieuwe `sim/bediening`-commando (zie `docs/protocol.md` §5). Een
+onafhankelijk **orakel** toetst elke ronde tegen de spelregels en rapporteert bugs,
+crashes en exploits. Scripted strategieën (braaf/grens/overtreder/chaos/exploit) en een
+live Claude-subagent-modus delen één rapportformaat. Zie `tools/speltest/README.md`.
+
 ## Beperkingen / volgende versie
 
 - Geen scenario-opname of -replay (gepland voor v2).
