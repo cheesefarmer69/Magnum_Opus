@@ -72,8 +72,8 @@ poort open/dicht en publiceert `pof/middernacht`. Het mechanisme is **uitschakel
 "Middernacht actief" (`sim/middernacht-config` → global `middernachtAan`): staat ze uit, dan zet de node
 `middernachtActief=false` en is de hoogste paal een **gewoon uur** (geen poort-LED, geen oversteek-blokkade,
 geen oogst, kiesbaar als uur-doelwit); de π-stand blijft bevroren en loopt verder zodra je weer inschakelt. Bij een **0**-cijfer worden alle spelers op de
-middernacht-paal **geoogst** (uren 0 + sterfte + dienaar van de armste). In "Verifieer beweging": een
-voorwaartse **oversteek** van middernacht bij een **dichte** poort → `MIDDERNACHT DICHT` (`−voor`); en een
+middernacht-paal **geoogst** (uren 0 + sterfte + dienaar van de armste). In "Verifieer beweging": een speler
+die bij een **dichte** poort **op de middernacht-paal staat** en tóch beweegt → `MIDDERNACHT DICHT` (`−voor`); en een
 **dienaar** verdient niets voor zichzelf — positieve `delta` gaat naar `stats[meester].totaalUren` (verlies
 + sterfte blijven bij de dienaar).
 

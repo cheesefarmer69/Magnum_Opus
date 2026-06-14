@@ -28,10 +28,10 @@ Het is een *plates of fate*-spel: willekeurige events bepalen het verloop.
 ### Middernacht — de poort van pi
 
 Middernacht (de hoogste paal, 00u) is **geen afroepbaar event** maar een **permanent mechanisme**: een
-**poort** die je enkel mag oversteken (van de hoogste paal naar 1) wanneer ze **open** staat. De poort-LED
-toont de staat: **zacht wit = open**, **rood = dicht**. Staat ze dicht, dan mag je middernacht **niet
-oversteken** (een voorwaartse oversteek = `MIDDERNACHT DICHT`, verlies van de gelopen uren); je beweegt
-elders gewoon, maar aan de poort zit je vast tot ze weer opent.
+**poort** op de hoogste paal die enkel mag worden verlaten wanneer ze **open** staat. De poort-LED
+toont de staat: **zacht wit = open**, **rood = dicht**. Staat ze dicht, dan mag een speler die **op de
+middernacht-paal staat** niet bewegen (beweegt hij tóch = `MIDDERNACHT DICHT`, verlies van de gelopen
+uren); spelers elders op de ring bewegen gewoon. Je zit aan de poort vast tot ze weer opent.
 
 De open/dicht-volgorde volgt de **cijfers van π** (de eerste 500, daarna opnieuw). De poort start **open**;
 elk cijfer is de duur (in events) van een fase, en daarna wisselt open↔dicht. Dus: **3 events open, 1 toe,

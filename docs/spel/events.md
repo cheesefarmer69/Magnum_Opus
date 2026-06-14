@@ -50,7 +50,7 @@ Eén event is één object in die array.
 | `naam`          | ja        | Weergavenaam (dashboard "Huidig event", debug, log). |
 | `categorie`     | ja        | `speler` / `toestand` / `wereld` — bepaalt in welke `[CONFIG]`-inject het hoort. |
 | `tekst`         | ja        | Wat wordt voorgelezen. Een losse `x` wordt door `getal` vervangen. |
-| `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle. |
+| `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle. **Conventie**: verplaatsing-events (speler) standaard **20 s** (denktijd voor de route); toestand-events die onmiddellijk iets zetten (portaal/happy hour/ziekte) **5 s**. |
 | `doelwit`       | ja        | Wie/wat geraakt wordt — object met `type`, `selectie`, `aantal`. Bij `type: "groep"` ook `veld` (`"kleur"`/`"jaar"`/`"willekeurig"`) en optioneel `waarde` (vaste groepwaarde; weglaten = willekeurig). |
 | `getal`         | nee       | Optie/getal dat `x` in de tekst invult én de controle-waarde bepaalt. |
 | `getal2`        | nee       | Tweede optie/getal dat `y` in de tekst invult (bv. de tweede keuze bij `voorwaarde: "of"`). Mag een optie (`laag`/…) of een `[min,max]`-bereik zijn. |
@@ -249,7 +249,7 @@ worden daarna één voor één opgesomd.
 
 ```js
 { id:"verplaatsing2", naam:"verplaatsingMax", categorie:"speler",
-  tekst:"Maximum x uur.", reactietijd_s:15,
+  tekst:"Maximum x uur.", reactietijd_s:20,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
   getal:"midden", voorwaarde:"max", gevolgen:[{ type:"geen" }] }
 ```
@@ -261,7 +261,7 @@ spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
 
 ```js
 { id:"of_verplaatsing", naam:"Of-verplaatsing", categorie:"speler",
-  tekst:"x of y uur vooruit.", reactietijd_s:15,
+  tekst:"x of y uur vooruit.", reactietijd_s:20,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"midden" },
   getal:"laag", getal2:[4,6], voorwaarde:"of", gevolgen:[{ type:"geen" }] }
 ```
@@ -306,7 +306,7 @@ maar voor elk groepslid; niet-leden moeten stil blijven.
 
 ```js
 { id:"portalen", naam:"Portalen", categorie:"toestand",
-  tekst:"Een portaal opent tussen twee uren.", reactietijd_s:15, max:1, duratie:[2,4],
+  tekst:"Een portaal opent tussen twee uren.", reactietijd_s:5, max:1, duratie:[2,4],
   doelwit:{ type:"uur", selectie:"willekeurig", aantal:2 },
   audioVoor:"portalen_voor.wav", audioNa:"portalen_na.wav",
   gevolgen:[ { type:"effect", niveau:"uur", effect:"portaal", data:{} } ] }
@@ -320,7 +320,7 @@ het bij één portaal tegelijk. Een sprong tussen de twee portaal-uren geeft **0
 
 ```js
 { id:"happy_hour", naam:"Happy Hour", categorie:"toestand",
-  tekst:"worden Happy Hour.", reactietijd_s:15, max:4, duratie:[3,6],
+  tekst:"worden Happy Hour.", reactietijd_s:5, max:4, duratie:[3,6],
   doelwit:{ type:"uur", selectie:"willekeurig", aantal:"laag" },
   audioVoor:"happy_hour_voor.wav", audioNa:"happy_hour_na.wav",
   gevolgen:[ { type:"effect", niveau:"uur", effect:"happy_hour", data:{} } ] }
@@ -334,7 +334,7 @@ levensuren dubbel (zie `docs/spel/spel.md`). `max: 4` laat tot 4 happy-hour-uren
 ```js
 { id:"kosmische_gift", naam:"Kosmische gift", categorie:"toestand",
   tekst:"Een gulle ster schenkt een willekeurige speler een gift.",
-  reactietijd_s:15,
+  reactietijd_s:5,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"enkel" },
   gevolgen:[ { type:"score", delta:3 } ] }
 ```
@@ -343,7 +343,7 @@ levensuren dubbel (zie `docs/spel/spel.md`). `max: 4` laat tot 4 happy-hour-uren
 
 ```js
 { id:"ziekte", naam:"Ziekte", categorie:"toestand",
-  tekst:"worden ziek.", reactietijd_s:15, max:1, duratie:10,
+  tekst:"worden ziek.", reactietijd_s:5, max:1, duratie:10,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
   audioVoor:"ziekte_voor.wav", audioNa:"ziekte_na.wav",
   gevolgen:[ { type:"ziekte" } ] }

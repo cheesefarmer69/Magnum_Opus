@@ -106,7 +106,7 @@ bundelt alle invarianten van het systeem op één plek.
 |---|-----------|
 | M1 | De middernacht-poort volgt de **eerste 500 cijfers van π** (daarna opnieuw); ze start **open**, elk cijfer is de duur (events) van een fase, dan wisselt open↔dicht. De **π-sequentie loopt door** over Stop/Start heen (`midnightIndex`/`midnightOpen`/`midnightRemaining` worden **niet** gereset). |
 | M2 | De middernacht-node draait **één keer per event** (getriggerd door "Kies event"). |
-| M3 | Bij een **dichte** poort is enkel het **oversteken** van middernacht (voorwaartse hop van de hoogste paal naar 1) verboden → `MIDDERNACHT DICHT` (`−voor`); andere bewegingen blijven toegestaan. |
+| M3 | Bij een **dichte** poort mag een speler die **op de middernacht-paal staat** (start-positie = hoogste paal) helemaal niet bewegen → `MIDDERNACHT DICHT` (`−voor`); spelers elders (ook wie elders de ring rondgaat) blijven vrij. |
 | M4 | Een **0** in de π-sequentie = **oogst**: elke speler op de middernacht-paal sterft (uren 0 + sterfte) en wordt **dienaar** van de **armste** niet-geoogste, niet-dienaar speler. Een 0 verandert de open/dicht-volgorde niet. |
 | M5 | Een **dienaar** verdient niets voor zichzelf: positieve `delta` gaat naar `stats[meester].totaalUren`; verlies + sterfte blijven bij de dienaar. Hij speelt door (events vallen nog op hem). |
 | M6 | `dienaars` wordt gewist bij **Stop/Herstart** en door de admin-knop "Speler-toestanden → 0"; `pof/dienaars` (retained) wordt dan leeg gepubliceerd. |
