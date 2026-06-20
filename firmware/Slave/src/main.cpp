@@ -11,21 +11,31 @@
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 1;
+const int PAAL_ID        = 17;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
 // Per-paal buzzer-resonantiefrequentie (productiespreiding op de passieve piezo).
-// Voorlopig overal 1500 Hz; kalibreer per bordje voor maximaal volume (zie docs/todo.md).
-const uint16_t BUZZER_FREQ = 1500;
+// Eén universele build: enkel PAAL_ID hierboven aanpassen, de buzzer-piep gebruikt
+// automatisch de gekalibreerde frequentie voor díe paal uit onderstaande tabel.
+// Vind de luidste waarde per bordje met het Node-RED dashboard "Buzzer-tuning"
+// (stuurt actie 12 / MSG_BUZZER_TOON). Index = paal_id (1..24); index 0 ongebruikt.
+const uint16_t BUZZER_FREQ_TABEL[25] = {
+    0,
+    2450, 1780, 2230, 1780, 1920, 2150, 1870, 1830,   // palen 1..8
+    2080, 2100, 2030, 1940, 1950, 2240, 1910, 2280,   // palen 9..16
+    1950, 2230, 2270, 1970, 2290, 2100, 1670, 2080    // palen 17..24
+};
 
 // ---- PROTOCOL v2 ----
-#define MSG_BATCH      0x01   // slave -> master
-#define MSG_COMMANDO   0x02   // master -> slave
-#define MSG_CMD_ACK    0x03   // slave -> master, NA uitvoering
-#define MSG_HEARTBEAT  0x04   // slave -> master, periodiek
-#define MSG_FOUT       0x05   // slave -> master
-#define MSG_KNOP       0x06   // slave -> master, bij druk
+#define MSG_BATCH        0x01   // slave -> master
+#define MSG_COMMANDO     0x02   // master -> slave
+#define MSG_CMD_ACK      0x03   // slave -> master, NA uitvoering
+#define MSG_HEARTBEAT    0x04   // slave -> master, periodiek
+#define MSG_FOUT         0x05   // slave -> master
+#define MSG_KNOP         0x06   // slave -> master, bij druk
+#define MSG_BUZZER_TOON  0x07   // master -> slave, buzzer-tuning (continue toon)
+#define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
 
 const uint8_t       FW_VERSIE            = 2;
 const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
@@ -114,6 +124,11 @@ volatile unsigned long ingebouwdeLedTot = 0;   // millis() tot wanneer LED aan
 //  9 | ACTIE_MN_OPEN       | kleur  | Zacht wit continu (middernacht-poort open)
 // 10 | ACTIE_MN_DICHT      | kleur  | Rood continu (middernacht-poort dicht)
 // 11 | ACTIE_OOGST         | anim   | Dramatische wit/rood-strobe (middernacht-oogst)
+// 12 | ACTIE_BUZZER_TOON   | buzzer | Buzzer-tuning: continue toon op instelbare freq (via MSG_BUZZER_TOON,
+//    |                     |        | NIET via commando_message_v2). Loopt buiten de melodie-state-machine.
+// 13 | ACTIE_TIJDBOM       | anim   | Tikkende tijdbom: korte rode flits ~2 Hz (ontmantel-paal, tijdbom-event)
+// 14 | ACTIE_TORNADO       | kleur  | Donkergrijs continu (tornado-center; zuigt aanliggende uren naar zich toe)
+// 15 | ACTIE_TORNADO_RAND  | anim   | Trage grijze pulse (aanliggend uur van een tornado)
 //
 const uint8_t ACTIE_NIETS        = 0;
 const uint8_t ACTIE_PORTAAL      = 1;
@@ -127,6 +142,13 @@ const uint8_t ACTIE_NUKE         = 8;
 const uint8_t ACTIE_MN_OPEN      = 9;
 const uint8_t ACTIE_MN_DICHT     = 10;
 const uint8_t ACTIE_OOGST        = 11;
+const uint8_t ACTIE_BUZZER_TOON  = 12;
+const uint8_t ACTIE_TIJDBOM      = 13;
+const uint8_t ACTIE_TORNADO      = 14;
+const uint8_t ACTIE_TORNADO_RAND = 15;
+// 16 = Klokslag-LED: continu gerenderde teamkleur (solid/flikker/ademend) op basis van een
+// MSG_KLOKSLAG-bericht. Geen FIFO/ACK; updateAnimatie() blijft tekenen tot een nieuw bericht.
+const uint8_t ACTIE_KLOKSLAG     = 16;
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -137,7 +159,7 @@ struct Noot {
 };
 
 // Buzzer-piep: één duidelijke toon bij het afroepen van een uur. Einde = {0,0}.
-// Niet-const: setup() zet [0].freq op de per-paal BUZZER_FREQ (kalibratie).
+// Niet-const: setup() zet [0].freq op BUZZER_FREQ_TABEL[PAAL_ID] (per-paal kalibratie).
 static Noot MELODIE_PIEP[] = {
     {1500, 600},
     {   0,   0}
@@ -174,6 +196,19 @@ struct MelodieState {
 };
 MelodieState melodie = {0, 0, 0};
 
+// Buzzer-tuning (MSG_BUZZER_TOON): een CONTINUE toon, los van de melodie-state-machine.
+// OnDataRecv (WiFi-task) zet enkel deze volatile waarden; de loop past tone()/noTone() toe
+// (geen tone() in de callback). freq=0 betekent stoppen.
+volatile uint16_t testToonFreq  = 0;       // gewenste continue toon-frequentie (Hz)
+volatile bool     testToonDirty = false;   // er is een nieuwe waarde toe te passen
+
+// Klokslag-LED (MSG_KLOKSLAG): OnDataRecv zet enkel deze volatile waarden; de loop past ze toe
+// (verwerkKlokslag) en updateAnimatie() rendert continu (flikker/ademend). modus: 0/1/2/3.
+volatile uint8_t klokslagR = 0, klokslagG = 0, klokslagB = 0;
+volatile uint8_t klokslagHelderheid = 0;
+volatile uint8_t klokslagModus = 3;        // default rust
+volatile bool    klokslagDirty = false;
+
 // Huidige LED-actie + starttijd, voor de geanimeerde acties (8 = nuke, 11 = oogst).
 // updateAnimatie() leest deze en blijft tekenen tot een nieuwe actie binnenkomt.
 volatile uint8_t huidigeActie = ACTIE_NIETS;
@@ -200,12 +235,12 @@ const int8_t  RSSI_DREMPEL  = -85;   // dBm; zwakker dan dit wordt genegeerd
 // MAC ADRES MASTER (afgeleid uit PAAL_ID)
 // ====================================================================
 // Eén bron van waarheid: de slave kiest zijn master-MAC op basis van PAAL_ID
-// (1-7 -> master1, 8-16 -> master2, 17-24 -> master3). Niets extra per slave te
+// (1-8 -> master1, 9-16 -> master2, 17-24 -> master3). Niets extra per slave te
 // configureren behalve PAAL_ID. masterAddress wordt in setup() gevuld.
 uint8_t masterMacs[3][6] = {
-  { 0xF0, 0x24, 0xF9, 0x5A, 0x01, 0x90 },   // master 1 (palen 1-7)
-  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },   // master 2 (palen 8-16)  TODO: MAC invullen
-  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },   // master 3 (palen 17-24) TODO: MAC invullen
+  { 0xF0, 0x24, 0xF9, 0x5A, 0x01, 0x90 },   // master 1 (palen 1-8)
+  { 0xF0, 0x24, 0xF9, 0x59, 0x7B, 0x80 },   // master 2 (palen 9-16)
+  { 0xF0, 0x24, 0xF9, 0x59, 0x21, 0x24 },   // master 3 (palen 17-24)
 };
 uint8_t masterAddress[6];   // gevuld in setup() uit masterMacs[groep]
 
@@ -262,6 +297,20 @@ typedef struct __attribute__((packed)) knop_message {
   uint8_t  paal_id;
 } knop_message;
 
+typedef struct __attribute__((packed)) buzzer_toon_message {
+  uint8_t  msg_type;        // = MSG_BUZZER_TOON
+  uint8_t  paal_id;
+  uint16_t freq_hz;         // 0 = stop (noTone), anders continue toon
+} buzzer_toon_message;
+
+typedef struct __attribute__((packed)) klokslag_message {
+  uint8_t  msg_type;        // = MSG_KLOKSLAG
+  uint8_t  paal_id;
+  uint8_t  r, g, b;         // teamkleur
+  uint8_t  helderheid;      // 0..255 (engine schaalt al met voortgang P/H)
+  uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
+} klokslag_message;
+
 // ====================================================================
 // TOESTANDSVARIABELEN
 // ====================================================================
@@ -307,6 +356,32 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   // (geen zware Serial-printf), valideren en in de buffer pushen. De consument
   // (verwerkCommandos) logt en voert uit.
   if (len < 1) return;
+
+  // Buzzer-tuning: continue toon. Geen FIFO/ACK; zet enkel de volatile doelfrequentie
+  // (de loop past tone()/noTone() toe — geen tone() in deze WiFi-callback).
+  if (incomingData[0] == MSG_BUZZER_TOON) {
+    if (len < (int)sizeof(buzzer_toon_message)) return;
+    buzzer_toon_message bt;
+    memcpy(&bt, incomingData, sizeof(bt));
+    if (bt.paal_id != PAAL_ID) return;
+    testToonFreq  = bt.freq_hz;
+    testToonDirty = true;
+    return;
+  }
+
+  // Klokslag-LED: teamkleur + helderheid + modus. Geen FIFO/ACK; zet de volatile staat
+  // (de loop past ze toe via verwerkKlokslag(); updateAnimatie() rendert continu).
+  if (incomingData[0] == MSG_KLOKSLAG) {
+    if (len < (int)sizeof(klokslag_message)) return;
+    klokslag_message km;
+    memcpy(&km, incomingData, sizeof(km));
+    if (km.paal_id != PAAL_ID) return;
+    klokslagR = km.r; klokslagG = km.g; klokslagB = km.b;
+    klokslagHelderheid = km.helderheid; klokslagModus = km.modus;
+    klokslagDirty = true;
+    return;
+  }
+
   if (incomingData[0] != MSG_COMMANDO) return;
   if (len < (int)sizeof(commando_message_v2)) return;
 
@@ -441,9 +516,9 @@ void checkBatterij() {
 // ====================================================================
 // DRUKKNOP CHECK (GPIO3, rising-edge met debounce)
 // ====================================================================
-// Detecteert een druk (LOW->HIGH). Zonder fysieke knop blijft de pin LOW via
-// de interne pulldown -> nooit een valse trigger. Bij een druk: rode-LED puls
-// + serieele hook-regel naar de master (voor latere spellogica).
+// Detecteert een druk (LOW->HIGH). Zonder fysieke knop blijft de pin LOW via de interne
+// pulldown -> nooit een valse trigger. Bij een druk: rode-LED puls + MSG_KNOP naar de master
+// (drukknop-logica voor o.a. tijdbom-ontmanteling).
 void checkKnop() {
   bool knopNu = (digitalRead(BUTTON_PIN) == HIGH);
   if (knopNu != vorigeKnopStatus &&
@@ -452,7 +527,7 @@ void checkKnop() {
     vorigeKnopStatus = knopNu;
     if (knopNu) {  // rising edge = ingedrukt
       rodeLedPulsTot = millis() + KNOP_PULS_MS;
-      stuurKnop();   // MSG_KNOP via ESP-NOW naar de master (v2; was de dode USB-CDC)
+      stuurKnop();   // MSG_KNOP via ESP-NOW naar de master
       Serial.printf("[KNOP] paal %d ingedrukt -> MSG_KNOP\n", PAAL_ID);
     }
   }
@@ -523,14 +598,92 @@ void updateMelodie() {
   }
 }
 
+// Buzzer-tuning: pas een nieuwe continue toon toe (MSG_BUZZER_TOON). tone() (geen duur)
+// houdt aan tot een volgende waarde — ook tijdens de blokkerende BLE-scan. We zetten
+// melodie.type op 0 zodat updateMelodie() de continue toon niet onderbreekt.
+void verwerkTestToon() {
+  if (!testToonDirty) return;
+  testToonDirty = false;
+  uint16_t f = testToonFreq;
+  melodie.type = 0;
+  if (f > 0) {
+    tone(BUZZER_PIN, f);
+    Serial.printf("[BUZZER] Test-toon %u Hz\n", f);
+  } else {
+    noTone(BUZZER_PIN);
+    Serial.println("[BUZZER] Test-toon uit");
+  }
+}
+
+// Klokslag-LED: pas een nieuw MSG_KLOKSLAG toe. Zet de actie op ACTIE_KLOKSLAG zodat
+// updateAnimatie() de teamkleur continu rendert (flikker/ademend); MOSFET aan voor de strip.
+void updateAnimatie();   // forward-declaratie (gedefinieerd verderop)
+void verwerkKlokslag() {
+  if (!klokslagDirty) return;
+  klokslagDirty = false;
+  huidigeActie = ACTIE_KLOKSLAG;
+  actieStartMs = millis();
+  digitalWrite(MOSFET_PIN, HIGH);
+  delay(5);   // stabiele voeding voor WS2812B
+  updateAnimatie();   // teken meteen het eerste frame
+}
+
 // ====================================================================
 // LED-ANIMATIES (millis-gebaseerd, geen aparte task)
 // ====================================================================
 // Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
 // vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
 void updateAnimatie() {
-  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST) return;
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG) return;
   const unsigned long t = millis() - actieStartMs;
+
+  if (huidigeActie == ACTIE_KLOKSLAG) {
+    // Klokslag-LED: teamkleur op helderheid (engine schaalt al met P/H).
+    // modus 0 owned = solid, 1 capturing = kaarsflikker, 2 frozen = solid, 3 rust = ademend dim wit.
+    const uint8_t m = klokslagModus;
+    CRGB kleur;
+    if (m == 3) {
+      uint8_t val = beatsin8(8, 18, 70);                 // zacht ademend dim wit
+      kleur = CRGB(val, val, val);
+    } else {
+      uint8_t scale = klokslagHelderheid;
+      if (m == 1) {                                      // capturing: kaarsflikker bovenop helderheid
+        uint16_t fl = beatsin8(50, 200, 255);
+        scale = (uint8_t)((uint16_t)klokslagHelderheid * fl / 255);
+      }
+      kleur = CRGB(klokslagR, klokslagG, klokslagB);
+      kleur.nscale8_video(scale);
+    }
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, kleur);
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+    return;
+  }
+
+  if (huidigeActie == ACTIE_TORNADO_RAND) {
+    // Aanliggend tornado-uur: trage grijze pulse (rustige animatie).
+    uint8_t val = beatsin8(12, 25, 110);
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, CHSV(0, 0, val));
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+    return;
+  }
+
+  if (huidigeActie == ACTIE_TIJDBOM) {
+    // Tikkende tijdbom: korte rode flits ~2 Hz (ontmantel-paal van het tijdbom-event).
+    bool aan = ((t % 500) < 120);
+    CRGB kleur = aan ? CRGB(255, 30, 0) : CRGB(20, 0, 0);
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, kleur);
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+    return;
+  }
 
   if (huidigeActie == ACTIE_NUKE) {
     // Pulserend radioactief: geel<->groen, helderheid ademt via een sinus.
@@ -581,8 +734,8 @@ void voerActieUit(uint8_t actie) {
   huidigeActie = actie;
   actieStartMs = millis();
 
-  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst): MOSFET aan, updateAnimatie() tekent ---
-  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST) {
+  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom): MOSFET aan, updateAnimatie() tekent ---
+  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST || actie == ACTIE_TIJDBOM || actie == ACTIE_TORNADO_RAND) {
     digitalWrite(MOSFET_PIN, HIGH);
     delay(5);
     Serial.printf("[ACTIE] Animatie %d\n", actie);
@@ -598,6 +751,7 @@ void voerActieUit(uint8_t actie) {
     case ACTIE_MEDICIJN:    kleur = CRGB(255,  20, 147); break;   // felroze (deep pink)
     case ACTIE_MN_OPEN:     kleur = CRGB(180, 200, 255); break;   // zacht wit (poort open)
     case ACTIE_MN_DICHT:    kleur = CRGB(220,   0,   0); break;   // rood (poort dicht)
+    case ACTIE_TORNADO:     kleur = CRGB( 40,  40,  45); break;   // donkergrijs (tornado-center)
     case ACTIE_NIETS:
     default:                kleur = CRGB::Black;          break;
   }
@@ -637,7 +791,9 @@ void verwerkCommandos() {
     uint16_t seq   = cmdBuf[cmdHead].seq;
     cmdHead = (cmdHead + 1) % CMD_BUF_SLOTS;
 
-    uint8_t ackStatus = (actie <= ACTIE_OOGST) ? 0 : 1;   // 1 = onbekende actie
+    // Bekende commando-acties: 0..15 (LED/anim/buzzer-melodie). 12 (buzzer-toon) en 16 (klokslag)
+    // komen via een eigen msg_type, niet via deze FIFO.
+    uint8_t ackStatus = (actie <= ACTIE_TORNADO_RAND) ? 0 : 1;   // 1 = onbekende actie
     if (seq != laatsteUitgevoerdeSeq) {
       Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
       if (ackStatus == 0) voerActieUit(actie);
@@ -672,7 +828,8 @@ void setup() {
   // Buzzer pin
   pinMode(BUZZER_PIN, OUTPUT);
   noTone(BUZZER_PIN);
-  MELODIE_PIEP[0].freq = BUZZER_FREQ;   // per-paal kalibratie van de piep-toon
+  // Per-paal kalibratie van de piep-toon: kies de gekalibreerde frequentie voor DEZE paal.
+  MELODIE_PIEP[0].freq = (PAAL_ID >= 1 && PAAL_ID <= 24) ? BUZZER_FREQ_TABEL[PAAL_ID] : 1500;
 
   // Waarschuwings-LED (gedeeld: batterij-waarschuwing + drukknop-puls)
   pinMode(WARNING_LED_PIN, OUTPUT);
@@ -734,8 +891,8 @@ void setup() {
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
 
-  // Kies de master-MAC op basis van PAAL_ID (1-7 -> m1, 8-16 -> m2, 17-24 -> m3).
-  int groep = (PAAL_ID <= 7) ? 0 : (PAAL_ID <= 16) ? 1 : 2;
+  // Kies de master-MAC op basis van PAAL_ID (1-8 -> m1, 9-16 -> m2, 17-24 -> m3).
+  int groep = (PAAL_ID <= 8) ? 0 : (PAAL_ID <= 16) ? 1 : 2;
   memcpy(masterAddress, masterMacs[groep], 6);
   Serial.printf("[SETUP] Paal %d -> master %d\n", PAAL_ID, groep + 1);
 
@@ -764,6 +921,8 @@ void setup() {
 // LOOP
 // ====================================================================
 void loop() {
+  verwerkTestToon(); // buzzer-tuning: continue toon toepassen indien gewijzigd
+  verwerkKlokslag(); // Klokslag-LED toepassen indien gewijzigd
   updateMelodie();   // nootovergangen bijhouden voor BLE-scan start
   updateAnimatie();
 
@@ -781,6 +940,8 @@ void loop() {
   pBLEScan->clearResults();
   delay(20);
 
+  verwerkTestToon(); // buzzer-tuning: nieuwe toon die tijdens de scan binnenkwam toepassen
+  verwerkKlokslag(); // Klokslag-LED die tijdens de scan binnenkwam toepassen
   updateMelodie();   // inhaal na BLE-scan (max ~1 s vertraging op nootovergang)
   updateAnimatie();
   verwerkCommandos();   // commando's die tijdens de scan binnenkwamen meteen afhandelen
@@ -835,6 +996,8 @@ void loop() {
     checkKnop();
     updateRodeLed();
     updateIngebouwdeLed();
+    verwerkTestToon();
+    verwerkKlokslag();
     updateMelodie();
     updateAnimatie();
     verwerkCommandos();

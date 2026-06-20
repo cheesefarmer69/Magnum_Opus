@@ -51,6 +51,13 @@ function isUit(sp) {
     return r > R_BUITEN_M + UIT_MARGE || r < R_BINNEN_M - UIT_MARGE;
 }
 
+// Zet een speler exact op (het midden van) een paal — gebruikt door 'Tijd terug' (pof/herstel-posities).
+function zetSpelerOpPaal(sp, paalNummer) {
+    const p = paalPositie(paalNummer);
+    const f = (R_BUITEN_M - 2.5) / R_BUITEN_M;   // iets binnen de paal, zoals bij portaal-teleport
+    sp.x = p.x * f; sp.y = p.y * f; sp.paal = paalNummer; sp.drag = false;
+}
+
 // --- GEEN RSSI-MODEL ---
 // De simulator test het spelverloop, niet de hardware. In simulatiemodus
 // stuurt hij de exacte paal van elke speler direct door (topic sim/locatie),
@@ -62,14 +69,16 @@ const BUZZER_PIEP_MS = 600;   // moet overeenkomen met ACTIE_BUZZER_PIEP op de s
 const ACTIE_NAAM = {
     0: "NIETS", 1: "PORTAAL", 2: "HAPPY_HOUR", 3: "BUZZER_PIEP",
     4: "MEDICIJN", 5: "ZIEK_W3", 6: "ZIEK_W2", 7: "ZIEK_W1",
-    8: "NUKE", 9: "MN_OPEN", 10: "MN_DICHT", 11: "OOGST"
+    8: "NUKE", 9: "MN_OPEN", 10: "MN_DICHT", 11: "OOGST", 13: "TIJDBOM", 14: "TORNADO", 15: "TORNADO_RAND"
 };
 const ACTIE_BUZZER_PIEP = 3;
 const ZIEKTE_WAARSCH_MS = 3500;   // hoe lang het kloppend-hart-icoon zichtbaar blijft
+const KNOP_FLITS_MS = 450;        // hoe lang de knop-flits op het veld zichtbaar blijft
 const SOLID_KLEUR = {
     0: "#cccccc", 1: "#9c27b0", 2: "#ffb400", 4: "#ff1493",  // 4 = medicijn (felroze)
-    9: "#b4c8ff", 10: "#dc0000"                              // 9 = middernacht open (wit), 10 = dicht (rood)
-};   // 8 (nuke) en 11 (oogst) worden geanimeerd in renderLeds()
+    9: "#b4c8ff", 10: "#dc0000",                             // 9 = middernacht open (wit), 10 = dicht (rood)
+    14: "#3a3a40"                                            // 14 = tornado-center (donkergrijs)
+};   // 8 (nuke), 11 (oogst), 13 (tijdbom) en 15 (tornado-rand) worden geanimeerd in renderLeds()
 
 // --- SPELERS (default uit Node-RED config-flow) ---
 const GROEP_KLEUR_CSS = { rood: "#c62828", zwart: "#212121", blauw: "#1565c0" };
@@ -85,6 +94,19 @@ const SPELER_KLEURGROEP = {
 };
 function groepKleurVoor(naam) { return GROEP_KLEUR_CSS[SPELER_KLEURGROEP[naam]] || "#ccc"; }
 
+// --- KLOKSLAG ---
+// Teamkleur-presets (Klokslag-spelregels §6): WS2812B-vriendelijk, goed onderscheidbaar.
+// Sleutel = preset-naam (gedeeld met de Node-RED [CONFIG] Teams-inject), waarde = CSS-kleur.
+const KLOKSLAG_KLEUR = {
+    blauw: "#1e6fff", rood: "#e02424", groen: "#22a722", geel: "#e6c200",
+    paars: "#9c27b0", wit: "#f0f0f0", oranje: "#ff8c00", cyaan: "#19c6d6"
+};
+function klokslagTeamKleur(teamId) {
+    const t = state.klokslagTeams[teamId];
+    if (!t) return "#888";
+    return KLOKSLAG_KLEUR[t.kleur] || t.kleur || "#888";
+}
+
 const DEFAULT_SPELERS = [
     { naam: "Lilou",  mac: "48:87:2d:9d:bb:7d", kleur: "#e91e63" },
     { naam: "Zoë",    mac: "48:87:2d:9d:ba:5c", kleur: "#9c27b0" },
@@ -99,17 +121,32 @@ const state = {
     client: null,
     verbonden: false,
     modus: "monitor",           // "monitor" of "sim"
+    spelType: "plates_of_fate", // "plates_of_fate" of "klokslag" (gesynct via retained spel/type)
+    klokslagPalen: {},          // { <paal>: {P,H,controller,eigenaar,modus} } (uit klokslag/palen)
+    klokslagTeams: {},          // { <teamId>: {naam,kleur} } (uit klokslag/score)
+    klokslagScore: [],          // [{id,naam,kleur,score,somUren}] (uit klokslag/score)
+    klokslagStatus: { actief: false, resterend_s: 0, winnaar: null },  // uit klokslag/status
+    doelStatus: { percent: 0, aantal: 0, totaal: 0, spelers: {}, doel: null },  // uit pof/doelstatus (PoF-doelen)
     spelers: [],                // {naam, mac, kleur, x, y, auto, drag}
     paalActie: new Array(AANTAL_PALEN + 1).fill(0),  // actie-ID per paal
     paalLaatsteCmd: new Array(AANTAL_PALEN + 1).fill(0),  // ms
     paalBuzzer: new Array(AANTAL_PALEN + 1).fill(0),  // buzzer-icoon actief tot (ms)
     paalHart: new Array(AANTAL_PALEN + 1).fill(null), // ziekte-waarschuwing {tot, slagen} per paal
+    paalKnop: new Array(AANTAL_PALEN + 1).fill(0),    // knop-flits actief tot (ms) per paal
+    drukknopPalen: [],          // palen met een fysieke drukknop (uit config/drukknoppen, retained)
+    tijdbom: { spelers: [], ontmantelPalen: [] },     // actieve tijdbommen + ontmantel-palen (uit pof/tijdbom)
+    animatie: { type: null },   // dramatische animatie (nuke/oogst/tornado) uit pof/animatie (retained, robuust)
+    tierConfig: new Map(),      // per-event tier-override (events-tab) -> sim/tiers-config
     portalen: [],               // actieve portaal-paren [{palen:[a,b]}] (uit pof/portalen)
     toestanden: [],             // actieve uur-effecten [{uur,effect,naam,resterendeRondes}] (uit pof/toestanden)
     ziekte: [],                 // actieve zieke spelers [{speler,rondesOver,uur}] (uit pof/ziekte, retained)
     dienaars: {},               // { geoogsteNaam: meesterNaam } (uit pof/dienaars, retained)
     middernacht: null,          // { index, open, remaining, eventsTotOogst, paal } (uit pof/middernacht)
     middernachtAan: true,       // middernacht-mechanisme aan/uit (checkbox -> sim/middernacht-config)
+    toestandExclusief: true,    // systeeminstelling: tijdbom & ziekte niet samen op één speler
+    tempo: 1,                   // reactietijd-multiplier (systeeminstelling -> sim/systeem-config)
+    badAura: true,              // spelinstelling: slechte aura (avond/nacht gevaarlijker) -> sim/spel-config
+    spelTempo: 1,               // huidig spel-tempo (uitlezing uit pof/status, via sneller/trager-events)
     uitAllen: false,            // true wanneer de 'Out'-knop iedereen het veld uit zette
     events: [],                 // volledige events-pool [{id,naam,categorie,tekst,...}] (uit pof/events, retained)
     uitgeslotenEvents: new Set(), // event-id's die NIET in aanmerking komen (checkbox UI)
@@ -138,10 +175,13 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "locatie/spelers", "spel/historie"]);
+        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "pof/doelstatus", "sim/modus"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
         publishUitgeslotenEvents();   // synchroniseer de event-checkboxes (retained)
         publishMiddernachtConfig();   // synchroniseer de middernacht-aan/uit-checkbox (retained)
+        publishSysteemConfig();   // synchroniseer de systeeminstellingen (exclusiviteit + tempo, retained)
+        publishSpelConfig();      // synchroniseer de spelinstellingen (slechte aura, retained)
+        publishTiersConfig();     // synchroniseer de event-tier-overrides (retained)
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
     state.client.on("offline",   () => { state.verbonden = false; zetStatus("offline"); log("err", "Offline."); });
@@ -180,6 +220,51 @@ function verwerkBericht(topic, raw) {
             state.paalLaatsteCmd[paal] = Date.now();
         }
         log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
+    } else if (topic === "spel/type") {
+        // Speltype-keuze (retained, één bron van waarheid): synct de header-radio's + de UI.
+        const t = data.type === "klokslag" ? "klokslag" : "plates_of_fate";
+        if (t !== state.spelType) {
+            state.spelType = t;
+            const radio = document.querySelector(`input[name="speltype"][value="${t}"]`);
+            if (radio) radio.checked = true;
+            log("info", "Speltype: " + (t === "klokslag" ? "Klokslag" : "Plates of Fate"));
+            pasSpelTypeToe();
+        }
+    } else if (topic === "klokslag/status") {
+        state.klokslagStatus = data || { actief: false };
+        renderKlokslag();
+    } else if (topic === "klokslag/palen") {
+        const palen = {};
+        const lijst = Array.isArray(data.palen) ? data.palen : (Array.isArray(data) ? data : []);
+        for (const p of lijst) if (p && p.paal != null) palen[p.paal] = p;
+        state.klokslagPalen = palen;
+        // LED's volgen meteen (renderLeds draait ook op zijn eigen interval).
+        if (state.spelType === "klokslag") renderLeds();
+    } else if (topic === "klokslag/score") {
+        state.klokslagScore = Array.isArray(data.teams) ? data.teams : [];
+        state.klokslagTeams = {};
+        for (const t of state.klokslagScore) if (t && t.id != null) state.klokslagTeams[t.id] = { naam: t.naam, kleur: t.kleur };
+        if (data.winnaar !== undefined) state.klokslagStatus.winnaar = data.winnaar;
+        renderKlokslag();
+    } else if (topic === "pof/doelstatus") {
+        // PoF-doel: percentage geslaagde spelers + per-speler doelBereikt → zijbalk highlight.
+        state.doelStatus = {
+            percent: data.percent || 0, aantal: data.aantal || 0, totaal: data.totaal || 0,
+            spelers: (data.spelers && typeof data.spelers === "object") ? data.spelers : {},
+            doel: data.doel || null
+        };
+        renderZijbalk();
+    } else if (topic === "sim/modus") {
+        // Modus-keuze gesynct vanuit het Bediening-dashboard: radio bijwerken zonder te herpubliceren.
+        const wilSim = !!(data && data.sim24);
+        const nieuw = wilSim ? "sim" : "monitor";
+        if (nieuw !== state.modus) {
+            state.modus = nieuw;
+            const r = document.querySelector(`input[name="modus"][value="${nieuw}"]`);
+            if (r) r.checked = true;
+            log("info", "Modus (van dashboard): " + state.modus);
+            renderSpelers();
+        }
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
     } else if (topic === "pof/controle") {
@@ -242,12 +327,37 @@ function verwerkBericht(topic, raw) {
             doelEl.textContent = reveal || "—";
         }
         // Volgende-events-wachtrij (preview; kan licht afwijken zodra een max-grens bijt).
+        // Elke rij heeft een ✕ om dat aankomend event weg te klikken (publiceert sim/wachtrij-weg,
+        // Node-RED splice't pofWachtrij op die index → de rij schuift door en vult zich weer aan).
         const wachtEl = document.getElementById("pof-wachtrij");
         if (wachtEl) {
             const w = Array.isArray(data.wachtrij) ? data.wachtrij : [];
-            wachtEl.innerHTML = w.length
-                ? w.map(e => `<li>${e.naam || e.id}</li>`).join("")
-                : '<li class="pof-wachtrij-leeg">—</li>';
+            wachtEl.innerHTML = "";
+            if (!w.length) {
+                wachtEl.innerHTML = '<li class="pof-wachtrij-leeg">—</li>';
+            } else {
+                w.forEach((e, i) => {
+                    const li = document.createElement("li");
+                    const naam = document.createElement("span");
+                    naam.textContent = e.naam || e.id;
+                    const x = document.createElement("button");
+                    x.className = "wachtrij-weg";
+                    x.textContent = "✕";
+                    x.title = "Dit aankomend event wegklikken";
+                    x.addEventListener("click", () => {
+                        if (state.verbonden) state.client.publish("sim/wachtrij-weg", JSON.stringify({ index: i }));
+                        li.style.opacity = "0.4";
+                    });
+                    li.append(naam, x);
+                    wachtEl.appendChild(li);
+                });
+            }
+        }
+        // Spel-tempo-uitlezing in de Spelinstellingen-tab.
+        if (data.spelTempo != null) {
+            state.spelTempo = data.spelTempo;
+            const tEl = document.getElementById("spel-tempo-waarde");
+            if (tEl) tEl.textContent = "×" + Number(data.spelTempo).toFixed(1);
         }
     } else if (topic === "locatie/spelers") {
         // Opgeloste locaties uit het Node-RED algoritme (NIET de ruwe paal-berichten).
@@ -309,6 +419,31 @@ function verwerkBericht(topic, raw) {
         state.events = Array.isArray(data) ? data : [];
         renderEvents();
         log("info", `Events-pool ontvangen: ${state.events.length} events`);
+    } else if (topic === "config/drukknoppen") {
+        state.drukknopPalen = Array.isArray(data) ? data.slice().sort((a, b) => a - b) : [];
+        renderKnoppen();
+        log("info", `Drukknop-palen ontvangen: ${state.drukknopPalen.join(", ") || "(geen)"}`);
+    } else if (topic === "pof/tijdbom") {
+        const v = (data && typeof data === "object") ? data : {};
+        state.tijdbom = { spelers: Array.isArray(v.spelers) ? v.spelers : [], ontmantelPalen: Array.isArray(v.ontmantelPalen) ? v.ontmantelPalen : [] };
+        renderKnoppen();
+        renderTijdbom();
+        renderSpelers();
+    } else if (topic === "pof/knop") {
+        if (data && data.paal >= 1 && data.paal <= AANTAL_PALEN) state.paalKnop[data.paal] = Date.now() + KNOP_FLITS_MS;
+    } else if (topic === "pof/animatie") {
+        // Authoritatieve dramatische animatie (nuke/oogst/tornado) — renderLeds animeert hierop.
+        state.animatie = (data && typeof data === "object") ? data : { type: null };
+    } else if (topic === "pof/herstel-posities") {
+        // 'Tijd terug': zet elke speler terug op zijn herstelde paal.
+        if (data && typeof data === "object") {
+            for (const sp of state.spelers) {
+                const paal = data[sp.naam];
+                if (paal != null) zetSpelerOpPaal(sp, paal);
+            }
+            renderSpelers(); renderZijbalk();
+            log("info", "Tijd terug: posities hersteld.");
+        }
     } else if (topic === "spel/historie") {
         renderHistorie(data);
     } else if (topic === "plaatjes/data") {
@@ -384,6 +519,24 @@ function renderZiekte() {
         div.className = "ziekte-rij" + (z.rondesOver <= 3 ? " ziekte-kritiek" : "");
         const hart = z.rondesOver <= 3 ? ` <span class="ziekte-hart">${"❤".repeat(z.rondesOver)}</span>` : "";
         div.innerHTML = `🤒 <b>${z.speler}</b> <span class="ziekte-rondes">nog ${z.rondesOver}</span>${hart}`;
+        el.appendChild(div);
+    }
+}
+
+// Sidebar: tijdbom-spelers met aftelteller (analoog aan renderZiekte; countdown van 10 events).
+function renderTijdbom() {
+    const el = document.getElementById("tijdbom-lijst");
+    if (!el) return;
+    const lijst = (state.tijdbom && state.tijdbom.spelers) || [];
+    if (!lijst.length) {
+        el.innerHTML = '<div class="ziekte-leeg">Geen tijdbommen.</div>';
+        return;
+    }
+    el.innerHTML = "";
+    for (const b of lijst.slice().sort((a, b) => a.rondesOver - b.rondesOver)) {
+        const div = document.createElement("div");
+        div.className = "ziekte-rij" + (b.rondesOver <= 3 ? " ziekte-kritiek" : "");
+        div.innerHTML = `💣 <b>${b.speler}</b> <span class="ziekte-rondes">nog ${b.rondesOver}</span>`;
         el.appendChild(div);
     }
 }
@@ -516,6 +669,31 @@ function renderEvents() {
                 `<div class="events-tekst">${e.tekst || ""}</div>` +
                 (chips.length ? `<div class="events-chips">${chips.map(c => `<span class="events-chip">${c}</span>`).join("")}</div>` : "");
             card.appendChild(cb);   // ná innerHTML, anders wist de toewijzing de checkbox
+
+            // Tier-dropdown: zeldzaamheid (kans om gekozen te worden). Override > event.tier > common.
+            const tierSel = document.createElement("select");
+            tierSel.className = "events-tier-select";
+            tierSel.title = "Zeldzaamheid (kans om gekozen te worden)";
+            const huidigeTier = state.tierConfig.get(e.id) || e.tier || "common";
+            for (const t of ["common", "uncommon", "rare", "epic", "legendary"]) {
+                const opt = document.createElement("option");
+                opt.value = t; opt.textContent = t;
+                if (t === huidigeTier) opt.selected = true;
+                tierSel.appendChild(opt);
+            }
+            tierSel.addEventListener("change", () => { state.tierConfig.set(e.id, tierSel.value); publishTiersConfig(); });
+            card.appendChild(tierSel);
+
+            // Knop: zet dit event vooraan in de wachtrij (publiceert sim/wachtrij-toevoegen; de rij schuift door).
+            const wbtn = document.createElement("button");
+            wbtn.className = "events-wachtrij-btn";
+            wbtn.textContent = "→ wachtrij";
+            wbtn.title = "Zet dit event vooraan in de wachtrij (de rij schuift door)";
+            wbtn.addEventListener("click", () => {
+                if (state.verbonden) state.client.publish("sim/wachtrij-toevoegen", JSON.stringify({ id: e.id }));
+                log("info", "Event → wachtrij: " + (e.naam || e.id));
+            });
+            card.appendChild(wbtn);
             el.appendChild(card);
         }
     }
@@ -558,6 +736,36 @@ function publishUitgeslotenEvents() {
 function publishMiddernachtConfig() {
     if (!state.verbonden) return;
     state.client.publish("sim/middernacht-config", JSON.stringify({ aan: state.middernachtAan }), { retain: true });
+}
+
+function publishSysteemConfig() {
+    if (!state.verbonden) return;
+    state.client.publish("sim/systeem-config", JSON.stringify({ toestandExclusief: state.toestandExclusief, tempo: state.tempo }), { retain: true });
+}
+
+function publishSpelConfig() {
+    if (!state.verbonden) return;
+    state.client.publish("sim/spel-config", JSON.stringify({ badAura: state.badAura }), { retain: true });
+}
+
+function publishTiersConfig() {
+    if (!state.verbonden) return;
+    const obj = {};
+    for (const [id, tier] of state.tierConfig) obj[id] = tier;
+    state.client.publish("sim/tiers-config", JSON.stringify(obj), { retain: true });
+}
+
+function publishTijdTerug() {
+    if (!state.verbonden) return;
+    state.client.publish("sim/tijd-terug", JSON.stringify({ t: Date.now() }));
+}
+
+// Een drukknop indrukken: publiceer {paal,knop:1} op plaatjes/data (zelfde format als de hardware
+// via MSG_KNOP) en toon meteen een korte flits op het veld. Werkt in elke fase.
+function publishKnop(paal) {
+    state.paalKnop[paal] = Date.now() + KNOP_FLITS_MS;
+    if (state.verbonden) state.client.publish("plaatjes/data", JSON.stringify({ paal: paal, knop: 1 }));
+    log("info", `Drukknop paal ${paal} ingedrukt`);
 }
 
 // ============================================================
@@ -639,29 +847,213 @@ function tekenVeld() {
     }
 }
 
-function renderLeds() {
+// Schaal een #rrggbb-kleur met een helderheidsfactor (0..1) → "rgb(r,g,b)".
+function schaalKleur(hex, f) {
+    const h = (hex || "#888").replace("#", "");
+    const r = parseInt(h.substring(0, 2), 16) || 0;
+    const g = parseInt(h.substring(2, 4), 16) || 0;
+    const b = parseInt(h.substring(4, 6), 16) || 0;
+    const k = Math.max(0, Math.min(1, f));
+    return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
+}
+
+// Klokslag-LED's: kleur = team van controller/eigenaar, helderheid ∝ P/H, kaarsflikker tijdens inname.
+function renderKlokslagLeds() {
+    const nu = Date.now();
     for (let n = 1; n <= AANTAL_PALEN; n++) {
         const led = document.getElementById("led-paal-" + n);
         if (!led) continue;
-        const actie = state.paalActie[n] || 0;
-        // Reset class + fill
+        led.setAttribute("class", "led");
+        const ks = state.klokslagPalen[n];
+        if (!ks || ks.modus === "rust") {
+            // Rust: zacht ademend dim wit.
+            const v = Math.round(34 + (Math.sin(nu / 1400 + n) / 2 + 0.5) * 26);
+            led.style.fill = `rgb(${v},${v},${v})`;
+            continue;
+        }
+        const H = ks.H || 1, P = Math.max(0, Math.min(H, ks.P || 0));
+        const progress = P / H;
+        if (ks.modus === "owned") {
+            led.style.fill = schaalKleur(klokslagTeamKleur(ks.eigenaar), 1.0);
+        } else if (ks.modus === "capturing") {
+            // Kaarsflikker (twee sinussen), helderheid groeit met de voortgang.
+            const fl = 0.82 + 0.18 * (Math.sin(nu / 90 + n) * Math.sin(nu / 47 + n * 1.3));
+            led.style.fill = schaalKleur(klokslagTeamKleur(ks.controller), (0.25 + 0.75 * progress) * fl);
+        } else {  // "frozen" — gelijkspel/verval: bevroren kleur, helderheid volgt P, geen flikker
+            led.style.fill = schaalKleur(klokslagTeamKleur(ks.controller), 0.20 + 0.70 * progress);
+        }
+    }
+    renderKnopFlits();
+}
+
+// Past de UI aan het gekozen speltype aan: body-klasse (toont/verbergt panelen via CSS),
+// banner-tekst/kleur en een verse render. Eén keer bij wijziging aanroepen.
+function pasSpelTypeToe() {
+    const ks = state.spelType === "klokslag";
+    document.body.classList.toggle("spel-klokslag", ks);
+    document.body.classList.toggle("spel-pof", !ks);
+    const banner = document.getElementById("spel-banner");
+    const naam = document.getElementById("spel-banner-naam");
+    const icoon = banner ? banner.querySelector(".spel-banner-icoon") : null;
+    if (banner) {
+        banner.classList.toggle("spel-banner-klokslag", ks);
+        banner.classList.toggle("spel-banner-pof", !ks);
+    }
+    if (naam) naam.textContent = ks ? "Klokslag" : "Plates of Fate";
+    if (icoon) icoon.textContent = ks ? "🕐" : "🎲";
+    const hdr = document.getElementById("spel-actief");
+    if (hdr) hdr.textContent = ks ? "🕐 Klokslag" : "🎲 Plates of Fate";
+    renderKlokslag();
+    renderLeds();
+}
+
+// Rendert het Klokslag-paneel: timer, scorebord per team en de teamlegenda.
+function renderKlokslag() {
+    const timerEl = document.getElementById("ks-timer");
+    if (timerEl) {
+        const st = state.klokslagStatus || {};
+        if (st.winnaar != null) {
+            const w = state.klokslagTeams[st.winnaar];
+            timerEl.textContent = "🏆 " + (w ? w.naam : st.winnaar);
+        } else if (st.actief && st.resterend_s != null) {
+            const m = Math.floor(st.resterend_s / 60), s = Math.floor(st.resterend_s % 60);
+            timerEl.textContent = `${m}:${String(s).padStart(2, "0")}`;
+        } else {
+            timerEl.textContent = "—";
+        }
+    }
+    const scoreEl = document.getElementById("ks-scorebord");
+    if (scoreEl) {
+        const teams = [...state.klokslagScore].sort((a, b) => (b.score || 0) - (a.score || 0));
+        if (!teams.length) {
+            scoreEl.innerHTML = '<div class="ks-leeg">Spel niet gestart.</div>';
+        } else {
+            scoreEl.innerHTML = "";
+            for (const t of teams) {
+                const rij = document.createElement("div");
+                rij.className = "ks-score-rij";
+                if (state.klokslagStatus.winnaar === t.id) rij.classList.add("ks-winnaar");
+                const stip = document.createElement("span");
+                stip.className = "ks-stip";
+                stip.style.background = klokslagTeamKleur(t.id);
+                const naam = document.createElement("span");
+                naam.className = "ks-score-naam";
+                naam.textContent = t.naam || t.id;
+                const pts = document.createElement("b");
+                pts.className = "ks-score-pts";
+                pts.textContent = (t.score || 0) + " uur";
+                rij.append(stip, naam, pts);
+                scoreEl.appendChild(rij);
+            }
+        }
+    }
+    const teamsEl = document.getElementById("ks-teams");
+    if (teamsEl) {
+        if (!state.klokslagScore.length) {
+            teamsEl.innerHTML = '<div class="ks-leeg">Geen teams geconfigureerd.</div>';
+        } else {
+            teamsEl.innerHTML = "";
+            for (const t of state.klokslagScore) {
+                const rij = document.createElement("div");
+                rij.className = "ks-team-rij";
+                const stip = document.createElement("span");
+                stip.className = "ks-stip";
+                stip.style.background = klokslagTeamKleur(t.id);
+                const naam = document.createElement("span");
+                naam.textContent = t.naam || t.id;
+                rij.append(stip, naam);
+                teamsEl.appendChild(rij);
+            }
+        }
+    }
+}
+
+function renderLeds() {
+    if (state.spelType === "klokslag") { renderKlokslagLeds(); return; }
+    // De dramatische animaties (nuke/oogst/tornado) komen authoritatief uit het retained pof/animatie-
+    // bericht — robuust tegen verloren per-paal commando's (WebSocket, geen ACK). Per-paal acties 8/11/14/15
+    // worden hier daarom genegeerd: zo blijft geen paal hangen als een commando-burst deels wegvalt.
+    const anim = state.animatie || { type: null };
+    const torCenters = new Set(), torRanden = new Set();
+    if (anim.type === "tornado") for (const t of (anim.centers || [])) {
+        if (t.center != null) torCenters.add(t.center);
+        for (const r of (t.randen || [])) torRanden.add(r);
+    }
+    for (let n = 1; n <= AANTAL_PALEN; n++) {
+        const led = document.getElementById("led-paal-" + n);
+        if (!led) continue;
         led.setAttribute("class", "led");
         led.style.fill = "";
 
-        // Minimale set: 0 = uit, 1 = portaal (paars), 2 = happy hour (goud).
-        if (actie === 8) {
-            // NUKE-ring: pulserend radioactief geel↔groen.
+        if (anim.type === "nuke" && n !== anim.gate) {
             const p = Math.sin(Date.now() / 220 + n * 0.5) / 2 + 0.5;
             led.style.fill = `hsl(${75 + p * 20}, 100%, ${32 + p * 28}%)`;
-        } else if (actie === 11) {
-            // Oogst: dramatische wit/rood-strobe.
+            continue;
+        }
+        if (anim.type === "oogst") {
             led.style.fill = (Math.floor(Date.now() / 150) % 2 === 0) ? "#ffffff" : "#c00000";
+            continue;
+        }
+        if (anim.type === "tornado") {
+            if (torCenters.has(n)) { led.style.fill = SOLID_KLEUR[14]; continue; }
+            if (torRanden.has(n)) { const g = Math.round(40 + (Math.sin(Date.now() / 600) / 2 + 0.5) * 90); led.style.fill = `rgb(${g},${g},${g})`; continue; }
+        }
+
+        // Per-paal toestanden (geen dramatische animaties).
+        const actie = state.paalActie[n] || 0;
+        if (actie === 13) {
+            led.style.fill = ((Date.now() % 500) < 120) ? "#ff1e00" : "#3a0000";   // tijdbom-ontmantelpaal
+        } else if (actie === 11) {
+            led.style.fill = (Math.floor(Date.now() / 120) % 2 === 0) ? "#ffffff" : "#9a9a9a";   // bom/oogst: witte flikker (per paal)
+        } else if (actie === 8 || actie === 14 || actie === 15) {
+            // dramatische ring-animatie: enkel via pof/animatie — hier negeren (anti-hang)
         } else if (actie in SOLID_KLEUR) {
             led.style.fill = SOLID_KLEUR[actie];
         }
     }
     renderBuzzers();
     renderZiekteIconen();
+    renderKnopFlits();
+}
+
+// Korte flits op een paal wanneer zijn drukknop ingedrukt is (niet-storend).
+function renderKnopFlits() {
+    const grp = document.getElementById("knop-flitsen");
+    if (!grp) return;
+    grp.innerHTML = "";
+    const nu = Date.now();
+    for (let n = 1; n <= AANTAL_PALEN; n++) {
+        if (state.paalKnop[n] <= nu) continue;
+        const p = paalPositie(n);
+        const hoek = Math.atan2(p.y, p.x);
+        const cx = (p.x + Math.cos(hoek) * 1.25) * M_TO_PX;
+        const cy = (p.y + Math.sin(hoek) * 1.25) * M_TO_PX;
+        const ring = document.createElementNS(NS, "circle");
+        ring.setAttribute("cx", cx); ring.setAttribute("cy", cy);
+        ring.setAttribute("r", 8);
+        ring.setAttribute("class", "knop-flits");
+        grp.appendChild(ring);
+    }
+}
+
+// Bouw het drukknop-bedieningspaneel: één knop per geconfigureerde paal (2 kolommen, oplopend).
+// Palen met een actieve tijdbom-ontmanteling worden gemarkeerd.
+function renderKnoppen() {
+    const grid = document.getElementById("knoppen-grid");
+    if (!grid) return;
+    const palen = state.drukknopPalen || [];
+    if (!palen.length) { grid.innerHTML = '<div class="knoppen-leeg">Geen knoppen geconfigureerd.</div>'; return; }
+    const ontmantel = new Set((state.tijdbom && state.tijdbom.ontmantelPalen) || []);
+    grid.innerHTML = "";
+    for (const n of palen) {
+        const isOnt = ontmantel.has(n);
+        const btn = document.createElement("button");
+        btn.className = "knop-btn" + (isOnt ? " ontmantel" : "");
+        btn.innerHTML = `<span class="knop-paal">Paal ${n}</span><span class="knop-sub">${isOnt ? "ontmantel" : "knop"}</span>`;
+        btn.title = isOnt ? `Paal ${n}: actieve tijdbom-ontmanteling` : `Paal ${n}: drukknop`;
+        btn.addEventListener("click", () => { btn.classList.add("ingedrukt"); setTimeout(() => btn.classList.remove("ingedrukt"), 200); publishKnop(n); });
+        grid.appendChild(btn);
+    }
 }
 
 function renderBuzzers() {
@@ -782,6 +1174,15 @@ function renderSpelers() {
             grp.appendChild(zlbl);
         }
 
+        const bom = ((state.tijdbom && state.tijdbom.spelers) || []).find(b => b.speler === sp.naam);
+        if (bom) {
+            const blbl = document.createElementNS(NS, "text");
+            blbl.setAttribute("x", cx); blbl.setAttribute("y", cy + (ziek ? 17 : 9));
+            blbl.setAttribute("class", "speler-bom-label");
+            blbl.textContent = "💣 " + bom.rondesOver;
+            grp.appendChild(blbl);
+        }
+
         if (state.modus === "sim") {
             c.addEventListener("pointerdown", (e) => startDrag(e, sp));
         }
@@ -791,6 +1192,14 @@ function renderSpelers() {
 function renderZijbalk() {
     const ul = document.getElementById("speler-lijst");
     ul.innerHTML = "";
+    // Doel-percentage naast de "Spelers"-kop (enkel zinvol bij een actief PoF-doel).
+    const pctEl = document.getElementById("doel-percent");
+    if (pctEl) {
+        const ds = state.doelStatus || {};
+        pctEl.textContent = (state.spelType !== "klokslag" && ds.doel && ds.doel.type && ds.doel.type !== "geen")
+            ? `${ds.aantal || 0}/${ds.totaal || 0} doel — ${ds.percent || 0}%` : "";
+    }
+    const doelBereikt = (state.doelStatus && state.doelStatus.spelers) || {};
     for (const sp of state.spelers) {
         const li = document.createElement("li");
         const kleur = document.createElement("span");
@@ -800,8 +1209,9 @@ function renderZijbalk() {
         groep.className = "groep-blok";
         groep.style.background = sp.groepKleur || "#ccc";
         const naam = document.createElement("span");
-        naam.className = "naam";
+        naam.className = "naam" + (doelBereikt[sp.naam] ? " doel-bereikt" : "");
         naam.textContent = sp.naam;
+        if (doelBereikt[sp.naam]) naam.title = "Doel bereikt";
         const uurEl = document.createElement("span");
         const uit = isUit(sp);
         uurEl.className = "speler-uur" + (uit ? " speler-uur-uit" : "");
@@ -992,7 +1402,9 @@ window.addEventListener("DOMContentLoaded", () => {
     tekenVeld();
     laadDefaultSpelers();
     renderZijbalk();
+    renderKnoppen();
     render();
+    pasSpelTypeToe();   // begin in de juiste speltype-staat (PoF default)
 
     document.getElementById("btn-connect").addEventListener("click", () => {
         if (state.client) { state.client.end(true); state.client = null; }
@@ -1026,6 +1438,45 @@ window.addEventListener("DOMContentLoaded", () => {
             publishModus();   // 24-uur veld aan/uit in Node-RED
             renderSpelers();
         });
+    });
+    // Speltype wordt enkel op het Bediening-dashboard gekozen; de simulator toont het enkel
+    // (via de retained spel/type-handler + pasSpelTypeToe). Geen selector meer hier.
+
+    // Eén ronde terug in de tijd.
+    document.getElementById("btn-tijd-terug").addEventListener("click", () => {
+        publishTijdTerug();
+        log("info", "Tijd terug aangevraagd…");
+    });
+
+    // Spelinstellingen-paneel openen/sluiten + slechte-aura-toggle.
+    document.getElementById("btn-spel").addEventListener("click", () => {
+        document.getElementById("spel-paneel").classList.toggle("dicht");
+    });
+    document.getElementById("spel-toggle").addEventListener("click", () => {
+        document.getElementById("spel-paneel").classList.add("dicht");
+    });
+    document.getElementById("bad-aura").addEventListener("change", (e) => {
+        state.badAura = e.target.checked;
+        log("info", "Slechte aura " + (state.badAura ? "AAN (avond/nacht gevaarlijker)" : "UIT"));
+        publishSpelConfig();
+    });
+
+    // Systeeminstellingen-paneel openen/sluiten + toggles.
+    document.getElementById("btn-systeem").addEventListener("click", () => {
+        document.getElementById("systeem-paneel").classList.toggle("dicht");
+    });
+    document.getElementById("systeem-toggle").addEventListener("click", () => {
+        document.getElementById("systeem-paneel").classList.add("dicht");
+    });
+    document.getElementById("toestand-exclusief").addEventListener("change", (e) => {
+        state.toestandExclusief = e.target.checked;
+        log("info", "Toestand-exclusiviteit " + (state.toestandExclusief ? "AAN (tijdbom/ziekte niet samen)" : "UIT (mogen samen)"));
+        publishSysteemConfig();
+    });
+    document.getElementById("tempo-slider").addEventListener("input", (e) => {
+        state.tempo = parseFloat(e.target.value);
+        document.getElementById("tempo-waarde").textContent = state.tempo.toFixed(2);
+        publishSysteemConfig();
     });
 
     // Log resize handle — de gekozen hoogte blijft vast (en bewaard in localStorage),

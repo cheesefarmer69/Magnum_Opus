@@ -9,7 +9,17 @@
       "PowerShell($f = Get-Content \"pi\\\\node-red\\\\blokken\\\\01_preflight\\\\preflight.flow.json\" -Raw | ConvertFrom-Json; \"preflight.flow.json OK - $\\($f.Count\\) nodes\"; $f | Where-Object { $_.type -eq 'function' } | ForEach-Object { \"  func: $\\($_.name\\)\" })",
       "PowerShell($f = Get-Content \"pi\\\\node-red\\\\flows.json\" -Raw | ConvertFrom-Json; \"flows.json OK - $\\($f.Count\\) nodes\"; \"tabs: \" + \\(\\($f | Where-Object { $_.type -eq 'tab' } | ForEach-Object { $_.label }\\) -join ', '\\); $ids = $f | ForEach-Object { $_.id }; $dups = $ids | Group-Object | Where-Object { $_.Count -gt 1 }; if \\($dups\\) { \"DUPLICATE IDS: \" + \\($dups.Name -join ', '\\) } else { \"geen dubbele ids\" })",
       "PowerShell(Get-Command pio -ErrorAction SilentlyContinue)",
-      "PowerShell(& \"C:\\\\Users\\\\Nic\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Master\" 2>&1)"
+      "PowerShell(& \"C:\\\\Users\\\\Nic\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Master\" 2>&1)",
+      "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_a.py\")",
+      "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_b.py\")",
+      "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_c.py\")",
+      "Bash(python -c ' *)",
+      "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_wachtrij_toe.py\")",
+      "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_airstrike_weg.py\")",
+      "PowerShell($pio = \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\"; Set-Location \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Master\"; & $pio run -e master1 2>&1 | Select-Object -Last 6)",
+      "PowerShell($pio = \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\"; Set-Location \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\"; & $pio run 2>&1 | Select-Object -Last 8)",
+      "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_bomaanslag.py\")",
+      "Bash(cp pi/node-red/flows.json \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/flows.before_resizeremove.bak\")"
     ]
   }
 }

@@ -138,12 +138,15 @@ class Orakel:
             is_doel = beweging and naam in doelwit
             status, delta = self._classificeer(naam, r, is_doel, voorwaarde, x, y, ctx)
 
-            # Middernacht-poort dicht (override, exact zoals de engine: start op mnPaal + bewoog)
-            if ctx.mn_dicht and ctx.mn_paal is not None and ctx.start_pos.get(naam) == ctx.mn_paal and r.bewogen:
-                status, delta = "MIDDERNACHT DICHT", -r.voor
+            # Middernacht-poort dicht: OVERSTEKEN (voorwaartse wrap over de poort, r.kruist) = alle
+            # uren kwijt + sterfte. Wie naar de poort-paal loopt zonder over te steken blijft ongestraft.
+            mn_kruis_dood = bool(ctx.mn_dicht and r.kruist)
+            if mn_kruis_dood:
+                status = "MIDDERNACHT DICHT"
+                delta = -self.totaal.get(naam, 0)
 
-            # Ziekte-modifier
-            if naam in ctx.zieke:
+            # Ziekte-modifier (niet bij een verboden middernacht-oversteek)
+            if not mn_kruis_dood and naam in ctx.zieke:
                 if delta > 0:
                     delta = 0
                 legaal = status in ("OK", "OK (stil)")
@@ -158,7 +161,7 @@ class Orakel:
                 delta *= 2
 
             # Sterfte-voorspelling op de lopende totalen (dienaars verliezen niet via winst).
-            sterfte = self._pas_toe(naam, status, delta, ctx)
+            sterfte = self._pas_toe(naam, status, delta, ctx, force_sterfte=mn_kruis_dood)
 
             collapsed = self._collapse(status, sterfte)
             resultaat[naam] = VerwachtSpeler(naam, status, delta, collapsed, sterfte)
@@ -184,10 +187,15 @@ class Orakel:
             return "OK (stil)", 0
         return "BEWOOG (mocht niet)", -(r.voor + r.achter)
 
-    def _pas_toe(self, naam, status, delta, ctx) -> bool:
+    def _pas_toe(self, naam, status, delta, ctx, force_sterfte: bool = False) -> bool:
         """Werk lopende totalen bij; geef terug of er een sterfte was."""
         self.totaal.setdefault(naam, 0)
         self.sterftes.setdefault(naam, 0)
+        if force_sterfte:
+            # Verboden middernacht-oversteek: alle uren kwijt + sterfte (geen dienaar-omleiding).
+            self.totaal[naam] = 0
+            self.sterftes[naam] += 1
+            return True
         meester = ctx.dienaars.get(naam)
         if meester is not None and delta > 0:
             self.totaal.setdefault(meester, 0)
@@ -303,6 +311,28 @@ def _selftest() -> int:
     fouten += 0 if ok else 1
     print(f"  [{'OK ' if ok else 'FOUT'}] sterfte-collaps: base={res.base_status!r} "
           f"delta={res.delta} sterfte={res.sterfte} collapsed={res.collapsed_status!r}")
+
+    # Middernacht-poort dicht: 24->1 oversteek = alle uren kwijt + sterfte.
+    orakel = Orakel(); orakel.totaal["W"] = 5
+    ev = {"voorwaarde": "max", "getalWaarde": 5, "doelwit": ["W"], "doelwitType": "speler"}
+    ctx = RondeContext(event=ev, start_pos={"W": 24}, end_pos={"W": 1},
+                       paths={"W": [[24, 1]]}, ring=list(range(1, 25)), mn_dicht=True, mn_paal=24)
+    res = orakel.evalueer_ronde(ctx)["W"]
+    ok = res.base_status == "MIDDERNACHT DICHT" and res.delta == -5 and res.sterfte and res.collapsed_status == "OK"
+    fouten += 0 if ok else 1
+    print(f"  [{'OK ' if ok else 'FOUT'}] middernacht-oversteek: base={res.base_status!r} "
+          f"delta={res.delta} sterfte={res.sterfte} (verwacht -5 + sterfte)")
+
+    # Middernacht-poort dicht: tot AAN paal 24 lopen zonder oversteken = ongestraft (+2).
+    orakel = Orakel()
+    ev = {"voorwaarde": "max", "getalWaarde": 5, "doelwit": ["V"], "doelwitType": "speler"}
+    ctx = RondeContext(event=ev, start_pos={"V": 22}, end_pos={"V": 24},
+                       paths={"V": [[22, 23], [23, 24]]}, ring=list(range(1, 25)), mn_dicht=True, mn_paal=24)
+    res = orakel.evalueer_ronde(ctx)["V"]
+    ok = res.base_status == "OK" and res.delta == 2 and not res.sterfte
+    fouten += 0 if ok else 1
+    print(f"  [{'OK ' if ok else 'FOUT'}] naar poort zonder oversteek: status={res.base_status!r} "
+          f"delta={res.delta} (verwacht OK/+2)")
 
     print(f"\nResultaat: {'ALLE TESTS GESLAAGD' if fouten == 0 else str(fouten) + ' FOUT(EN)'}")
     return 1 if fouten else 0

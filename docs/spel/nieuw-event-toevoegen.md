@@ -27,7 +27,11 @@ juiste formaat:
    - niets behalve een beweging-controle (`voorwaarde: min`/`max` + `getal`),
    - een blijvend **effect** (portaal / happy hour / mag-niet-bewegen / events-sneller),
    - een directe **score** (±levensuren),
+   - een speler-**toestand** met eigen lifecycle (`ziekte` / `tijdbom`),
    - of een los **commando** (LED/zoemer).
+   - Is het een speler-toestand die niet samen met een andere mag voorkomen (clutter)? Zet
+     `exclusiefGroep: "speler-toestand"` — spelers in zo'n toestand worden dan niet gekozen (tenzij
+     de Systeeminstelling "toestand-exclusiviteit" uit staat). Ziekte en tijdbom delen die groep.
 
 Niet zeker over een veld? Laat het weg of zeg "kies maar" — ik vul een zinvolle default in
 volgens [events.md](events.md) en leg de keuze voor.

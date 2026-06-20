@@ -61,10 +61,11 @@ Een `"STALL"`-uitvoer = de engine hangt (kritiek).
    - gebruik een actief **portaal** legaal, en probeer **pingpong** (2× heen en weer);
    - probeer op een **happy-hour**-uur te eindigen (×2) — en kijk of dat klopt;
    - zoek **exploits**: oneindig scoren, sterfte ontwijken, een **dienaar** die toch voor
-     zichzelf scoort, middernacht oversteken bij dichte poort vanaf een *andere* paal
-     (de engine controleert "start op de middernacht-paal", niet de oversteek zelf —
-     test of een speler die 23→24→1 loopt bij dichte poort ontkomt: dat is een
-     verdacht spec-gat, zie `docs/invarianten.md` M3).
+     zichzelf scoort, of de **middernacht-oversteek**: bij een dichte poort is élke
+     voorwaartse oversteek over de poort (de wrap 24→1, `r.kruist`) verboden → de
+     overtreder verliest **al zijn levensuren + 1 sterfte** (zie `docs/invarianten.md` M3).
+     Test dat een speler die 23→24→1 loopt bij dichte poort bestraft wordt, en dat wie
+     enkel tót paal 24 loopt (zonder oversteek) ongestraft blijft.
 4. **`move`** de relevante spelers.
 5. **`verify`** — noteer elke mismatch/stall.
 6. Na ~15–30 rondes: **`stop`** en lever je rapport.

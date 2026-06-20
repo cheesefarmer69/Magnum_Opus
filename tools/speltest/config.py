@@ -35,6 +35,12 @@ T_LOCATIE = "sim/locatie"
 T_BEDIENING = "sim/bediening"
 T_MIDDERNACHT_CONFIG = "sim/middernacht-config"
 T_EVENTS_CONFIG = "sim/events-config"
+T_SYSTEEM_CONFIG = "sim/systeem-config"   # {toestandExclusief, tempo}
+T_KNOP = "plaatjes/data"                  # drukknop: {"paal":N,"knop":1} (zelfde topic als hardware)
+T_WACHTRIJ_WEG = "sim/wachtrij-weg"        # {"index":N} — verwijder aankomend event uit pofWachtrij
+T_SPEL_CONFIG = "sim/spel-config"          # {"badAura":bool} — spelinstelling slechte aura
+T_TIERS_CONFIG = "sim/tiers-config"        # {id: tier} — per-event tier-override
+T_TIJD_TERUG = "sim/tijd-terug"            # trigger: één ronde terug in de tijd
 
 # --- Topics waarop de harness luistert (Node-RED -> client) ---
 T_STATUS = "pof/status"
@@ -45,12 +51,16 @@ T_ZIEKTE = "pof/ziekte"
 T_MIDDERNACHT = "pof/middernacht"
 T_DIENAARS = "pof/dienaars"
 T_EVENTS = "pof/events"
+T_TIJDBOM = "pof/tijdbom"
+T_ANIMATIE = "pof/animatie"
+T_DRUKKNOPPEN = "config/drukknoppen"
 T_LOCATIE_SPELERS = "locatie/spelers"
 T_HISTORIE = "spel/historie"
 
 SUB_TOPICS = [
     T_STATUS, T_CONTROLE, T_PORTALEN, T_TOESTANDEN, T_ZIEKTE,
-    T_MIDDERNACHT, T_DIENAARS, T_EVENTS, T_LOCATIE_SPELERS, T_HISTORIE,
+    T_MIDDERNACHT, T_DIENAARS, T_EVENTS, T_TIJDBOM, T_ANIMATIE, T_DRUKKNOPPEN,
+    T_LOCATIE_SPELERS, T_HISTORIE,
 ]
 
 # --- Opties -> bereik (docs/spel/event-catalogus.md) ---

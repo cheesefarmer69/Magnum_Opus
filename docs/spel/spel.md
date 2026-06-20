@@ -1,5 +1,11 @@
 # Spel oriëntering + mechanieken
 
+> **Speltypes.** Het systeem ondersteunt meerdere game-modes op dezelfde hardware. De keuze
+> staat in `global.spelType` (retained topic `spel/type`), kiesbaar in de simulator én het
+> Bediening-dashboard. Elke engine draait enkel als het hún spel is:
+> - **Plates of Fate** — dit document (flow 06).
+> - **Klokslag** — een teamgebaseerde inname-minigame; zie `docs/spel/klokslag.md` (flow 07).
+
 ## Overzicht
 
 Het spel bestaat uit twee grote delen, gespeeld op dezelfde dag:
@@ -28,10 +34,17 @@ Het is een *plates of fate*-spel: willekeurige events bepalen het verloop.
 ### Middernacht — de poort van pi
 
 Middernacht (de hoogste paal, 00u) is **geen afroepbaar event** maar een **permanent mechanisme**: een
-**poort** op de hoogste paal die enkel mag worden verlaten wanneer ze **open** staat. De poort-LED
-toont de staat: **zacht wit = open**, **rood = dicht**. Staat ze dicht, dan mag een speler die **op de
-middernacht-paal staat** niet bewegen (beweegt hij tóch = `MIDDERNACHT DICHT`, verlies van de gelopen
-uren); spelers elders op de ring bewegen gewoon. Je zit aan de poort vast tot ze weer opent.
+**poort** op de hoogste paal. De poort-LED toont de staat: **zacht wit = open**, **rood = dicht**.
+Staat de poort **dicht** (LED rood), dan mag **geen enkele speler uur 1 (de laagste paal) lopend in
+zijn pad nemen** — d.w.z. de stap van de hoogste paal naar uur 1 (de 24→1-wrap). Wie dat tóch doet,
+ofwel live tijdens een verplaatsing, ofwel betrapt bij de **verplaatsingscontrole na een event**,
+verliest **al zijn levensuren én krijgt een sterfte** (`MIDDERNACHT DICHT`). Tot aan de poort lopen
+(zonder uur 1 te nemen) mag wél. **Enige uitzondering:** een **TELEPORT** naar uur 1 via een actief
+portaal is toegestaan (lopend 24→1 blijft verboden). Spelers elders op de ring bewegen gewoon.
+
+De regel wordt op twee momenten gehandhaafd: een live *poort-bewaker* (elke settled paalwissel, ook
+tussen events) én de na-event-controle. Een dedup (`global.mnGestraft` per ronde) zorgt dat een speler
+**hoogstens één keer** bestraft wordt per ronde.
 
 De open/dicht-volgorde volgt de **cijfers van π** (de eerste 500, daarna opnieuw). De poort start **open**;
 elk cijfer is de duur (in events) van een fase, en daarna wisselt open↔dicht. Dus: **3 events open, 1 toe,
@@ -39,7 +52,9 @@ elk cijfer is de duur (in events) van een fase, en daarna wisselt open↔dicht. 
 
 **De nul = de oogst.** Zodra de π-volgorde een **0** tegenkomt, worden **alle spelers die op dat moment op
 middernacht staan geoogst**: ze sterven (levensuren → 0, +1 sterfte) en worden voor de rest van het spel
-**dienaar** van de **armste** andere speler. Een dienaar verdient zelf **geen** levensuren meer — alles wat
+**dienaar** van de **armste** andere speler. **Elke meester kan maar één dienaar hebben**: zijn er
+meerdere geoogsten tegelijk, dan krijgt de eerste (in **willekeurige** volgorde getrokken) de armste vrije
+speler, de tweede de op-één-na-armste, enzovoort. Een dienaar verdient zelf **geen** levensuren meer — alles wat
 hij verdient gaat **rechtstreeks naar zijn meester** (en die kan het niet meer verliezen). De dienaar
 speelt gewoon door: events blijven op hem vallen en hij kan nog sterftes opbouwen (schadebeperking). De 0
 verandert de open/dicht-volgorde **niet** (bv. *dicht, 0, open*). De π-sequentie **loopt door** over
@@ -72,6 +87,28 @@ dat je verder reist in de tijd, levert een levensuur op (24 levensuren = 1 leven
 
 Het is een *plates of fate*-spel: spelers moeten overleven tussen de events door
 en ondertussen zoveel mogelijk levensuren verzamelen.
+
+### Doelen per spel
+
+Per PoF-partij kies je (op het Bediening-dashboard) een **doel** + een **aantal spelers** dat het
+doel moet halen, en optioneel een **auto-einde**-schakelaar (spel stopt vanzelf zodra genoeg
+spelers slaagden). De voortgang verschijnt live in de simulator-zijbalk (percentage naast "Spelers"
++ highlight van geslaagde namen) en de geslaagde spelers komen na afloop in de **historiek**.
+
+- **Doel 1 — Verplaats X uur:** bereikt zodra je dit spel in totaal ≥ X uur vooruit gelopen bent
+  (per-spel teller `verplaatstSpel`; X is instelbaar).
+- **Doel 2 — Inhalen (alfabet):** je rivaal is de speler die alfabetisch ná jou komt (cyclisch: de
+  laatste heeft de eerste als rivaal). Je haalt hem in als je, **komend van een lager uur**, op een
+  uur **≥ 1 voorbij** hem eindigt, waarbij het **passeren door lopen** moet gebeuren. Een portaal
+  terug in de tijd nemen en dan voorbij lopen telt; een portaal dat **voorbij je rivaal landt** telt
+  niet. Eenmaal behaald blijft het behaald.
+
+### Stats: huidig spel vs. globaal
+
+Levensdagen/levensuren/sterftes worden **per spel** geteld (tabel **Huidig spel**). Bij **Stop**
+worden ze opgeteld bij de cumulatieve tabel **Globaal** en het huidig-spel wordt gewist. Een
+**spel-teller** (`Spel #`) telt elke gestarte partij; resetten kan via Admin "Reset ALLES" of
+"[BEHEER] Wis globale stats".
 
 ### Puntensysteem (scoren op controle)
 

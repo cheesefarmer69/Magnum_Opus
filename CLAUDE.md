@@ -37,7 +37,7 @@ de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
 
 - **Master**: ESP32 WROOM-32, USB verbonden met Pi via CH340 USB-UART (vendor 1a86, product 7523)
 - **Slaves**: ESP32-C3 SuperMini , één per paal, 24 palen
-- **Master/slave-indeling**: Master 1 stuurt slaves 1–7 aan, Master 2 slaves 8–16, Master 3 slaves 17–24
+- **Master/slave-indeling**: Master 1 stuurt slaves 1–8 aan, Master 2 slaves 9–16, Master 3 slaves 17–24
 - **Hub**: Raspberry Pi 4 model B 1GB RAM (IP 192.168.1.43, statisch), Raspberry Pi OS
 - **Custom PCB**: ontworpen in EasyEDA, besteld bij JLCPCB (zie docs/hardware/)
 
@@ -87,11 +87,11 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 ### Firmware
 1. Bewerk in VS Code via PlatformIO
 2. Selecteer de environment onderin de status bar:
-   - **Master**: `master1` (palen 1–7), `master2` (8–16) of `master3` (17–24). Eén codebase;
+   - **Master**: `master1` (palen 1–8), `master2` (9–16) of `master3` (17–24). Eén codebase;
      het paalbereik + de slave-MAC-set komen uit `build_flags` (`PAAL_MIN/PAAL_MAX/MASTER_NR`) en
      `firmware/Master/include/slave_macs.h`. Flash de juiste env naar de juiste fysieke master.
    - **Slave**: één env; zet enkel `PAAL_ID` per bordje — de slave kiest zijn master-MAC automatisch
-     uit `PAAL_ID` (1–7→master1, 8–16→master2, 17–24→master3).
+     uit `PAAL_ID` (1–8→master1, 9–16→master2, 17–24→master3).
 3. Build (vinkje) → Upload (pijl) → Serial Monitor (stekker)
 
 ### Pi-code

@@ -32,6 +32,17 @@ Eén event is één object in die array.
   getal2: [4, 6],            // OPTIONEEL — tweede getal (vult elke 'y' in de tekst); optie of [min,max]
   voorwaarde: "min",         // OPTIONEEL — "min" | "max" | "of" | "geen" (beweging-controle)
   max: 1,                    // OPTIONEEL — max. aantal tegelijk actieve instanties (toestand)
+  tier: "rare",              // OPTIONEEL — zeldzaamheid → keuze-gewicht: common 50 / uncommon 25 /
+                             //   rare 15 / epic 8 / legendary 2 (default common). Per event aanpasbaar
+                             //   in de simulator-events-tab (sim/tiers-config → global.eventTiers).
+  minAfstand: 3,             // OPTIONEEL — minimale RING-afstand tussen gekozen uur-doelwitten
+                             //   (bv. tornado: 3 zodat de centers + buururen nooit overlappen)
+  slechteAura: true,         // OPTIONEEL — "slechte aura": negatief speler-event dat 's avonds (uur 20–6,
+                             //   ×1,10) en op middernacht (uur 24, ×1,15) vaker een doelwit kiest, zodat de
+                             //   dag veiliger is. Werkt enkel als de spelinstelling badAuraAan aan staat.
+  exclusiefGroep: "speler-toestand", // OPTIONEEL — speler-toestand-groep; spelers in dezelfde groep
+                             //   (bv. ziekte ⇄ tijdbom) krijgen dit event niet samen, tenzij de
+                             //   systeeminstelling "toestand-exclusiviteit" uit staat (global.toestandExclusief)
   duratie: [2, 4],           // OPTIONEEL — hoelang de toestand blijft: getal | [min,max] | "kort"/"middel"/"lang"
   audioVoor: "id_voor.wav",  // OPTIONEEL — WAV vóór het getal in de afroep
   audioNa: "id_na.wav",      // OPTIONEEL — WAV ná het getal in de afroep
@@ -171,6 +182,10 @@ Elk gevolg is één object in de array; combineren mag.
 | `effect`   | `niveau`, `effect`, `duurRondes`, `data`  | Plaatst een **blijvend effect** (zie hieronder). |
 | `ziekte`   | —                                         | Maakt de doelwit-spelers **ziek** (`duratie` events) en plaatst **medicijn** op evenveel vrije uren. Zie hieronder. |
 | `nuke`     | —                                         | Wereld-event: na de aftelklok (`reactietijd_s`) ontploft iedereen die nog **gedetecteerd** is (uren 0 + sterfte); daarna een **regroup**-pauze van `regroup_s` s. Zie hieronder. |
+| `tijdbom`  | —                                         | Maakt de doelwit-spelers een **tikkende tijdbom** (`duratie` events) + kiest evenveel **ontmantel-palen** (palen met een drukknop). Ontmantelen = de knop op zo'n paal indrukken (dag 80% / nacht 50%). Mislukken of ontploffen → iedereen op die paal verliest `uur` levensuren. Zie hieronder. |
+| `tornado`  | —                                         | **Tornado** op de doelwit-uren (1–2 centers, `minAfstand` houdt ze uit elkaar): spelers op de twee **aanliggende** uren worden naar het center gezogen. Wie niet meebeweegt → **alle** levensuren kwijt (geen sterfte). Zie hieronder. |
+| `bom`      | —                                         | **Bomaanslag** op de doelwit-uren: tijdens `reactietijd_s` een waarschuwing (rode tik-LED + zoemer) op die uren; bij de controle ontploft de bom — wie **dan** op een doel-uur staat verliest `uur` levensuren (vluchten mag, geen bewegingsstraf). Witte flikker (OOGST-strobe) + ontploffingsgeluid (`audioVoor`). Gebruik `doelwit:{type:"uur","vast":[9,11]}` voor vaste uren. |
+| `tempo`    | `richting: "sneller"\|"trager"`           | Wereld-event: schaalt het **spel-tempo** (`global.spelTempoFactor`) dat de reactietijd van volgende events vermenigvuldigt. `sneller` −0,1 (min **0,6**), `trager` +0,1 (max **1,3**). Start 1,0; reset naar 1,0 bij Stop. |
 | `geen`     | —                                         | Geen neveneffect. Gebruik dit voor pure beweging-opdrachten (met `voorwaarde`). |
 
 `actie`-waarden (commando): `0` uit · `1` portaal (paars) · `2` happy hour (goud) ·
@@ -306,7 +321,7 @@ maar voor elk groepslid; niet-leden moeten stil blijven.
 
 ```js
 { id:"portalen", naam:"Portalen", categorie:"toestand",
-  tekst:"Een portaal opent tussen twee uren.", reactietijd_s:5, max:1, duratie:[2,4],
+  tekst:"Een portaal opent tussen twee uren.", reactietijd_s:5, max:1, duratie:[3,8],
   doelwit:{ type:"uur", selectie:"willekeurig", aantal:2 },
   audioVoor:"portalen_voor.wav", audioNa:"portalen_na.wav",
   gevolgen:[ { type:"effect", niveau:"uur", effect:"portaal", data:{} } ] }
@@ -352,6 +367,53 @@ Kiest 1–3 spelers (afroep: "3 spelers worden ziek") en maakt ze ziek; evenveel
 felroze (medicijn). De zieken hebben `duratie` (10) events om een medicijn-uur te bereiken, anders
 sterven ze. `max: 1` houdt het bij één ziekte-episode tegelijk (de medicijnen blijven actief tot de
 episode voorbij is). Volledige uitleg: `docs/spel/event-catalogus.md`.
+
+### Toestand-event (tijdbom: bom-spelers + ontmantel-palen via drukknop)
+
+```js
+{ id:"tijdbom_speler", naam:"Tijdbom", categorie:"toestand",
+  tekst:"worden een tijdbom.", reactietijd_s:5, max:1, duratie:10,
+  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
+  exclusiefGroep:"speler-toestand",
+  audioVoor:"tijdbom_voor.wav", audioNa:"tijdbom_na.wav",
+  gevolgen:[ { type:"tijdbom" } ] }
+```
+Kiest 1–3 spelers (afroep: "3 spelers worden een tijdbom") en maakt ze een tikkende tijdbom met
+`duratie` (10) events op de klok. Het event kiest evenveel **ontmantel-palen** als bommen uit de
+palen met een **drukknop** (`config/drukknoppen`); die palen knipperen rood (actie 13). Een bom-speler
+ontmantelt door op zo'n paal de **knop** in te drukken: in de **dag** (uren 7–18) lukt dat met **80%**,
+in de **nacht** (19–6) met **50%**. Lukt het → bom weg, geen gevolgen. Mislukt het, óf loopt de klok af
+(ontploffing) → **iedere** speler op die paal verliest het aantal levensuren gelijk aan het **uur** waar
+ze staan (uur 7 → −7). `exclusiefGroep:"speler-toestand"` houdt tijdbom en ziekte van dezelfde speler
+weg (tenzij uitgezet in Systeeminstellingen). Volledige uitleg: `docs/spel/event-catalogus.md`.
+
+### Toestand-event (tornado: zuigt aanliggende uren naar het midden)
+
+```js
+{ id:"tornado", naam:"Tornado", categorie:"toestand",
+  tekst:"worden door een tornado getroffen.", reactietijd_s:20, max:1, duratie:1,
+  doelwit:{ type:"uur", selectie:"willekeurig", aantal:[1,2] },
+  minAfstand:3,
+  audioVoor:"tornado_voor.wav", audioNa:"tornado_na.wav",
+  gevolgen:[ { type:"tornado" } ] }
+```
+Kiest 1–2 uren als **tornado-center** (donkergrijze LED); `minAfstand:3` houdt twee tornado's volledig
+gescheiden. De twee **aanliggende** uren pulsen traag grijs en worden naar het center gezogen: spelers
+daar **moeten** binnen de reactietijd naar het center bewegen, anders zijn ze **al** hun levensuren kwijt
+(geen sterfte). De tornado mag de LED van een onderliggend effect tijdelijk overschrijven; na het event
+(`duratie:1`, opgeruimd bij de controle) keren de LED's terug. Volledige uitleg: `docs/spel/event-catalogus.md`.
+
+### Wereld-event (tempo: spel sneller / trager)
+
+```js
+{ id:"sneller_events", naam:"Sneller", categorie:"wereld",
+  tekst:"De tijd versnelt: events komen sneller.", reactietijd_s:5,
+  doelwit:{ type:"geen" }, audioVoor:"sneller_events.wav",
+  gevolgen:[ { type:"tempo", richting:"sneller" } ] }
+```
+Stapt `global.spelTempoFactor` met **−0,1** (min **0,6**); het analoge `trager_events` (`richting:"trager"`)
+met **+0,1** (max **1,3**). Die factor vermenigvuldigt de reactietijd van elk volgend event (verplaatsing 20
+→ ×0,9 = 18 s, enz.), bovenop de test-`tempo` uit de Systeeminstellingen. Reset naar 1,0 bij Stop.
 
 ### Wereld-event (blijvend effect)
 

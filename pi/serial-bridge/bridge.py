@@ -27,8 +27,8 @@ SERIEEL_BAUD = 115200
 HERDETECTIE_INTERVAL = 5  # s, hoe vaak we naar nieuwe/verdwenen poorten zoeken
 
 # Commando-topics per master. De koppeling topic -> fysieke poort wordt geleerd
-# uit de binnenkomende paal_id (zie paal_naar_topic): een master die palen 1-7
-# rapporteert is master1, 8-16 master2, 17-24 master3.
+# uit de binnenkomende paal_id (zie paal_naar_topic): een master die palen 1-8
+# rapporteert is master1, 9-16 master2, 17-24 master3.
 COMMANDO_TOPICS = ["commando/master1", "commando/master2", "commando/master3"]
 
 # Thread-safe opslag voor seriële verbindingen
@@ -49,9 +49,9 @@ def paal_naar_topic(paal_id):
         p = int(paal_id)
     except (TypeError, ValueError):
         return None
-    if 1 <= p <= 7:
+    if 1 <= p <= 8:
         return "commando/master1"
-    if 8 <= p <= 16:
+    if 9 <= p <= 16:
         return "commando/master2"
     if 17 <= p <= 24:
         return "commando/master3"

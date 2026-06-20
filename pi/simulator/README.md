@@ -25,6 +25,28 @@ het echte hardware is.
 
 ---
 
+## Speltype kiezen (Plates of Fate / Klokslag)
+
+Naast **Modus** staat in de header een **Spel**-keuze: **🎲 Plates of Fate** of **🕐 Klokslag**.
+De keuze is één bron van waarheid via het retained topic `spel/type` — kiezen in de simulator óf in
+het Node-RED Bediening-dashboard werkt beide kanten op en blijft bewaard na een reconnect.
+
+De **modus** (Monitor/Simulatie) is ook op het Node-RED Bediening-dashboard schakelbaar; de keuze
+synct via retained `sim/modus` beide kanten op (de simulator-radio schuift mee).
+
+**PoF-doelen.** Bij een actief doel toont de zijbalk naast de "Spelers"-kop het **percentage**
+spelers dat zijn doel haalde (`X% doel (a/n)`) en worden de **namen van geslaagde spelers
+gehighlight** (groen). Data komt uit `pof/doelstatus`.
+
+Welk spel actief is, staat **duidelijk in de banner** boven de event-balk (kleur + icoon wisselt mee).
+Bij **Klokslag** verbergt de simulator de PoF-panelen (events, toestanden, middernacht) en toont in
+plaats daarvan de **Klokslag-timer**, het **scorebord per team** en de **teamlegenda**. De LED's
+tonen dan per paal de teamkleur: rust = zacht ademend wit, inname = kaarsflikker met helderheid ∝
+voortgang `P/H`, ingenomen = constant fel, gelijkspel/verval = bevroren kleur. Zie
+`docs/spel/klokslag.md` voor de regels en `pi/node-red/blokken/07_klokslag/` voor de engine.
+
+---
+
 ## Capabilities per modus
 
 | Functie | Monitor | Simulatie |
@@ -224,6 +246,71 @@ doorstuurt, klopt deze controle exact met wat je op het veld plaatst.
 **Auto-walk werkt niet**
 - Zorg dat de modus **Simulatie** is (niet Monitor) — auto-walk publiceert
   detecties en is alleen actief in simulatiemodus.
+
+---
+
+## Drukknoppen
+
+Sommige palen hebben een fysieke drukknop (configureerbaar via `[CONFIG] Drukknop-palen` in
+Node-RED, retained op `config/drukknoppen`). Tussen het speelveld en de event-kolom staat het
+**Drukknoppen-paneel**: één knop per geconfigureerde paal, in **twee kolommen** met per knop het
+uur ("Paal 7"). Klik een knop om hem in te drukken — de simulator publiceert dan
+`{"paal":N,"knop":1}` op `plaatjes/data` (exact zoals de hardware via `MSG_KNOP`) en toont een korte
+**flits** bij die paal op het veld. Een knop werkt op **elk** moment, in welke event-fase ook.
+
+Bij een actief **tijdbom**-event krijgen de gekozen **ontmantel-palen** een rode rand in het paneel
+(en knipperen ze rood op het veld, `ACTIE_TIJDBOM`). Bom-spelers dragen een 💣-badge met hun
+resterende events. Druk de knop op een ontmantel-paal waar een bom-speler staat om te ontmantelen
+(dag 80% / nacht 50%).
+
+## Systeeminstellingen
+
+De knop **⚙ Systeeminstellingen** rechtsboven opent een paneel met:
+
+- **Nacht (middernacht) actief** — het middernacht-mechanisme aan/uit (verhuisd vanuit het
+  Middernacht-paneel; publiceert `sim/middernacht-config`).
+- **Toestanden exclusief** — tijdbom & ziekte niet samen op één speler (uit = ze mogen samen).
+- **Tempo** — reactietijd-multiplier om events sneller/trager te laten verlopen tijdens het testen.
+
+De laatste twee publiceren (retained) op `sim/systeem-config` `{toestandExclusief, tempo}`.
+
+## Spelinstellingen
+
+De knop **🎲 Spelinstellingen** (naast Systeeminstellingen) opent een paneel met **spelregel**-instellingen:
+
+- **Slechte aura** (default aan) — negatieve speler-events (ziekte, tijdbom) treffen 's avonds (uur 20–6)
+  en op middernacht (uur 24) vaker, zodat de dag veiliger is. Publiceert (retained) `sim/spel-config`
+  `{badAura}`.
+- **Spel-tempo** (uitlezing) — de huidige tempo-factor (0,6–1,3), gestuurd door de `Sneller`/`Trager`
+  wereld-events; uit `pof/status.spelTempo`.
+
+## Event-tiers (zeldzaamheid)
+
+In het **Events**-paneel heeft elke event-kaart een **tier-dropdown** (common/uncommon/rare/epic/legendary).
+De tier bepaalt de kans dat een event gekozen wordt (gewichten 50/25/15/8/2). De keuze wordt retained
+gepubliceerd op `sim/tiers-config` → `global.eventTiers`. Default-tier komt uit het event zelf.
+
+Elke event-kaart heeft ook een **"→ wachtrij"-knop**: die zet dat event **vooraan** in de wachtrij
+(= het volgende event), publiceert `sim/wachtrij-toevoegen` `{id}`. De "Volgende events"-rij (max 5)
+schuift door. Werkt enkel tijdens een lopend spel (anders houdt Node-RED de wachtrij leeg).
+
+## Tijd terug (↶)
+
+Naast de titel **Huidig event** staat een **↶-knop**: één ronde terug in de tijd. De simulator publiceert
+`sim/tijd-terug`; Node-RED herstelt de laatste snapshot (stats, posities, effecten, ziekte/tijdbom,
+middernacht, tempo) en zet via `pof/herstel-posities` de spelers terug op het veld. (Sim-modus; op echte
+hardware kun je spelers niet terugzetten.)
+
+## Spelers-toestanden
+
+In de zijbalk onder **Spelers** staan de **zieke** spelers (🤒) én de **tijdbom**-spelers (💣), elk met hun
+aftelteller (countdown van 10 events).
+
+## Volgende events — wegklikken
+
+Het paneel **Volgende events** toont de geplande wachtrij (`pof/status.wachtrij`). Met de **✕** naast een
+rij klik je dat aankomende event weg: de simulator publiceert `sim/wachtrij-weg` `{index}`, Node-RED haalt
+die entry uit `global.pofWachtrij`, en de rij schuift door (vult zich daarna weer aan tot 5).
 
 ---
 

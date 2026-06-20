@@ -56,32 +56,19 @@ loopt de engine automatisch. De tekstvelden en tabellen tonen de live-toestand.
 
 | Groep | Widgets | Wat het doet |
 |-------|---------|--------------|
-| Speltoestand | `ui-switch` Spel (uit/LOOPT) · `ui-switch` Pauze · `ui-switch` Manueel · `ui-button` Volgende event · `ui-button` Controle (manueel) · `ui-template` Speltoestand | Hoofdbesturing; de speltoestand is kleur-gecodeerd (groen = loopt, rood = gestopt, oranje = pauze/wacht). |
+| Speltoestand | `ui-text` Spel-teller (`Spel #`) · `ui-switch` Spel (uit/LOOPT) · `ui-switch` Modus monitor/sim (via feedback-node, consistent met de andere) · `ui-switch` Pauze/Hervat + `ui-text` Pauze-status · `ui-switch` Manueel · `ui-button` Volgende event · `ui-button` Controle (manueel) · `ui-template` Speltoestand | Hoofdbesturing; de **monitor/sim-schakelaar** vervangt de aparte Simulatie-pagina (publiceert `sim/modus`). |
+| Doel (Plates of Fate) | `ui-dropdown` Doel · `ui-dropdown` Aantal uur (X) · `ui-dropdown` Aantal spelers · `ui-switch` Auto-einde · `ui-text` Doel-status (a/n geslaagd) | PoF-doelkeuze + voortgang. Een PoF-spel start pas met een gekozen doel + aantal. De groep wordt **verborgen** (`ui-control`) wanneer Klokslag het speltype is. |
 | Plates of Fate besturing | `ui-text` Timer (groot/gekleurd) · `ui-text` Huidig event · `ui-text` Doelwit · `ui-table` Controle laatste event · `ui-text` Events deze ronde | Live-verloop van de events en de laatste controle-uitslag. |
 | Live Radar | `ui-table` Tabel Locatie Spelers | Per speler: huidige paal, RSSI, levensdagen/-uren, sterftes. |
-| Actieve effecten (bord-staat) | `ui-table` Tabel Actieve effecten | Blijvende uur-/speler-effecten (portaal, happy hour, …). |
-| Globale stats | `ui-table` Tabel Globale stats | Cumulatieve speler-stats over partijen heen. |
+| Actieve effecten (bord-staat) | `ui-table` Tabel Actieve effecten · `ui-table` Tabel Speler-toestanden | Blijvende uur-/speler-effecten + 🤒 ziek / 💣 tijdbom met resterende rondes. |
+| Huidig spel | `ui-table` Tabel Huidig spel | Levensdagen/-uren/sterftes van de **lopende** partij (per spel). |
+| Globaal (cumulatief) | `ui-table` Tabel Globaal | Som over alle gestopte partijen; bij Stop telt Huidig spel hierbij op. |
 | Wereld-effecten | `ui-table` Tabel Wereld-effecten | Actieve wereld-effecten (bv. events sneller). |
 | Noodstop | `ui-switch` Bevestig stop (stap 1) · `ui-button` STOP SPEL (stap 2) | 2-staps harde stop van de partij. |
 
----
-
-## 3. Simulatie (`/simulatie`)
-
-**Functie:** het spel **testen zonder hardware**. Dezelfde engine als Bediening, maar gevoed
-door gesimuleerde spelerposities (sim-modus) i.p.v. echte beacons.
-
-**Werking:** identieke besturing als Bediening, maar gekoppeld aan de sim-toestand. Sim en echt
-spel draaien nooit tegelijk (zie `docs/invarianten.md`, SIM1–SIM4). Vaak gebruikt samen met de
-browser-simulator (`pi/simulator/`).
-
-**Opbouw:**
-
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Sim — Plates of Fate besturing | `ui-switch` Spel (uit/LOOPT) · `ui-switch` Pauze · `ui-switch` Manueel · `ui-button` Volgende event · `ui-button` Controle (manueel) · `ui-text` Huidig event · `ui-text` Doelwit · `ui-text` Timer (groot/gekleurd) · `ui-table` Controle laatste event · `ui-template` Toestand | Spelbesturing + verloop in sim-modus; Toestand is kleur-gecodeerd. |
-| Sim — Live radar | `ui-table` Live radar (simulatie) | Gesimuleerde spelerposities. |
-| Sim — Globale stats | `ui-table` Sim globale stats | Cumulatieve stats in de simulatie. |
+> **De aparte Simulatie-pagina is verwijderd.** Monitor vs. simulatie kies je nu met de
+> **Modus**-schakelaar op deze Bediening-pagina (synct via retained `sim/modus` met de
+> browser-simulator). Sim en echt spel draaien nooit tegelijk (zie `docs/invarianten.md`, SIM1–SIM4).
 
 ---
 
@@ -98,7 +85,7 @@ gerichte reset uit. Globale stats blijven anders bewaard bij een gewone *Stop sp
 
 | Groep | Widgets | Wat het doet |
 |-------|---------|--------------|
-| Levensjaren beheer | `ui-switch` Admin ontgrendelen (stap 1) · `ui-button` Levensdagen → 0 · `ui-button` Levensuren → 0 · `ui-button` Sterftes → 0 · `ui-button` Paal-effecten → 0 · `ui-button` Speler-effecten → 0 | Gerichte resets (stap 2) na ontgrendelen. |
+| Levensjaren beheer | `ui-switch` Admin ontgrendelen (stap 1) · `ui-button` Levensdagen → 0 · `ui-button` Levensuren → 0 · `ui-button` Sterftes → 0 · `ui-button` Paal-effecten → 0 · `ui-button` Speler-effecten → 0 · `ui-button` Speler-toestanden → 0 · `ui-button` Middernacht-klok → start · `ui-button` ALLES → 0 · `ui-dropdown` Paal om te resetten + `ui-button` Reset paal → rust | Gerichte resets (stap 2) na ontgrendelen. "Middernacht-klok → start" zet de π-sequentie terug; "ALLES → 0" doet alle resets in één klik; "Reset paal → rust" zet één gekozen paal (effecten weg, LED uit) terug. |
 | Speler pauze | `ui-template` Speler pauze knoppen | Per speler pauzeren/hervatten (custom HTML). |
 
 ---
@@ -138,10 +125,39 @@ Geselecteerde partijen verwijderen vraagt eerst een bevestiging.
 
 ---
 
+## 7. Buzzer-tuning (`/buzzer-tuning`)
+
+**Functie:** per bordje de **luidste buzzer-toon** vinden. Een passieve piezo klinkt het
+luidst rond zijn eigen resonantiefrequentie en die verschilt licht per buzzer
+(productiespreiding). Met een **frequentie-sweep** hoor je welke frequentie het hardst
+klinkt; die waarde zet je daarna in `BUZZER_FREQ_TABEL` in de slave-firmware.
+
+**Werking:** alle commando's gaan naar **paal 1** (`commando/master1`, actie 12 =
+`MSG_BUZZER_TOON`, zie `docs/protocol.md`). Verwissel je test-ESP telkens naar **paal 1**
+om elk bordje te meten. De "Buzzer-sweep controller" stuurt een **continue** toon en stapt
+de frequentie elke interval op van min → max (en weer terug naar min). **Stop** stuurt
+`toon:0`.
+
+**Opbouw:**
+
+| Groep | Widgets | Wat het doet |
+|-------|---------|--------------|
+| Buzzer-tuning (paal 1) | `ui-slider` Min/Max frequentie (Hz) | Onder- en bovengrens van de sweep (1000–5000 Hz). |
+| | `ui-slider` Stapgrootte (Hz) | Hoeveel Hz per stap omhoog. |
+| | `ui-slider` Stappen per seconde | Hoe snel de sweep door de range loopt. |
+| | `ui-button` Start sweep / Stop | Start de oplopende sweep / zet de toon uit (`toon:0`). |
+| | `ui-slider` Handmatige frequentie | Stopt de sweep en houdt één vaste frequentie aan (inzoomen op de piek). |
+| | `ui-text` Actuele frequentie | Toont de frequentie die nu klinkt. |
+
+> Wijzig je `flows.json`, draai dan `pi/node-red/deploy-flows.ps1` (Admin API) — een
+> `docker restart` herlaadt de repo-flows niet.
+
+---
+
 ## Zie ook
 
 - `pi/node-red/blokken/*/README.md` — de logica per flow-blok (bediening, puntensysteem,
   Plates of Fate, …).
 - `docs/locatiebepaling.md` — het algoritme achter de Beacons-sliders.
 - `docs/invarianten.md` — regels rond globale stats, sim vs. echt spel, dashboard-widgets (NR5/NR6).
-- `docs/spel/` — het spelontwerp en de events die de Bediening/Simulatie-pagina's aansturen.
+- `docs/spel/` — het spelontwerp en de events die de Bediening-pagina aansturen (monitor én simulatie).
