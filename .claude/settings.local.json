@@ -22,7 +22,8 @@
       "Bash(cp pi/node-red/flows.json \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/flows.before_resizeremove.bak\")",
       "Bash(python -)",
       "PowerShell(& \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\pi\\\\node-red\\\\deploy-flows.ps1\")",
-      "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\" 2>&1 | Select-Object -Last 25)"
+      "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\" 2>&1 | Select-Object -Last 25)",
+      "Bash(node -e 'function _veilig\\(s\\){return String\\(s\\).normalize\\(\"NFD\"\\).replace\\(/[̀-ͯ]/g,\"\"\\).toLowerCase\\(\\).replace\\(/[^a-z0-9]+/g,\"_\"\\).replace\\(/^_+|_+$/g,\"\"\\);} for\\(const n of [\"Zoë\",\"Lilou\",\"Louisa\",\"Lola\",\"Maud\",\"Mien\",\"Jan Piet\",\"André\"]\\) console.log\\(n,\"->\",_veilig\\(n\\)+\".wav\"\\);')"
     ]
   }
 }

@@ -16,9 +16,9 @@ audio/
 │   ├── 1.wav
 │   ├── 2.wav
 │   └── ... t/m de hoogste mogelijke waarde (bv. 24.wav)
-├── spelers/       één bestand per speler (kleine letters, spaties → _)
+├── spelers/       één bestand per speler (zie naamregel hieronder)
 │   ├── lilou.wav
-│   ├── zoe.wav
+│   ├── zoe.wav     (speler "Zoë" → accent gestript → zoe.wav)
 │   └── ...
 ├── uren/          één bestand per uur/paal
 │   ├── 1.wav
@@ -32,6 +32,29 @@ audio/
     ├── voor.wav   ("De volgende doelwitten zijn gekozen:")
     └── na.wav     ("...dat waren de doelwitten.")
 ```
+
+## Naamregel voor `spelers/` en `groepen/` (belangrijk!)
+
+Node-RED leidt de bestandsnaam **automatisch** af uit de spelernaam (uit `[CONFIG]
+Spelerslijst`) met deze normalisatie — je WAV-bestand moet daar **exact** mee overeenkomen:
+
+1. **accenten/diakrieten strippen** (`Zoë` → `Zoe`)
+2. **alles naar kleine letters** (`Zoe` → `zoe`)
+3. **elke reeks niet-alfanumerieke tekens → `_`** (spaties en koppeltekens worden `_`)
+4. leidende/sluitende `_` weg, en `.wav` erachter
+
+| Speler in de lijst | Bestandsnaam        |
+|--------------------|---------------------|
+| Lilou              | `spelers/lilou.wav` |
+| Zoë                | `spelers/zoe.wav`   |
+| Louisa             | `spelers/louisa.wav`|
+| Lola               | `spelers/lola.wav`  |
+| Maud               | `spelers/maud.wav`  |
+| Mien               | `spelers/mien.wav`  |
+
+Klopt de naam niet exact, dan wordt het segment gewoon overgeslagen (logregel
+`[AUDIO] Bestand ontbreekt`) en blijft dat doelwit stil. Dezelfde regel geldt voor
+`groepen/<waarde>.wav`.
 
 ## Hoe een event klinkt (knip-en-plak)
 

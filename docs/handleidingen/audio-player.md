@@ -111,9 +111,17 @@ aplay -l
 sudo raspi-config   # System Options → Audio → Headphones
 # Volume:
 alsamixer
-# Directe test:
+# Directe test (host):
 aplay ~/Magnum_Opus/pi/audio-player/audio/getallen/3.wav
+# Directe test vanuit de container (gebruikt hetzelfde device als de player):
+docker exec -it audio-player aplay -D "$AUDIO_DEV" /app/audio/spelers/lilou.wav
 ```
+
+> **`AUDIO_DEV` (aux-jack kiezen):** standaard `default`. Als `default` op een Pi 4
+> naar HDMI gaat, zet je óf de Pi-default op Headphones (`raspi-config`, zie boven),
+> óf je zet in `pi/deploy-audio.sh` `AUDIO_DEV` op de analoge kaart uit `aplay -l`
+> (bv. `plughw:0,0` of `sysdefault:CARD=Headphones`) en draai je `./pi/deploy-audio.sh`
+> opnieuw.
 
 ## Foutzoeken
 
