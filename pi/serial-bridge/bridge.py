@@ -155,12 +155,20 @@ def lees_poort(device):
 
             # Leer welke master op deze poort zit uit de paal_id, zodat
             # commando/masterN naar de juiste poort gerouteerd kan worden.
-            topic = paal_naar_topic(data.get("paal"))
-            if topic and topic not in geleerde_topics:
-                with serieel_lock:
-                    topic_naar_serieel[topic] = ser
-                geleerde_topics.add(topic)
-                print(f"[ROUTE] {device} -> {topic} (paal {data.get('paal')})")
+            # BELANGRIJK: alleen leren uit berichten die de EIGEN paal van deze
+            # master dragen (batch/heartbeat/fout/knop/batt). Status-echo's
+            # (regels met "status":...) zoals {"status":"buiten_bereik","paal":17,
+            # "master":1} dragen de paal van een VREEMD commando (de afgewezen
+            # paal), niet een eigen slave. Daaruit leren zou de route vergiftigen
+            # (bv. commando/master3 -> master1-poort) waardoor álle commando's voor
+            # die paal bij de verkeerde master belanden -> "buiten_bereik" in een lus.
+            if "status" not in data:
+                topic = paal_naar_topic(data.get("paal"))
+                if topic and topic not in geleerde_topics:
+                    with serieel_lock:
+                        topic_naar_serieel[topic] = ser
+                    geleerde_topics.add(topic)
+                    print(f"[ROUTE] {device} -> {topic} (paal {data.get('paal')})")
 
             # Inkomende data ongewijzigd doorpubliceren; de paal_id in de data
             # routeert verder in Node-RED (werkt voor elk aantal masters).

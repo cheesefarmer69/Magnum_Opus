@@ -221,7 +221,7 @@ bundelt alle invarianten van het systeem op één plek.
 | HW2 | Slave GPIO3 (`INPUT_PULLDOWN`) = drukknop-framework; pulldown houdt de pin LOW zonder knop → geen valse triggers. |
 | HW3 | Slave GPIO8 (ingebouwde LED, active-LOW) knippert bij elke **succesvolle ESP-NOW-zend**. |
 | HW4 | Master GPIO2 (ingebouwde LED, active-HIGH) pulst bij elke **ontvangen slave-batch**. |
-| HW5 | Rode LED GPIO6 (slave): knop-puls heeft **voorrang** op batterij-waarschuwing. |
+| HW5 | Rode LED GPIO6 (slave): **vrij** — oude diagnose-functie (batterij-waarschuwing + knop-puls) verwijderd, gereserveerd voor toekomstig gebruik. |
 | HW6 | Batterijmeting op GPIO4 (slave) — waarde 0.0 = niet gemeten of onbekend. |
 | HW7 | De actie-set is minimaal: enkel acties die direct aan een bestaand event hangen (0 = uit, 1 = portaal/paars, 2 = happy-hour/goud, 3 = buzzer-piep). |
 

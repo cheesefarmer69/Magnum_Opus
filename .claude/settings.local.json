@@ -19,7 +19,10 @@
       "PowerShell($pio = \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\"; Set-Location \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Master\"; & $pio run -e master1 2>&1 | Select-Object -Last 6)",
       "PowerShell($pio = \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\"; Set-Location \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\"; & $pio run 2>&1 | Select-Object -Last 8)",
       "Bash(python \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/patch_bomaanslag.py\")",
-      "Bash(cp pi/node-red/flows.json \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/flows.before_resizeremove.bak\")"
+      "Bash(cp pi/node-red/flows.json \"/c/Users/Nic/AppData/Local/Temp/magnum_patch/flows.before_resizeremove.bak\")",
+      "Bash(python -)",
+      "PowerShell(& \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\pi\\\\node-red\\\\deploy-flows.ps1\")",
+      "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\" 2>&1 | Select-Object -Last 25)"
     ]
   }
 }

@@ -11,7 +11,7 @@
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 17;
+const int PAAL_ID        = 8;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
@@ -53,7 +53,7 @@ const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
 #define BUTTON_PIN       3   // Drukknop tussen 3V3 en GPIO3 (INPUT_PULLDOWN -> HIGH = ingedrukt)
 #define BATTERY_ADC_PIN  4   // Spanningsdeler 2x 100k (ADC1)
 #define BUZZER_PIN       5   // Passieve buzzer via 100Ohm (digitaal)
-#define WARNING_LED_PIN  6   // Rode LED via 150Ohm (batterij-waarschuwing + drukknop-puls)
+#define WARNING_LED_PIN  6   // GPIO6 (was rode diagnose-LED) - nu vrij voor een andere functie
 #define BUILTIN_LED_PIN  8   // Ingebouwde LED ESP32-C3 SuperMini (active-LOW) - knippert bij zenden
 
 // ====================================================================
@@ -79,8 +79,7 @@ CRGB leds[NUM_LEDS];
 const float ADC_REF_VOLT       = 3.3;
 const float ADC_MAX_VALUE      = 4095.0;
 const float DIVIDER_FACTOR     = 2.0;   // 1 / (R2/(R1+R2)) = 1/0.5 = 2
-const float BATT_WAARSCHUWING  = 3.4;   // V, onder deze waarde LED aan
-const float BATT_KRITIEK       = 3.2;   // V, onder deze waarde snel knipperen
+const float BATT_KRITIEK       = 3.2;   // V, onder deze waarde -> MSG_FOUT (batterij kritiek)
 const unsigned long BATT_CHECK_INTERVAL = 5000;  // ms
 unsigned long laatsteBattCheck = 0;
 
@@ -89,13 +88,10 @@ unsigned long laatsteBattCheck = 0;
 // ====================================================================
 // Het framework is altijd actief, met of zonder fysieke knop: zonder knop
 // houdt de pulldown de pin LOW -> geen valse triggers. Bij indrukken (HIGH)
-// geven we een korte puls op de rode LED (GPIO6) en sturen we een serieele
-// hook-regel naar de master (voor latere spellogica).
+// sturen we MSG_KNOP naar de master (drukknop-logica voor o.a. spellogica).
 const unsigned long KNOP_DEBOUNCE_MS = 30;     // ontdender-tijd
-const unsigned long KNOP_PULS_MS     = 150;    // duur rode-LED puls bij druk
 bool          vorigeKnopStatus  = false;       // voor rising-edge detectie
 unsigned long laatsteKnopWissel = 0;           // debounce-timer
-unsigned long rodeLedPulsTot    = 0;           // millis() tot wanneer puls actief
 
 // ====================================================================
 // INGEBOUWDE LED (GPIO8, active-LOW) - knippert bij succesvolle zend
@@ -330,7 +326,7 @@ uint16_t          gemeldeCmdDrops = 0;             // laatst gemelde drop-stand
 uint16_t          laatsteUitgevoerdeSeq = 0xFFFF;  // sentinel: nog niets uitgevoerd
 unsigned long     laatsteHeartbeat  = 0;           // millis() laatste heartbeat
 uint16_t          bleOverflowTeller = 0;           // >MAX_SPELERS in deze batch
-int               vorigeBattModus   = 0;           // voor fout-transitie batterij-kritiek
+bool              vorigeBattKritiek = false;       // voor fout-transitie batterij-kritiek
 
 NimBLEScan *pBLEScan = nullptr;
 
@@ -486,11 +482,6 @@ float leesBatterijSpanning() {
   return v_batterij;
 }
 
-// Batterij-knippermodus: 0 = uit, 1 = langzaam (1Hz), 2 = snel (2Hz).
-// checkBatterij() bepaalt de modus periodiek; updateRodeLed() stuurt de LED
-// elke loop zodat de drukknop-puls voorrang kan krijgen.
-int battLedModus = 0;
-
 void checkBatterij() {
   if (millis() - laatsteBattCheck < BATT_CHECK_INTERVAL) return;
   laatsteBattCheck = millis();
@@ -498,26 +489,19 @@ void checkBatterij() {
   float v_batt = leesBatterijSpanning();
   Serial.printf("[BATT] %.2fV\n", v_batt);
 
-  if (v_batt < BATT_KRITIEK) {
-    battLedModus = 2;        // snel knipperen
-  } else if (v_batt < BATT_WAARSCHUWING) {
-    battLedModus = 1;        // langzaam knipperen
-  } else {
-    battLedModus = 0;        // uit
-  }
-
   // Fout-melding bij de transitie naar kritiek (niet elke check opnieuw spammen).
-  if (battLedModus == 2 && vorigeBattModus != 2) {
+  bool kritiek = (v_batt < BATT_KRITIEK);
+  if (kritiek && !vorigeBattKritiek) {
     stuurFout(2, FOUT_BATT_KRITIEK, (uint32_t)(v_batt * 1000.0f));
   }
-  vorigeBattModus = battLedModus;
+  vorigeBattKritiek = kritiek;
 }
 
 // ====================================================================
 // DRUKKNOP CHECK (GPIO3, rising-edge met debounce)
 // ====================================================================
 // Detecteert een druk (LOW->HIGH). Zonder fysieke knop blijft de pin LOW via de interne
-// pulldown -> nooit een valse trigger. Bij een druk: rode-LED puls + MSG_KNOP naar de master
+// pulldown -> nooit een valse trigger. Bij een druk: MSG_KNOP naar de master
 // (drukknop-logica voor o.a. tijdbom-ontmanteling).
 void checkKnop() {
   bool knopNu = (digitalRead(BUTTON_PIN) == HIGH);
@@ -526,7 +510,6 @@ void checkKnop() {
     laatsteKnopWissel = millis();
     vorigeKnopStatus = knopNu;
     if (knopNu) {  // rising edge = ingedrukt
-      rodeLedPulsTot = millis() + KNOP_PULS_MS;
       stuurKnop();   // MSG_KNOP via ESP-NOW naar de master
       Serial.printf("[KNOP] paal %d ingedrukt -> MSG_KNOP\n", PAAL_ID);
     }
@@ -536,19 +519,6 @@ void checkKnop() {
 // ====================================================================
 // LED-AANSTURING (niet-blokkerend, elke loop)
 // ====================================================================
-// Rode LED (GPIO6): drukknop-puls heeft voorrang; anders batterij-status.
-void updateRodeLed() {
-  if (millis() < rodeLedPulsTot) {
-    digitalWrite(WARNING_LED_PIN, HIGH);     // puls: vol aan
-  } else if (battLedModus == 2) {
-    digitalWrite(WARNING_LED_PIN, (millis() / 250) % 2);   // snel (2Hz)
-  } else if (battLedModus == 1) {
-    digitalWrite(WARNING_LED_PIN, (millis() / 500) % 2);   // langzaam (1Hz)
-  } else {
-    digitalWrite(WARNING_LED_PIN, LOW);
-  }
-}
-
 // Ingebouwde LED (GPIO8, active-LOW): kort aan na een geslaagde zend.
 void updateIngebouwdeLed() {
   digitalWrite(BUILTIN_LED_PIN, (millis() < ingebouwdeLedTot) ? LOW : HIGH);
@@ -831,10 +801,6 @@ void setup() {
   // Per-paal kalibratie van de piep-toon: kies de gekalibreerde frequentie voor DEZE paal.
   MELODIE_PIEP[0].freq = (PAAL_ID >= 1 && PAAL_ID <= 24) ? BUZZER_FREQ_TABEL[PAAL_ID] : 1500;
 
-  // Waarschuwings-LED (gedeeld: batterij-waarschuwing + drukknop-puls)
-  pinMode(WARNING_LED_PIN, OUTPUT);
-  digitalWrite(WARNING_LED_PIN, LOW);
-
   // Ingebouwde LED (active-LOW): uit bij start (HIGH = uit)
   pinMode(BUILTIN_LED_PIN, OUTPUT);
   digitalWrite(BUILTIN_LED_PIN, HIGH);
@@ -994,7 +960,6 @@ void loop() {
   while (millis() - startWacht < WACHT_TIMEOUT) {
     checkBatterij();
     checkKnop();
-    updateRodeLed();
     updateIngebouwdeLed();
     verwerkTestToon();
     verwerkKlokslag();

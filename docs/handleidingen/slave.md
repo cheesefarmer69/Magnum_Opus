@@ -37,7 +37,6 @@ loop()
       ├── luistervenster 200ms (servicet hardware + draineert de ring elke iteratie)
       │    ├── checkBatterij()        elke 5s; bij kritiek → MSG_FOUT
       │    ├── checkKnop()            rising-edge GPIO3 → MSG_KNOP (ESP-NOW)
-      │    ├── updateRodeLed()        GPIO6: knop-puls > batterij-waarschuwing
       │    ├── updateIngebouwdeLed()  GPIO8: knippert kort na geslaagde zend
       │    └── verwerkCommandos()     → per commando: voerActieUit() + MSG_CMD_ACK
       │
@@ -66,13 +65,17 @@ verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 > het 200ms wacht-venster na het verzenden — dat venster draait nu elke cyclus.
 >
 > **Drukknop (GPIO3):** tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. Een druk (rising
-> edge, met debounce) geeft een puls op de rode LED (GPIO6) en stuurt een
-> `MSG_KNOP` via **ESP-NOW** naar de master (v2 — in v1 ging dit naar de eigen
-> USB-CDC en bereikte het de Pi nooit). De master vertaalt dat naar
-> `{"paal":N,"knop":1}` op `plaatjes/data`. Het framework draait altijd, ook
-> zonder fysieke knop: de pulldown houdt de pin dan LOW → geen valse triggers.
-> De rode LED is gedeeld: een knop-puls (~150 ms) heeft voorrang op de
-> batterij-waarschuwing.
+> edge, met debounce) stuurt een `MSG_KNOP` via **ESP-NOW** naar de master
+> (v2 — in v1 ging dit naar de eigen USB-CDC en bereikte het de Pi nooit). De
+> master vertaalt dat naar `{"paal":N,"knop":1}` op `plaatjes/data`. Het
+> framework draait altijd, ook zonder fysieke knop: de pulldown houdt de pin
+> dan LOW → geen valse triggers.
+>
+> **GPIO6 (was rode diagnose-LED):** de rode LED knippert niet meer (geen
+> batterij-waarschuwing en geen knop-puls). De pin is vrijgemaakt voor een
+> toekomstige functie; `#define WARNING_LED_PIN 6` blijft enkel als
+> pin-documentatie staan. Batterij-kritiek wordt nog steeds als `MSG_FOUT`
+> gemeld (zie `checkBatterij()`), enkel zonder LED-indicatie.
 >
 > **Ingebouwde LED (GPIO8, active-LOW):** knippert kort (~40 ms) bij elke
 > succesvolle ESP-NOW-zend als visuele zend-indicator.
@@ -106,9 +109,7 @@ verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 | `FW_VERSIE` | ~33 | Firmware-versie meegestuurd in de heartbeat |
 | `masterMacs[3][6]` | ~200 | MAC's van master 1/2/3 — de slave kiest automatisch op `PAAL_ID` (1–7→m1, 8–16→m2, 17–24→m3) |
 | `KNOP_DEBOUNCE_MS` | ~57 | Ontdender-tijd (ms) van de drukknop |
-| `KNOP_PULS_MS` | ~58 | Duur (ms) van de rode-LED puls bij een druk |
-| `BATT_WAARSCHUWING` | ~46 | Spanning (V) waaronder LED langzaam knippert |
-| `BATT_KRITIEK` | ~47 | Spanning (V) waaronder LED snel knippert |
+| `BATT_KRITIEK` | ~47 | Spanning (V) waaronder een `MSG_FOUT` (batterij kritiek) wordt gestuurd |
 
 > **Batterijmeting:** `leesBatterijSpanning()` gebruikt `analogReadMilliVolts()`
 > (fabriekskalibratie van de ADC), niet `analogRead()` met een vaste 3.3V-referentie.
@@ -161,7 +162,7 @@ De huidige code gebruikt de volgende volgorde:
 | `[BLE] Overflow: N beacons boven 30 genegeerd` | >30 spelers in dit vak → MSG_FOUT |
 | `[KNOP] paal N ingedrukt -> MSG_KNOP` | Drukknop ingedrukt (rising edge), via ESP-NOW |
 | `[BATT] 3.87V` | Batterijspanning om de 5 seconden |
-| `[ESP-NOW] Init MISLUKT!` | Fatale fout — ESP knippert warning-LED snel |
+| `[ESP-NOW] Init MISLUKT!` | Fatale fout — slave stopt setup (geen ESP-NOW) |
 
 ---
 
@@ -231,6 +232,7 @@ vóór het OUI/RSSI-filter, of verlaag tijdelijk `RSSI_DREMPEL`.
 → Slave is tijdens scan (1s) — commando wordt wél gebufferd en direct erna verwerkt.
 Als het structureel mislukt: check of master het juiste slave-MAC gebruikt.
 
-**Warning-LED brandt altijd**
-→ Batterijspanning onder `BATT_WAARSCHUWING`. Check `[BATT]` in Serial Monitor.
+**Batterij lijkt verkeerd / `MSG_FOUT` batterij-kritiek onverwacht**
+→ Check `[BATT]` in de Serial Monitor; kritiek wordt gemeld onder `BATT_KRITIEK`.
 Mogelijk ook: ADC-kalibratie — meet de spanning met een multimeter en vergelijk.
+(De rode LED op GPIO6 geeft geen batterij-status meer aan — die functie is verwijderd.)

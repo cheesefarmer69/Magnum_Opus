@@ -13,11 +13,11 @@ wijzigen.
 | GPIO3 | Drukknop | IN | Tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. HIGH = ingedrukt. Werkt met of zonder fysieke knop (zonder knop houdt de pulldown de pin LOW → geen valse triggers) |
 | GPIO4 | Batterij-ADC | IN (ADC1) | Spanningsdeler 2× 100k (V_adc = V_batt / 2), 12-bit |
 | GPIO5 | Buzzer | OUT | Passieve piezo via 100Ω |
-| GPIO6 | Rode LED | OUT | Via 150Ω. Gedeeld: batterij-waarschuwing (knipperend) **én** drukknop-puls (~150 ms vol aan, heeft voorrang) |
+| GPIO6 | Rode LED | OUT | Via 150Ω. **Vrij** — de oude diagnose-functie (batterij-waarschuwing + drukknop-puls) is verwijderd; gereserveerd voor een toekomstige functie |
 | GPIO8 | Ingebouwde LED | OUT | Onboard LED, **active-LOW** (LOW = aan). Knippert kort (~40 ms) bij elke succesvolle ESP-NOW-zend |
 
-Batterij-drempels (firmware): waarschuwing < 3.4 V (langzaam knipperen),
-kritiek < 3.2 V (snel knipperen).
+Batterij-drempel (firmware): kritiek < 3.2 V → `MSG_FOUT` naar de master (geen
+LED-indicatie meer).
 
 ## Master — ESP32 WROOM-32
 
