@@ -40,7 +40,10 @@ De map `pi/audio-player/audio/` wordt als volume in de container gemount op
 
 ```
 audio/
-├── events/   <eventid>_voor.wav , <eventid>_na.wav
+├── events/
+│   ├── verplaatsingen/  <eventid>_voor.wav , <eventid>_na.wav   (speler-events)
+│   ├── toestanden/      <eventid>_voor.wav , <eventid>_na.wav   (toestand-events)
+│   └── wereld-events/   <eventid>_voor.wav , <eventid>_na.wav   (wereld-events)
 ├── getallen/ 1.wav .. 24.wav
 ├── spelers/  lilou.wav , zoe.wav , ...   (kleine letters, spaties → _)
 └── doelwit/  voor.wav , na.wav
@@ -53,8 +56,9 @@ audio/
 2. **Exporteer naar WAV** (44.1 kHz, mono of stereo). Met Audacity:
    *Bestand → Exporteren → WAV (16-bit PCM)*.
 3. **Benoem volgens de conventie**:
-   - Event-begin/eind: `events/<eventid>_voor.wav` en `events/<eventid>_na.wav`
-     (de `<eventid>` is het `id`-veld van het event in de Node-RED config).
+   - Event-begin/eind: `events/<categorie>/<eventid>_voor.wav` en `…_na.wav`, waarbij
+     `<categorie>` = `verplaatsingen` (speler-events) / `toestanden` / `wereld-events`
+     (afgeleid uit het `categorie`-veld van het event). De `<eventid>` is het `id`-veld.
    - Getallen: `getallen/3.wav` zegt "drie". Deze map wordt óók gebruikt voor een
      **uur-doelwit** (paal 7 → `getallen/7.wav`).
    - Spelers: `spelers/lilou.wav` (exact de spelernaam, kleine letters, spaties → `_`).
@@ -82,8 +86,9 @@ Geef het event in de `[CONFIG]`-inject (Node-RED, tab 06) twee velden:
 }
 ```
 
-Node-RED bouwt dan automatisch: `events/verplaatsing1_voor.wav` →
-`getallen/<gerold getal>.wav` → `events/verplaatsing1_na.wav`.
+Node-RED bouwt dan automatisch (submap uit `categorie`, hier `speler` → `verplaatsingen`):
+`events/verplaatsingen/verplaatsing1_voor.wav` → `getallen/<gerold getal>.wav` →
+`events/verplaatsingen/verplaatsing1_na.wav`.
 
 Voor de doelwitten gebeurt dit altijd automatisch: `doelwit/voor.wav` → per
 doelwit `spelers/<naam>.wav` (speler) of `getallen/<n>.wav` (uur/paal) → `doelwit/na.wav`.
