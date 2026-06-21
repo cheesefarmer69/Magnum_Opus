@@ -22,14 +22,13 @@ audio/
 │   ├── lilou.wav
 │   ├── zoe.wav     (speler "Zoë" → accent gestript → zoe.wav)
 │   └── ...
+├── prefix/        aantal-prefix vóór het event: enkel-/meervoud (zie prefix/README.md)
+│   ├── speler.wav / spelers.wav   (speler-doelwit, 1 / meer)
+│   ├── uur.wav / uren.wav         (uur-doelwit, 1 / meer)
+│   └── groep.wav / groepen.wav    (groep-doelwit)
 ├── woorden/       losse verbindingswoorden
-│   ├── speler.wav   ("speler")
-│   ├── spelers.wav  ("spelers")
-│   ├── uur.wav      ("uur")
-│   ├── uren.wav     ("uren")
 │   └── of.wav       ("of", connector bij twee getallen)
-├── groepen/       ALLE groep-audio, gebundeld (zie groepen/README.md)
-│   ├── groep.wav / groepen.wav        (de aanroep "een groep" / "groepen")
+├── groepen/       ALLE groep-doelwit-clips, gebundeld (zie groepen/README.md)
 │   ├── kleur/    kleur.wav + rood/zwart/blauw.wav
 │   ├── jaar/     jaar.wav + eerste/tweede/derde.wav
 │   ├── maand/    maand.wav + januari..december.wav   (voorbereid)
@@ -67,13 +66,13 @@ Klopt de naam niet exact, dan wordt het segment gewoon overgeslagen (logregel
 ## Hoe een event klinkt (knip-en-plak)
 
 Vóór de event-tekst roept de Pi eerst het **aantal getroffen doelwitten** af, gevolgd
-door het zelfstandig naamwoord (enkel/meervoud):
-`getallen/<aantal>.wav` → `woorden/<speler|spelers|uur|uren>.wav`
+door het zelfstandig naamwoord (enkel/meervoud naar het aantal én het doelwit-type):
+`getallen/<aantal>.wav` → `prefix/<speler|spelers|uur|uren>.wav` (zie prefix/README.md)
 
 Bij een **groep-event** (`doelwit.type: "groep"`) is de prefix in plaats daarvan
-`groepen/groep.wav` ("een groep"), en het doelwit (in de doelwit-fase) is het groep-label:
-`groepen/<veld>/<veld>.wav` → `groepen/<veld>/<waarde>.wav`
-(bv. `groepen/kleur/kleur.wav` → `groepen/kleur/rood.wav`), omsloten door
+`prefix/groep.wav` ("groep"), en het doelwit (in de doelwit-fase) is de groep-clip:
+`groepen/<veld>/<clip>.wav`
+(bv. `groepen/kleur/kleur_rood.wav`), omsloten door
 `doelwit/voor.wav` … `doelwit/na.wav`. De individuele leden worden niet opgesomd.
 **Alle groep-audio staat gebundeld in `groepen/` — zie `groepen/README.md`.**
 
@@ -108,22 +107,27 @@ De engine kiest de **submap automatisch op `categorie`**: `speler→verplaatsing
 `toestand→toestanden`, `wereld→wereld-events`. Leg dit voorbeeld dus klaar als
 `events/verplaatsingen/verplaatsing1_voor.wav` en `…_na.wav`.
 
-Huidige events die audio verwachten (bestandsnaam → juiste submap):
+De bestandsnaam mag je vrij kiezen (bv. naar de inhoud) zolang de config-velden er exact
+naar verwijzen. `audioVoor` = het stuk vóór het getal, `audioNa` = het stuk erna; laat een
+veld leeg (`""`) als er geen stuk is (bv. bij events die met het getal beginnen).
 
-- **`events/verplaatsingen/`** (speler-events): `verplaatsing2_voor.wav` / `verplaatsing2_na.wav`,
-  `of_verplaatsing_voor.wav` / `of_verplaatsing_na.wav` ("uur vooruit"),
-  `groep_verplaatsing_voor.wav` / `_na.wav`.
-- **`events/toestanden/`** (toestand-events): `portalen_voor.wav` / `portalen_na.wav`,
-  `happy_hour_voor.wav` / `happy_hour_na.wav`, `ziekte_voor.wav` / `ziekte_na.wav`
-  ("… worden ziek"), `tijdbom_voor.wav` / `tijdbom_na.wav`, `tornado_voor.wav` / `tornado_na.wav`.
-- **`events/wereld-events/`** (wereld-events): `nuke.wav` (het woord "NUKE"),
-  `sneller_events.wav`, `trager_events.wav`, `bomaanslag.wav`.
+Huidige mapping (config → bestand, per submap):
+
+- **`events/verplaatsingen/`** (speler-events): `maximum.wav` (voor) + `uur_vooruit.wav` (na),
+  gedeeld door verplaatsing2 / groep_verplaatsing; bij de `of`-events is `audioVoor` leeg en is
+  `uur_vooruit.wav` het na-stuk (de connector "of" zit in `woorden/of.wav`).
+- **`events/toestanden/`** (toestand-events): `worden_ziek.wav`, `worden_een_tijdbom.wav`,
+  `worden_getroffen_door_een_tornado.wav`, `een_portaal_opent_tussen_twee_uren.wav`,
+  en (nog op te nemen) `worden_happy_hour.wav`.
+- **`events/wereld-events/`** (wereld-events): `events_komen_sneller.wav`,
+  `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`,
+  en (nog op te nemen) `nuke.wav`.
 
 De ziekte-waarschuwing (ziekenhuis-monitor + hartslag) speelt op de **slave-buzzer**
 (acties 5/6/7), niet via de audio-player.
 
-Verbindingswoorden in `woorden/`: `speler.wav`, `spelers.wav`, `uur.wav`, `uren.wav`,
-`of.wav`.
+De aantal-prefix (`speler`/`spelers`/`uur`/`uren`/`groep`/`groepen`) staat in `prefix/`
+(zie `prefix/README.md`); de connector `of.wav` staat in `woorden/`.
 
 **Alle groep-audio** (de aanroep "groep/groepen" + kleur/jaar/maand/seizoen met hun
 waarden) staat gebundeld in `groepen/` — zie **`groepen/README.md`** voor de volledige
