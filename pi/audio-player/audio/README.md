@@ -12,17 +12,14 @@ audio/
 ├── events/        begin- en eind-segment per event
 │   ├── <eventid>_voor.wav
 │   └── <eventid>_na.wav
-├── getallen/      één bestand per getalwaarde
-│   ├── 1.wav
-│   ├── 2.wav
+├── getallen/      één bestand per getalwaarde (1..24); gebruikt voor het AANTAL
+│   ├── 1.wav        doelwitten, voor event-getallen (stappen, …) ÉN voor een
+│   ├── 2.wav        uur-doelwit (paal N → getallen/N.wav)
 │   └── ... t/m de hoogste mogelijke waarde (bv. 24.wav)
 ├── spelers/       één bestand per speler (zie naamregel hieronder)
 │   ├── lilou.wav
 │   ├── zoe.wav     (speler "Zoë" → accent gestript → zoe.wav)
 │   └── ...
-├── uren/          één bestand per uur/paal
-│   ├── 1.wav
-│   └── ... t/m 24.wav
 ├── woorden/       losse zelfstandige naamwoorden voor de aantal-prefix
 │   ├── speler.wav   ("speler")
 │   ├── spelers.wav  ("spelers")
@@ -83,7 +80,8 @@ Voorbeeld event `of_verplaatsing` dat 2 spelers raakt, met x=2 en y=5:
 Raakt het 1 speler: "één" + "speler" + … (enkelvoud).
 
 Bij de doelwitten (zoals voorheen, één voor één):
-`doelwit/voor.wav` → (`spelers/lilou.wav` of `uren/7.wav`, per doelwit) → `doelwit/na.wav`
+`doelwit/voor.wav` → (`spelers/lilou.wav` voor een speler, of `getallen/7.wav` voor uur/paal 7) → `doelwit/na.wav`
+(een uur-doelwit gebruikt dus dezelfde `getallen/`-opnames; er is geen aparte `uren/`-map meer)
 
 ## Een nieuw event van audio voorzien
 

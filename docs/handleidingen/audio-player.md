@@ -43,7 +43,6 @@ audio/
 ├── events/   <eventid>_voor.wav , <eventid>_na.wav
 ├── getallen/ 1.wav .. 24.wav
 ├── spelers/  lilou.wav , zoe.wav , ...   (kleine letters, spaties → _)
-├── uren/     1.wav .. 24.wav
 └── doelwit/  voor.wav , na.wav
 ```
 
@@ -56,9 +55,9 @@ audio/
 3. **Benoem volgens de conventie**:
    - Event-begin/eind: `events/<eventid>_voor.wav` en `events/<eventid>_na.wav`
      (de `<eventid>` is het `id`-veld van het event in de Node-RED config).
-   - Getallen: `getallen/3.wav` zegt "drie".
+   - Getallen: `getallen/3.wav` zegt "drie". Deze map wordt óók gebruikt voor een
+     **uur-doelwit** (paal 7 → `getallen/7.wav`).
    - Spelers: `spelers/lilou.wav` (exact de spelernaam, kleine letters, spaties → `_`).
-   - Uren: `uren/7.wav`.
    - Vaste omkadering doelwit: `doelwit/voor.wav` ("De volgende doelwitten..."),
      `doelwit/na.wav`.
 4. **Kopieer naar de Pi** in `~/Magnum_Opus/pi/audio-player/audio/<submap>/`:
@@ -87,7 +86,7 @@ Node-RED bouwt dan automatisch: `events/verplaatsing1_voor.wav` →
 `getallen/<gerold getal>.wav` → `events/verplaatsing1_na.wav`.
 
 Voor de doelwitten gebeurt dit altijd automatisch: `doelwit/voor.wav` → per
-doelwit `spelers/<naam>.wav` of `uren/<n>.wav` → `doelwit/na.wav`.
+doelwit `spelers/<naam>.wav` (speler) of `getallen/<n>.wav` (uur/paal) → `doelwit/na.wav`.
 
 ## Installeren / deployen
 
