@@ -23,7 +23,16 @@
       "Bash(python -)",
       "PowerShell(& \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\pi\\\\node-red\\\\deploy-flows.ps1\")",
       "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\" 2>&1 | Select-Object -Last 25)",
-      "Bash(node -e 'function _veilig\\(s\\){return String\\(s\\).normalize\\(\"NFD\"\\).replace\\(/[̀-ͯ]/g,\"\"\\).toLowerCase\\(\\).replace\\(/[^a-z0-9]+/g,\"_\"\\).replace\\(/^_+|_+$/g,\"\"\\);} for\\(const n of [\"Zoë\",\"Lilou\",\"Louisa\",\"Lola\",\"Maud\",\"Mien\",\"Jan Piet\",\"André\"]\\) console.log\\(n,\"->\",_veilig\\(n\\)+\".wav\"\\);')"
+      "Bash(node -e 'function _veilig\\(s\\){return String\\(s\\).normalize\\(\"NFD\"\\).replace\\(/[̀-ͯ]/g,\"\"\\).toLowerCase\\(\\).replace\\(/[^a-z0-9]+/g,\"_\"\\).replace\\(/^_+|_+$/g,\"\"\\);} for\\(const n of [\"Zoë\",\"Lilou\",\"Louisa\",\"Lola\",\"Maud\",\"Mien\",\"Jan Piet\",\"André\"]\\) console.log\\(n,\"->\",_veilig\\(n\\)+\".wav\"\\);')",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git restore *)",
+      "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\" 2>&1 | Select-Object -Last 18)",
+      "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Master\" -e master1 -e master2 -e master3 2>&1 | Select-String -Pattern 'SUCCESS|FAILED|error:' | Select-Object -Last 12)",
+      "PowerShell($env:PLATFORMIO_DISABLE_PROGRESSBAR=\"true\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\platformio.exe\" run -d \"c:\\\\PROJECTEN ELEKTRONICA\\\\Magnum Opus\\\\VS_Code\\\\firmware\\\\Slave\" 2>&1 | Select-Object -Last 8)",
+      "Bash(PYTHONIOENCODING=utf-8 python \"C:/Users/Nic/AppData/Local/Temp/claude/c--PROJECTEN-ELEKTRONICA-Magnum-Opus-VS-Code/971126e7-d0ed-42eb-88d8-a40757e715d9/scratchpad/apply_events.py\")",
+      "Bash(PYTHONIOENCODING=utf-8 python -)"
     ]
   }
 }

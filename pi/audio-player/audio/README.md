@@ -12,8 +12,10 @@ audio/
 ├── events/        begin- en eind-segment per event, in een submap per CATEGORIE:
 │   ├── verplaatsingen/   speler-events (bv. verplaatsing2_voor.wav)
 │   ├── toestanden/       toestand-events (bv. portalen_voor.wav, ziekte_voor.wav)
-│   └── wereld-events/    wereld-events (bv. nuke.wav, bomaanslag.wav)
-│       (per event: <eventid>_voor.wav en <eventid>_na.wav)
+│   ├── wereld-events/    wereld-events (bv. nuke.wav, bomaanslag.wav)
+│   │   (per event: <eventid>_voor.wav en <eventid>_na.wav)
+│   └── afgelopen/        eind-cue per toestand-event (audioAfgelopen): speelt zodra de
+│                         duratie verloopt, net vóór het volgende event (bv. portaal_gesloten.wav)
 ├── getallen/      één bestand per getalwaarde (1..24); gebruikt voor het AANTAL
 │   ├── 1.wav        doelwitten, voor event-getallen (stappen, …) ÉN voor een
 │   ├── 2.wav        uur-doelwit (paal N → getallen/N.wav)

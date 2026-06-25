@@ -98,6 +98,7 @@ typedef struct __attribute__((packed)) fout_message {
 typedef struct __attribute__((packed)) knop_message {
   uint8_t  msg_type;        // = MSG_KNOP
   uint8_t  paal_id;
+  uint16_t teller;          // cumulatieve druk-teller (kogelvrij: laatste waarde telt)
 } knop_message;
 
 typedef struct __attribute__((packed)) buzzer_toon_message {
@@ -352,7 +353,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
       if (len < (int)sizeof(knop_message)) return;
       knop_message k;
       memcpy(&k, incomingData, sizeof(k));
-      logRegel("{\"paal\":%d,\"knop\":1}\n", k.paal_id);
+      logRegel("{\"paal\":%d,\"knop\":1,\"teller\":%u}\n", k.paal_id, k.teller);
       break;
     }
     default:

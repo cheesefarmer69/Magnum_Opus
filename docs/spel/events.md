@@ -15,7 +15,8 @@ Eén event is één object in die array.
 {
   id: "uniek_id",            // VERPLICHT — unieke sleutel (kebab/lowercase)
   naam: "Mooie naam",        // VERPLICHT — weergavenaam voor dashboard en log
-  categorie: "toestand",     // VERPLICHT — "speler" | "toestand" | "wereld"
+  categorie: "toestand",     // VERPLICHT — "verplaatsing" | "toestand" | "wereld" (soort event,
+                             //   los van het doelwit: een toestand kan een speler- óf uur-doelwit hebben)
   tekst: "Wat klinkt.",      // VERPLICHT — voorgelezen tekst (naar audio/afspelen)
   reactietijd_s: 15,         // VERPLICHT — seconden reactietijd vóór de controle
 
@@ -46,6 +47,9 @@ Eén event is één object in die array.
   duratie: [2, 4],           // OPTIONEEL — hoelang de toestand blijft: getal | [min,max] | "kort"/"middel"/"lang"
   audioVoor: "id_voor.wav",  // OPTIONEEL — WAV vóór het getal in de afroep
   audioNa: "id_na.wav",      // OPTIONEEL — WAV ná het getal in de afroep
+  audioAfgelopen: "id_afgelopen.wav", // OPTIONEEL — WAV (uit events/afgelopen/) die speelt zodra de
+                             //   toestand/duratie verloopt, net vóór het volgende event → spelers
+                             //   horen dat het effect niet meer geldt
 
   gevolgen: [                // VERPLICHT — array van één of meer gevolgen
     { type: "effect", niveau: "uur", effect: "portaal", data: {} }
@@ -59,7 +63,7 @@ Eén event is één object in die array.
 |-----------------|-----------|-----------------------------|
 | `id`            | ja        | Unieke sleutel (kebab/lowercase). |
 | `naam`          | ja        | Weergavenaam (dashboard "Huidig event", debug, log). |
-| `categorie`     | ja        | `speler` / `toestand` / `wereld` — bepaalt in welke `[CONFIG]`-inject het hoort. |
+| `categorie`     | ja        | `verplaatsing` / `toestand` / `wereld` — soort event (los van `doelwit.type`); bepaalt de `[CONFIG]`-inject. |
 | `tekst`         | ja        | Wat wordt voorgelezen. Een losse `x` wordt door `getal` vervangen. |
 | `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle. **Conventie**: verplaatsing-events (speler) standaard **20 s** (denktijd voor de route); toestand-events die onmiddellijk iets zetten (portaal/happy hour/ziekte) **5 s**. |
 | `doelwit`       | ja        | Wie/wat geraakt wordt — object met `type`, `selectie`, `aantal`. Bij `type: "groep"` ook `veld` (`"kleur"`/`"jaar"`/`"willekeurig"`) en optioneel `waarde` (vaste groepwaarde; weglaten = willekeurig). |
@@ -80,7 +84,7 @@ Eén event is één object in die array.
 
 Bepaalt het soort event én in welke config-inject het hoort:
 
-- **`speler`** — een verplaatsing-event: gekozen spelers moeten binnen de reactietijd aan
+- **`verplaatsing`** — een verplaatsing-event: gekozen spelers moeten binnen de reactietijd aan
   een beweging-`voorwaarde` voldoen. Meestal `gevolgen: [{type:"geen"}]`.
 - **`toestand`** — kent iets toe aan een speler of uur (een blijvend `effect`, een `score`,
   of een `commando`). Bv. portaal of happy hour.
@@ -241,7 +245,7 @@ worden daarna één voor één opgesomd.
 
 ## Stap voor stap een nieuw event
 
-1. **Kies de categorie** (`speler` / `toestand` / `wereld`) — bepaalt de config-inject.
+1. **Kies de categorie** (`verplaatsing` / `toestand` / `wereld`) — bepaalt de config-inject.
 2. **Schrijf `naam` en `tekst`** — de tekst is wat de spelers horen.
 3. **Bepaal het doelwit** — `type` + `selectie` (`willekeurig`/`alle`) + `aantal`.
 4. **Koppel één of meer gevolgen** — `effect` (blijvend), `score` (levensuren), of
@@ -263,7 +267,7 @@ worden daarna één voor één opgesomd.
 ### Verplaatsing-event (speler, max + getal + controle) — Event A
 
 ```js
-{ id:"verplaatsing2", naam:"verplaatsingMax", categorie:"speler",
+{ id:"verplaatsing2", naam:"verplaatsingMax", categorie:"verplaatsing",
   tekst:"Maximum x uur.", reactietijd_s:20,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
   getal:"midden", voorwaarde:"max", gevolgen:[{ type:"geen" }] }
@@ -275,7 +279,7 @@ spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
 ### Of-verplaatsing-event (speler, keuze tussen twee getallen) — Event D
 
 ```js
-{ id:"of_verplaatsing", naam:"Of-verplaatsing", categorie:"speler",
+{ id:"of_verplaatsing", naam:"Of-verplaatsing", categorie:"verplaatsing",
   tekst:"x of y uur vooruit.", reactietijd_s:20,
   doelwit:{ type:"speler", selectie:"willekeurig", aantal:"midden" },
   getal:"laag", getal2:[4,6], voorwaarde:"of", gevolgen:[{ type:"geen" }] }
@@ -289,7 +293,7 @@ en zou `y ≤ x` kunnen maken). Een portaal-sprong telt 0 STAPpen.
 ### Groep-verplaatsing-event (speler, doelwit = groep)
 
 ```js
-{ id:"groep_verplaatsing", naam:"Groep-verplaatsing", categorie:"speler",
+{ id:"groep_verplaatsing", naam:"Groep-verplaatsing", categorie:"verplaatsing",
   tekst:"maximum x uur vooruit.", reactietijd_s:20,
   doelwit:{ type:"groep", veld:"willekeurig", selectie:"willekeurig" },
   getal:"midden", voorwaarde:"max",
@@ -305,7 +309,7 @@ Met `veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar
 ### Groep-of-verplaatsing-event (speler, doelwit = groep, keuze tussen twee getallen)
 
 ```js
-{ id:"groep_of_verplaatsing", naam:"Groep-of-verplaatsing", categorie:"speler",
+{ id:"groep_of_verplaatsing", naam:"Groep-of-verplaatsing", categorie:"verplaatsing",
   tekst:"x of y uur vooruit.", reactietijd_s:20,
   doelwit:{ type:"groep", veld:"willekeurig", selectie:"willekeurig" },
   getal:"laag", getal2:[4,6], voorwaarde:"of",

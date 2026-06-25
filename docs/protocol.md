@@ -26,7 +26,7 @@ Dit voorkomt dat componenten uit sync raken.
 | `0x03` | `MSG_CMD_ACK`   | slave → master (ná uitvoering) | `cmd_ack_message` | 5 B |
 | `0x04` | `MSG_HEARTBEAT` | slave → master (periodiek) | `heartbeat_message` | 9 B |
 | `0x05` | `MSG_FOUT`      | slave → master | `fout_message` | 8 B |
-| `0x06` | `MSG_KNOP`      | slave → master (bij druk) | `knop_message` | 2 B |
+| `0x06` | `MSG_KNOP`      | slave → master (bij druk) | `knop_message` | 4 B |
 | `0x07` | `MSG_BUZZER_TOON` | master → slave (buzzer-tuning) | `buzzer_toon_message` | 4 B |
 | `0x08` | `MSG_KLOKSLAG`  | master → slave (Klokslag-LED) | `klokslag_message` | 7 B |
 
@@ -89,6 +89,7 @@ typedef struct __attribute__((packed)) {        // 0x05 — slave → master
 typedef struct __attribute__((packed)) {        // 0x06 — slave → master, bij knopdruk
   uint8_t  msg_type;        // = MSG_KNOP
   uint8_t  paal_id;
+  uint16_t teller;          // cumulatieve druk-teller (kogelvrij: ~6x hervast, laatste waarde telt)
 } knop_message;
 
 typedef struct __attribute__((packed)) {        // 0x07 — master → slave, buzzer-tuning
@@ -250,6 +251,8 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 14 | `ACTIE_TORNADO`     | LED strip **donkergrijs** continu (tornado-center; zuigt de aanliggende uren naar zich toe). Overschrijft tijdelijk een onderliggend effect; herstelt na het event. |
 | 15 | `ACTIE_TORNADO_RAND`| LED strip **geanimeerd** trage grijze pulse (aanliggend uur van een tornado). |
 | 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus`. |
+| 17 | `ACTIE_KNOP_ARM`    | Drukknop-paal **actief** zetten: GPIO6-feedback-LED **aan** (uit zolang de knop ingedrukt is) en de cumulatieve druk-teller op 0. Raakt de WS2812B-strip niet. |
+| 18 | `ACTIE_KNOP_UIT`    | Drukknop-paal **inactief** zetten: GPIO6-LED **uit**, geen tellen meer. |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -339,13 +342,15 @@ in de buurt is. Node-RED bewaart de laatste waarde per paal in
 ### Formaat: drukknop
 
 ```json
-{"paal":1,"knop":1}
+{"paal":1,"knop":1,"teller":4}
 ```
 
-De slave detecteert een **druk op de knop** (GPIO3, rising edge) en stuurt een `MSG_KNOP`-pakket via
-**ESP-NOW** naar de master (tegelijk een puls op de rode LED). De master vertaalt dat naar de regel
-hierboven op de Pi. *(In v1 ging dit naar de eigen USB-CDC van de slave en bereikte het de Pi nooit; v2
-lost dat op.)*
+De slave detecteert een **druk op de knop** (GPIO3) via een **interrupt** (werkt ook tijdens de
+BLE-scan), houdt een **cumulatieve `teller`** bij en stuurt een `MSG_KNOP`-pakket via **ESP-NOW** naar
+de master — **~6 keer hervast** zodat een verloren pakket door het volgende gecorrigeerd wordt
+(**kogelvrij tellen**, de laatste `teller`-waarde telt). Node-RED **zet** de dashboard-teller op die
+waarde (niet optellen). Tellen + de GPIO6-feedback-LED zijn enkel actief als de paal **gewapend** is
+(`ACTIE_KNOP_ARM`). De master vertaalt dat naar de regel hierboven op de Pi.
 
 ### Formaat: heartbeat
 
@@ -466,7 +471,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `pof/middernacht`  | Node-RED → browser | `{"index":7,"open":true,"remaining":2,"eventsTotOogst":14,"paal":24}` — middernacht-poort: pi-cijfer-index, open/dicht, events in fase + tot volgende oogst (retained) |
 | `pof/dienaars`     | Node-RED → browser | `{"Maud":"Mien"}` — geoogste spelers → hun meester (retained); voedt sim-speler-menu + dashboard-tabel |
 | `pof/tijdbom`      | Node-RED → browser | `{"spelers":[{"speler":"Lilou","rondesOver":7,"uur":5}],"ontmantelPalen":[3,7]}` — actieve tijdbommen + de gekozen ontmantel-palen (retained); voedt de 💣-badges + het knoppen-paneel |
-| `pof/knop`         | Node-RED → browser | `{"paal":7}` — een drukknop is ingedrukt (visuele flits in de sim; transient, niet retained) |
+| `pof/knop`         | Node-RED → browser | `{"paal":7,"teller":4}` — een drukknop is ingedrukt (visuele flits in de sim; `teller` = cumulatieve druk-teller voor het drukknop-testdashboard; transient) |
 | `config/drukknoppen` | Node-RED → browser | `[3,4,7,9,11,13,15,16,17,19,21,22]` — palen met een fysieke drukknop (retained); bron = `[CONFIG] Drukknop-palen`. Voedt het sim-knoppen-paneel |
 | `spel/type`        | browser ↔ Node-RED | `{"type":"plates_of_fate"\|"klokslag"}` (retained) — **gekozen spel**, één bron van waarheid. Zowel de simulator als het Bediening-dashboard publiceren én abonneren erop; beide engines lezen `global.spelType` en draaien enkel als het hún spel is |
 | `klokslag/status`  | Node-RED → browser | `{"actief":true,"fase":"lopend"\|"einde"\|"idle","resterend_s":480,"speeltijd_s":600,"winnaar":"team1"\|null}` (retained) — Klokslag-timer + einde/winnaar |

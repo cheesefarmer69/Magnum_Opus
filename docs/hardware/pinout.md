@@ -13,7 +13,7 @@ wijzigen.
 | GPIO3 | Drukknop | IN | Tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. HIGH = ingedrukt. Werkt met of zonder fysieke knop (zonder knop houdt de pulldown de pin LOW → geen valse triggers) |
 | GPIO4 | Batterij-ADC | IN (ADC1) | Spanningsdeler 2× 100k (V_adc = V_batt / 2), 12-bit |
 | GPIO5 | Buzzer | OUT | Passieve piezo via 100Ω |
-| GPIO6 | Rode LED | OUT | Via 150Ω. **Vrij** — de oude diagnose-functie (batterij-waarschuwing + drukknop-puls) is verwijderd; gereserveerd voor een toekomstige functie |
+| GPIO6 | Rode LED | OUT | Via 150Ω. **Drukknop-feedback-LED**: brandt als de paal "actief" staat (`ACTIE_KNOP_ARM`), gaat uit zolang de knop ingedrukt is (via knop-ISR) → speler ziet of zijn druk pakt |
 | GPIO8 | Ingebouwde LED | OUT | Onboard LED, **active-LOW** (LOW = aan). Knippert kort (~40 ms) bij elke succesvolle ESP-NOW-zend |
 
 Batterij-drempel (firmware): kritiek < 3.2 V → `MSG_FOUT` naar de master (geen

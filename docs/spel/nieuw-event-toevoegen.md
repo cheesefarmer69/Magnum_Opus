@@ -13,7 +13,7 @@ Om een event te kunnen bouwen heb ik dit nodig — gewoon in gewone taal, ik gie
 juiste formaat:
 
 1. **Categorie** — wat voor soort event?
-   - `speler` = spelers moeten **bewegen** (een verplaatsing-opdracht).
+   - `verplaatsing` = spelers moeten **bewegen** (een verplaatsing-opdracht).
    - `toestand` = ken iets toe aan **spelers of uren** (portaal, happy hour, bonus, straf, …).
    - `wereld` = verandert iets voor **het hele spel** (bv. events gaan sneller).
 2. **Wat de spelers horen** — de afroep-`tekst` (bv. "Maximum x uur vooruit."). Een losse
@@ -74,7 +74,7 @@ Ontbrekende WAV's worden gewoon overgeslagen — het event werkt ook zonder audi
 
 ## Mini-checklist
 
-- [ ] Categorie gekozen (`speler` / `toestand` / `wereld`).
+- [ ] Categorie gekozen (`verplaatsing` / `toestand` / `wereld`).
 - [ ] `tekst` (afroep) geschreven; `x` gebruikt als er een getal in moet.
 - [ ] Doelwit bepaald (`type` + `selectie` + `aantal`).
 - [ ] Gevolg(en) gekozen (`geen` + `voorwaarde` / `effect` / `score` / `commando`).

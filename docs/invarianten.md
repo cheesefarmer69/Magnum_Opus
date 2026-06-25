@@ -170,7 +170,7 @@ bundelt alle invarianten van het systeem op één plek.
 | # | Invariant |
 |---|-----------|
 | EV1 | `selectie` is enkel `"willekeurig"` of `"alle"` — de `"rang"`-selectie (met `veld`/`richting`) bestaat niet meer. |
-| EV2 | `categorie` is `"speler"` \| `"toestand"` \| `"wereld"`. `doelwit.type` mag `"uur"` zijn. |
+| EV2 | `categorie` is `"verplaatsing"` \| `"toestand"` \| `"wereld"` (soort event). Staat **los** van `doelwit.type` (`speler`/`uur`/`groep`/`geen`): een toestand kan een speler- óf uur-doelwit hebben. |
 | EV3 | Actieve spelers = enkel spelers met bekende positie (`spelerLocaties`) en niet gepauzeerd. |
 | EV4 | Actieve palen = `palenActief` (= `paaltjesLijst` in echt spel; = 1..24 in simulatie-modus). |
 | EV5 | Een nieuw event toevoegen vereist: preconditie + toegestane veld-wijzigingen. De centrale invarianten-checks (dit document) draaien daarna automatisch. |

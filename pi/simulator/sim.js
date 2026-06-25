@@ -607,7 +607,7 @@ function renderEvents() {
     }
 
     const OPTIE_BEREIK = { enkel: "1", laag: "1–3", midden: "1–6", hoog: "3–10" };
-    const CAT_LABEL    = { speler: "Verplaatsing", toestand: "Toestand", wereld: "Wereld" };
+    const CAT_LABEL    = { verplaatsing: "Verplaatsing", toestand: "Toestand", wereld: "Wereld" };
 
     function bereik(g) {
         if (g == null) return null;
@@ -619,7 +619,7 @@ function renderEvents() {
     const perCat = {};
     for (const e of lijst) (perCat[e.categorie || "wereld"] = perCat[e.categorie || "wereld"] || []).push(e);
 
-    for (const cat of ["speler", "toestand", "wereld"]) {
+    for (const cat of ["verplaatsing", "toestand", "wereld"]) {
         const ev = perCat[cat] || [];
         if (!ev.length) continue;
 

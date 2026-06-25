@@ -5,13 +5,15 @@
 #include <WiFi.h>
 #include <FastLED.h>
 #include "esp_random.h"
+#include "driver/gpio.h"   // IRAM-veilige gpio_get_level/gpio_set_level voor de knop-ISR
+#include "esp_timer.h"     // IRAM-veilige esp_timer_get_time() voor knop-debounce
 
 // ====================================================================
 // PARAMETERS
 // ====================================================================
 const int SCAN_DUUR_S    = 1;
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 8;
+const int PAAL_ID        = 9;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
@@ -53,7 +55,7 @@ const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
 #define BUTTON_PIN       3   // Drukknop tussen 3V3 en GPIO3 (INPUT_PULLDOWN -> HIGH = ingedrukt)
 #define BATTERY_ADC_PIN  4   // Spanningsdeler 2x 100k (ADC1)
 #define BUZZER_PIN       5   // Passieve buzzer via 100Ohm (digitaal)
-#define WARNING_LED_PIN  6   // GPIO6 (was rode diagnose-LED) - nu vrij voor een andere functie
+#define WARNING_LED_PIN  6   // GPIO6 - drukknop-feedback-LED (aan bij actief, uit zolang ingedrukt)
 #define BUILTIN_LED_PIN  8   // Ingebouwde LED ESP32-C3 SuperMini (active-LOW) - knippert bij zenden
 
 // ====================================================================
@@ -89,9 +91,14 @@ unsigned long laatsteBattCheck = 0;
 // Het framework is altijd actief, met of zonder fysieke knop: zonder knop
 // houdt de pulldown de pin LOW -> geen valse triggers. Bij indrukken (HIGH)
 // sturen we MSG_KNOP naar de master (drukknop-logica voor o.a. spellogica).
-const unsigned long KNOP_DEBOUNCE_MS = 30;     // ontdender-tijd
-bool          vorigeKnopStatus  = false;       // voor rising-edge detectie
-unsigned long laatsteKnopWissel = 0;           // debounce-timer
+// Drukknop-feedback (kogelvrij tellen): de ISR vangt ELKE druk (ook tijdens de BLE-scan), telt
+// cumulatief en stuurt de teller meerdere cycli opnieuw -> geen verloren drukken. GPIO6-LED brandt
+// als de paal "actief" is (gewapend door Node-RED) en gaat uit zolang de knop ingedrukt is.
+volatile bool     knopArmed    = false;        // paal actief gezet door Node-RED (ACTIE_KNOP_ARM)
+volatile uint16_t knopTeller   = 0;            // cumulatieve druk-teller (reset bij ARM)
+volatile uint8_t  knopResend   = 0;            // resterende herhaal-verzendingen van de teller
+volatile int64_t  laatsteTelUs = 0;            // tijdstip laatste getelde druk (debounce contactdender)
+const int64_t     KNOP_DEBOUNCE_US = 80000;    // 80 ms: dendert weg, laat snel mashen (~12/s) toe
 
 // ====================================================================
 // INGEBOUWDE LED (GPIO8, active-LOW) - knippert bij succesvolle zend
@@ -145,6 +152,9 @@ const uint8_t ACTIE_TORNADO_RAND = 15;
 // 16 = Klokslag-LED: continu gerenderde teamkleur (solid/flikker/ademend) op basis van een
 // MSG_KLOKSLAG-bericht. Geen FIFO/ACK; updateAnimatie() blijft tekenen tot een nieuw bericht.
 const uint8_t ACTIE_KLOKSLAG     = 16;
+// 17/18 = drukknop-feedback: ARM = paal actief (GPIO6-LED aan, teller=0), UIT = paal inactief (LED uit).
+const uint8_t ACTIE_KNOP_ARM     = 17;
+const uint8_t ACTIE_KNOP_UIT     = 18;
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -291,6 +301,7 @@ typedef struct __attribute__((packed)) fout_message {
 typedef struct __attribute__((packed)) knop_message {
   uint8_t  msg_type;        // = MSG_KNOP
   uint8_t  paal_id;
+  uint16_t teller;          // cumulatieve druk-teller (kogelvrij: laatste waarde telt)
 } knop_message;
 
 typedef struct __attribute__((packed)) buzzer_toon_message {
@@ -419,7 +430,7 @@ void stuurFout(uint8_t ernst, uint8_t foutcode, uint32_t detail) {
 }
 
 void stuurKnop() {
-  knop_message m = { MSG_KNOP, (uint8_t)PAAL_ID };
+  knop_message m = { MSG_KNOP, (uint8_t)PAAL_ID, knopTeller };
   esp_now_send(masterAddress, (uint8_t *)&m, sizeof(m));
 }
 
@@ -498,21 +509,28 @@ void checkBatterij() {
 }
 
 // ====================================================================
-// DRUKKNOP CHECK (GPIO3, rising-edge met debounce)
+// DRUKKNOP-ISR (GPIO3, CHANGE) — feedback-LED + kogelvrije teller
 // ====================================================================
-// Detecteert een druk (LOW->HIGH). Zonder fysieke knop blijft de pin LOW via de interne
-// pulldown -> nooit een valse trigger. Bij een druk: MSG_KNOP naar de master
-// (drukknop-logica voor o.a. tijdbom-ontmanteling).
-void checkKnop() {
-  bool knopNu = (digitalRead(BUTTON_PIN) == HIGH);
-  if (knopNu != vorigeKnopStatus &&
-      (millis() - laatsteKnopWissel) >= KNOP_DEBOUNCE_MS) {
-    laatsteKnopWissel = millis();
-    vorigeKnopStatus = knopNu;
-    if (knopNu) {  // rising edge = ingedrukt
-      stuurKnop();   // MSG_KNOP via ESP-NOW naar de master
-      Serial.printf("[KNOP] paal %d ingedrukt -> MSG_KNOP\n", PAAL_ID);
-    }
+// Loopt ook tijdens de blokkerende BLE-scan (interrupt). Enkel actief als de paal
+// "gewapend" is (knopArmed). Zolang ingedrukt -> GPIO6-LED uit; bij een druk (rising
+// edge) telt knopTeller op en wordt de teller ~6 cycli lang opnieuw verstuurd (de loop
+// doet de eigenlijke esp_now_send; ISR's blijven kort en doen geen radio-werk).
+// IRAM_ATTR + gpio_*_level zijn IRAM-veilig.
+void IRAM_ATTR knopISR() {
+  if (!knopArmed) return;
+  int pressed = gpio_get_level((gpio_num_t)BUTTON_PIN);            // 1 = ingedrukt
+  gpio_set_level((gpio_num_t)WARNING_LED_PIN, pressed ? 0 : 1);   // LED-feedback (ongedebounced -> snel)
+  if (pressed) {                                                  // tel met debounce tegen contactdender
+    int64_t nu = esp_timer_get_time();
+    if (nu - laatsteTelUs > KNOP_DEBOUNCE_US) { knopTeller++; knopResend = 6; laatsteTelUs = nu; }
+  }
+}
+
+// Loop-helper: stuur de teller zolang er nog herhalingen gepland zijn (kogelvrij tegen radioverlies).
+void serviceKnopVerzending() {
+  if (knopResend > 0) {
+    stuurKnop();
+    knopResend--;
   }
 }
 
@@ -689,6 +707,19 @@ void updateAnimatie() {
 // Buzzer-melodie (piep / ziekte-waarschuwingen): start eerste noot direct; updateMelodie() doet de rest.
 void voerActieUit(uint8_t actie) {
 
+  // --- Drukknop-feedback: raakt de WS2812B-strip/huidigeActie NIET ----
+  if (actie == ACTIE_KNOP_ARM) {
+    knopArmed = true; knopTeller = 0; knopResend = 2;   // teller=0 + verstuur zodat dashboard op 0 komt
+    digitalWrite(WARNING_LED_PIN, (digitalRead(BUTTON_PIN) == HIGH) ? LOW : HIGH);
+    Serial.printf("[KNOP] paal %d ACTIEF (LED aan)\n", PAAL_ID);
+    return;
+  }
+  if (actie == ACTIE_KNOP_UIT) {
+    knopArmed = false; digitalWrite(WARNING_LED_PIN, LOW);
+    Serial.printf("[KNOP] paal %d inactief (LED uit)\n", PAAL_ID);
+    return;
+  }
+
   // --- Buzzer-melodieën (3 = piep, 5/6/7 = ziekte-waarschuwing) --------
   const Noot* seq = getMelodieSequentie(actie);
   if (seq) {
@@ -763,7 +794,8 @@ void verwerkCommandos() {
 
     // Bekende commando-acties: 0..15 (LED/anim/buzzer-melodie). 12 (buzzer-toon) en 16 (klokslag)
     // komen via een eigen msg_type, niet via deze FIFO.
-    uint8_t ackStatus = (actie <= ACTIE_TORNADO_RAND) ? 0 : 1;   // 1 = onbekende actie
+    uint8_t ackStatus = (actie <= ACTIE_TORNADO_RAND ||
+                         actie == ACTIE_KNOP_ARM || actie == ACTIE_KNOP_UIT) ? 0 : 1;   // 1 = onbekende actie
     if (seq != laatsteUitgevoerdeSeq) {
       Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
       if (ackStatus == 0) voerActieUit(actie);
@@ -808,6 +840,11 @@ void setup() {
   // Drukknop (tussen 3V3 en GPIO3): interne pulldown zodat de pin zonder
   // aangesloten knop LOW blijft en er geen valse triggers ontstaan.
   pinMode(BUTTON_PIN, INPUT_PULLDOWN);
+
+  // Drukknop-feedback-LED (GPIO6): uit bij start; wordt aangestuurd door de knop-ISR.
+  pinMode(WARNING_LED_PIN, OUTPUT);
+  digitalWrite(WARNING_LED_PIN, LOW);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), knopISR, CHANGE);
 
   // ADC pin (input mode is standaard)
   pinMode(BATTERY_ADC_PIN, INPUT);
@@ -959,7 +996,7 @@ void loop() {
   unsigned long startWacht = millis();
   while (millis() - startWacht < WACHT_TIMEOUT) {
     checkBatterij();
-    checkKnop();
+    serviceKnopVerzending();   // kogelvrije teller: herhaal-verzendingen afhandelen
     updateIngebouwdeLed();
     verwerkTestToon();
     verwerkKlokslag();

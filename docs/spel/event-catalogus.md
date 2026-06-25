@@ -48,7 +48,7 @@ zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LE
 
 | Veld | Rol |
 |------|-----|
-| `categorie` | `"speler"` |
+| `categorie` | `"verplaatsing"` |
 | `voorwaarde` | `"min"` (minstens x vooruit), `"max"` (hoogstens x vooruit) of `"of"` (exact x óf exact y vooruit) |
 | `getal` | rolt `x` (bv. `midden` → 1–6) en vult het in de tekst in |
 | `getal2` | rolt `y` (tweede keuze bij `voorwaarde: "of"`); optie of `[min,max]`-bereik |
