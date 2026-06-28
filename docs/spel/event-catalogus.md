@@ -227,6 +227,39 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   overschrijven. Het is een **één-shot** (`duratie: 1`): bij de controle wordt `tornadoActief` geleegd en
   een LED-rebuild geforceerd → de palen keren terug naar hun oorspronkelijke staat.
 
+### Etenstijd — "Een wolf zal jagen op zijn schaapjes." (wolf vs. schapen-groep)
+- **Werking**: kiest een **groep** (kleur/jaar) als **schaapjes** (afroep "Groep …") + één **wolf** met de
+  **beste aura** (laagste `auraValsspeel`) **buiten** die groep. Zolang de toestand loopt (`duratie: 15`
+  rondes) **jaagt** de wolf: telkens hij **bij de controle** op **hetzelfde uur** eindigt als een schaapje,
+  **steelt** hij van dat schaap **`min(uur, schaap-levensuren)`** levensuren (op uur 20 → tot 20, maar nooit
+  meer dan het schaap heeft). Het **schaap** krijgt **+1 sterfte**, de **wolf** krijgt de buit erbij. Een
+  schaap kan **maar één keer** gevangen worden (`gevangen`-lijst). De vangst is zichtbaar in de controle-tabel
+  (`… | GEVANGEN DOOR WOLF (-N uur, +1 sterfte)` en `… | WOLF VING k (+N uur)`).
+- **Doelwit**: `type: "groep"`, `veld: "willekeurig"` (kleur/jaar — **seizoen** is nog niet beschikbaar
+  zolang `spelerEigenschappen` geen seizoen-veld bevat). **Gevolg**: `{type:"etenstijd"}`. `max: 1`.
+- **Toestand**: `global.etenstijd = {wolf, schapen[], gevangen[], over}`; een `wereldEffecten`-effect telt de
+  15 rondes af. Bij afloop ("Verouder effecten") en bij Stop/Herstart → `global.etenstijd = null`. De wolf
+  staat zichtbaar in de wereld-effecten-tabel (`Etenstijd (wolf: <naam>)`).
+- **Audio**: `events/toestanden/etenstijd.wav` (afroep) + `events/afgelopen/etenstijd_voorbij.wav`
+  ("de wolf is voldaan", bij afloop) — beide WAV's nog **opnemen**.
+
+### Tweeling — "2 spelers worden een tweeling." (gekoppeld bewegen)
+- **Werking**: koppelt **2 spelers**. Vanaf dan mogen ze **enkel samen** bewegen: in elke controle moeten
+  ze **allebei** bewegen of **allebei** stil staan (niet per se even ver). **Asymmetrisch** bewegen (de een
+  wel, de ander niet) → **beiden verliezen ALLE levensuren** (geen sterfte). Concreet: als een event maar één
+  van de twee laat bewegen, mág die niet bewegen (anders de straf). Een tweeling blijft tot **spel-einde** of
+  tot **één van beide sterft**: bij een **sterfte** (om het even welke oorzaak — beweging, middernacht, wolf,
+  …) **sterft de andere ook** (uren 0 + 1 sterfte) en de **band verbreekt**.
+- **Grenzen**: **max 3** tweelingen tegelijk (`max: 3`, geteld via een niet-verouderend `wereldEffecten`-
+  effect per paar). Wie al een tweeling is, kan **geen tweede** tweeling worden (uitgesloten bij de
+  doelwitkeuze in "Kies event").
+- **Doelwit**: `type: "speler"`, `aantal: 2`. **Gevolg**: `{type:"tweeling"}`. **Geen duratie** (persistent
+  tot dood/spel-einde; het paar-effect veroudert niet, zoals medicijn).
+- **Toestand**: `global.tweelingen = [{a, b, inst}, …]`. Gereset bij Stop/Herstart. De controle-tabel toont
+  `… | TWEELING UIT SYNC (-alle uren)` of `… | TWEELING STERFT MEE`.
+- **Audio**: `events/toestanden/tweeling.wav` (afroep "2 spelers …") — nog **opnemen**. Geen afloop-cue
+  (eindigt op een dood, niet op duratie).
+
 ### Tempo-events — "Sneller" / "Trager" (wereld)
 - **Werking**: `sneller_events` en `trager_events` (wereld, `doelwit: geen`) stappen `global.spelTempoFactor`,
   die de **reactietijd** van elk volgend event schaalt. Sneller: **−0,1** per keer (min **0,6**); trager:
@@ -247,6 +280,26 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   **middernacht** (uur 24) **×1,15**, overdag (uur 7–19) ×1,00. Zo is het overdag veiliger om te verblijven.
   Aan/uit via de **Spelinstellingen**-tab (`global.badAuraAan`, `sim/spel-config`). Uur-events en `geen`-doelwit
   (Nuke) vallen erbuiten.
+- **Valsspeel-aura** (per speler): elke **foute verplaatsing** bij de controle (TE VEEL, TE WEINIG,
+  ONGELDIGE KEUZE, TERUG IN TIJD, BEWOOG (mocht niet), ONGELDIGE TELEPORT, MIDDERNACHT DICHT) telt als
+  **valsspelen** → `+1 valsspeelpunt` en **+3% slechte-aura** (`spelerStats[n].auraValsspeel`). Dat
+  percentage wordt **bovenop** het regiogewicht vermenigvuldigd (`gewicht × (1 + auraValsspeel/100)`), dus
+  wie vaker vals speelt wordt **relatief vaker** het doelwit van een slechte-aura-event. De opgebouwde aura
+  **reset naar 0** zodra die speler zélf door een slechte-aura-event (Ziekte/Tijdbom) getroffen wordt — de
+  schuld is dan "afbetaald". Valsspeelpunten zelf blijven staan en tellen mee in de globale eindstand.
+
+### God-punten (dynamiek — "ongestraft vals spelen")
+- **Verdienen**: wie in een **lopend** spel zijn **doel** haalt, krijgt **automatisch +2 god-punten**
+  (in "Doel-controle"). Een `godAward`-latch (gereset bij spelstart) zorgt dat het bij **één** keer per spel
+  blijft, ook al blijft het doel behaald. Het saldo `godPunten` is **persistent** over spellen heen — je
+  spaart ze op en geeft ze later uit. Reset enkel via de beheer-wis.
+- **Gebruiken (automatisch)**: bij een **foute verplaatsing** (dezelfde set als de valsspeel-aura, incl.
+  middernacht-oversteek bij dichte poort) verbruikt de engine **automatisch 1 god-punt** als het saldo > 0.
+  Gevolg: **geen levensuren-verlies, geen sterfte**, de status krijgt `… [GOD-PUNT]`, en het telt **niet**
+  als valsspelen (geen valsspeelpunt, geen aura). Zo kun je "ongestraft vals spelen": je verplaatsing geldt
+  altijd, je mag middernacht oversteken in gesloten toestand, en een **ziek** persoon mag zo naar een
+  medicijn-paal lopen en **genezen**. Heb je geen god-punten meer, dan geldt de normale straf + valsspeel.
+- Saldo zichtbaar in de dashboard-tabel "Vals-spelen & God-punten" (huidig spel) en de globale tabel.
 
 ## Hoe het doelwit bepaald wordt
 - **Uur-doelwit**: kandidaten = het actieve palen-veld. `willekeurig`/`alle`
@@ -327,6 +380,23 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   gaan ze weer uit (via een Sync-rebuild).
 - **Audio**: centraal ontploffingsgeluid via **`events/bomaanslag.wav`** op de audio-player — dit
   WAV-bestand moet je nog toevoegen in `pi/audio-player/audio/events/`.
+
+### Tijdreizen — "Tijdreizen zal worden toegestaan." (tijdelijke regelwijziging)
+- **Werking**: zolang de toestand loopt (`duratie [10, 15]` rondes) mag **iedereen** bij het verplaatsen
+  **zowel voor- als achteruit** in de tijd gaan. Een achterwaartse zet (bv. van uur 5 naar uur 2) wordt
+  **niet meer bestraft** als "TERUG IN TIJD": de afgelegde stappen tellen mee als **geldige beweging**
+  (`stappen = voor + achter`) en moeten nog steeds aan de event-voorwaarde voldoen (min/max/of). Je moet
+  dus nog steeds **mogen** bewegen (een niet-doelwit blijft stil staan) en het **aantal stappen moet
+  kloppen**.
+- **Uitzondering — middernacht**: de **poort** mag enkel **mee met de tijd** (voorwaarts) doorkruist
+  worden. Een **achterwaartse** middernacht-oversteek (de 1→24-wrap) blijft verboden en wordt nog steeds
+  bestraft als "TERUG IN TIJD". Tijdreizen **opent** de middernachtpoort niet — een dichte poort blijft
+  een dichte poort (voorwaartse oversteek = `MIDDERNACHT DICHT`).
+- **Doelwit**: `type: geen`. **Gevolg**: `{type:"tijdreizen"}`. `max: 1`. Globale vlag
+  `global.tijdreizenActief` (gezet in "Voer gevolg uit", afgeteld via een `wereldEffecten`-effect, terug
+  op `false` in "Verouder effecten" en bij Stop/Herstart).
+- **Audio**: `events/wereld-events/tijdreizen.wav` (afroep) + `events/afgelopen/tijdreizen_voorbij.wav`
+  (bij afloop) — beide WAV's moet je nog **opnemen**.
 
 ## Middernacht (permanent mechanisme, géén afroepbaar event)
 Middernacht is **geen** event in `pofEvents` maar een **continu** mechanisme (node "Middernacht", draait per

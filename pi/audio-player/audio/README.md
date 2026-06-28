@@ -120,10 +120,16 @@ Huidige mapping (config → bestand, per submap):
   `uur_vooruit.wav` het na-stuk (de connector "of" zit in `woorden/of.wav`).
 - **`events/toestanden/`** (toestand-events): `worden_ziek.wav`, `worden_een_tijdbom.wav`,
   `worden_getroffen_door_een_tornado.wav`, `een_portaal_opent_tussen_twee_uren.wav`,
-  en (nog op te nemen) `worden_happy_hour.wav`.
+  en (nog op te nemen) `worden_happy_hour.wav`, **`etenstijd.wav`** ("een wolf zal jagen op zijn
+  schaapjes"), **`tweeling.wav`** ("2 spelers worden een tweeling").
 - **`events/wereld-events/`** (wereld-events): `events_komen_sneller.wav`,
   `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`,
-  en (nog op te nemen) `nuke.wav`.
+  en (nog op te nemen) `nuke.wav`, **`identiteitscrisis.wav`**, **`tijdreizen.wav`**
+  ("tijdreizen zal worden toegestaan").
+- **`events/afgelopen/`** (eind-cue `audioAfgelopen` bij afloop van de duratie, nog op te nemen):
+  `identiteitscrisis_voorbij.wav`, **`tijdreizen_voorbij.wav`** ("tijdreizen is afgelopen"),
+  **`etenstijd_voorbij.wav`** ("de wolf is voldaan"). *(Tweeling heeft geen eind-cue — die eindigt
+  op een dood, niet op duratie.)*
 
 De ziekte-waarschuwing (ziekenhuis-monitor + hartslag) speelt op de **slave-buzzer**
 (acties 5/6/7), niet via de audio-player.

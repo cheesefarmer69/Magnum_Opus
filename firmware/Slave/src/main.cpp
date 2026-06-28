@@ -223,8 +223,9 @@ unsigned long actieStartMs = 0;
 // ====================================================================
 // FREERTOS MUTEX — beschermt FastLED.show() aanroepen
 // ====================================================================
-// Animatietaak en voerActieUit() schrijven allebei naar de LED-strip.
-// De mutex zorgt dat ze niet tegelijk FastLED.show() aanroepen.
+// Er is GEEN aparte animatietaak: alle LED-schrijvers (voerActieUit, updateAnimatie,
+// verwerkKlokslag) draaien uit loop(); OnDataRecv zet enkel volatile vlaggen. De mutex is
+// dus een (benigne) extra garantie tegen toekomstige concurrency, niet strikt nodig.
 SemaphoreHandle_t xLedMutex = NULL;
 
 // ====================================================================
@@ -773,6 +774,7 @@ void voerActieUit(uint8_t actie) {
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
       fill_solid(leds, NUM_LEDS, kleur);
       FastLED.show();
+      FastLED.show();   // belt-and-suspenders: een solid wordt maar 1x getekend -> 2e show borgt de latch
       xSemaphoreGive(xLedMutex);
     }
   }
@@ -820,6 +822,9 @@ void setup() {
   // LED strip init
   FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
+  // Voeding-vangnet: schaalt de helderheid terug als de totale stroom een marginale 5V-rail
+  // zou overschrijden (voorkomt brownout = "deels aan"). Stem 700mA af op je echte voeding.
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 700);
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   FastLED.show();
 

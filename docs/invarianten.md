@@ -26,12 +26,13 @@ bundelt alle invarianten van het systeem op één plek.
 | # | Invariant |
 |---|-----------|
 | V1 | Een verplaatsing is een **geordende reeks atomaire acties** (STAP + TELEPORT). Richting en score worden **actie-per-actie** bepaald — nooit uit de netto begin/eind-verplaatsing. |
-| V2 | Een **STAP** gaat altijd **vooruit** (klok loopt rond: na 24 → 1). Een STAP achteruit is altijd verboden. |
+| V2 | Een **STAP** gaat altijd **vooruit** (klok loopt rond: na 24 → 1). Een STAP achteruit is verboden — **behalve** tijdens een **tijdreizen**-wereld-event (zie V8). |
 | V3 | Een **TELEPORT** verbruikt 0 budget, levert 0 levensuren, is **richting-agnostisch** (ook van hoger naar lager uur is legaal), en mag **max 1× per portaal per verplaatsing** (geen ping-pong). |
 | V4 | Een legale portaal-sprong van een hoger naar een lager uur geeft **geen "TERUG IN TIJD"** — de controle is portaal-bewust. |
 | V5 | Bij elk event mag enkel het **beweging-doelwit** bewegen. Elke andere speler die beweegt krijgt straf `−(voor+achter)`. |
 | V6 | Niemand verbruikt meer budget dan het event toestaat (`voor ≤ x` bij max-event). |
 | V7 | Scoring: `basis = aantal STAP vooruit`; `verdiend = (eindpaal happy-hour) ? 2×basis : basis`. |
+| V8 | **Tijdreizen** (wereld-event, `global.tijdreizenActief`): zolang actief telt een **achterwaartse** STAP **mee** als geldige beweging — de stappen worden `voor + achter` voor de voorwaarde-check én de score (geen "TERUG IN TIJD"-straf). Uitzondering: een **achterwaartse middernacht-oversteek** (`ontleed().kruistAchter`, de 1→24-wrap) blijft verboden → "TERUG IN TIJD". Tijdreizen opent de poort niet (M3 blijft gelden voor de voorwaartse oversteek). Buiten tijdreizen gelden V2/V4 onveranderd. |
 
 ### Scoringtabel (na elke controle)
 
@@ -154,6 +155,25 @@ bundelt alle invarianten van het systeem op één plek.
 
 ---
 
+## 4h. Etenstijd (wolf vs. schapen-groep)
+
+| # | Invariant |
+|---|-----------|
+| ET1 | Doelwit = een **groep** (kleur/jaar) = de **schapen**. De **wolf** = de speler met de **laagste `auraValsspeel`** (beste aura) **buiten** die groep. State: `global.etenstijd = {wolf, schapen[], gevangen[], over}`. `duratie: 15` rondes via een `wereldEffecten`-effect. |
+| ET2 | **Vangst bij de controle**: staat de wolf op **hetzelfde uur** als een nog niet-gevangen schaap, dan steelt hij **`min(uur, schaap-totaalUren)`** levensuren van dat schaap → schaap **−buit + 1 sterfte**, wolf **+buit**. Elk schaap is **eenmalig** vangbaar (`gevangen`-lijst). |
+| ET3 | Bij afloop ("Verouder effecten") en bij **Stop/Herstart** → `global.etenstijd = null`. De wolf staat in de wereld-effecten-tabel (`Etenstijd (wolf: <naam>)`). |
+
+## 4i. Tweeling (gekoppeld bewegen)
+
+| # | Invariant |
+|---|-----------|
+| TW1 | Een tweeling koppelt **2 spelers** (`global.tweelingen = [{a,b,inst}]`). **Max 3** paren (`max: 3`, geteld als niet-verouderend `wereldEffecten`-effect per paar — uitgezonderd van veroudering zoals medicijn). Wie al een tweeling is, wordt **uitgesloten** bij de doelwitkeuze (1 tweeling per speler). |
+| TW2 | **Samen bewegen**: in elke controle moeten beide tweelingen **allebei** bewegen of **allebei** stil staan. **Asymmetrisch** (`bewogen(a) ≠ bewogen(b)`, beide deze ronde in `start`) → **beiden `totaalUren = 0`** (géén sterfte). |
+| TW3 | **Dood-propagatie**: krijgt één tweeling deze ronde een **sterfte** (om het even welke oorzaak — beweging, middernacht, wolf, …), dan krijgt de andere **`totaalUren = 0` + 1 sterfte** en de **band verbreekt** (paar uit `tweelingen` + zijn wereld-effect verwijderd). Detectie via een sterfte-snapshot vóór de controle. |
+| TW4 | **Geen duratie**: een tweeling blijft tot **spel-einde** of een **dood**. **Reset** (Stop/Herstart) wist `tweelingen`. |
+
+---
+
 ## 4g. Spel-tempo & slechte aura
 
 | # | Invariant |
@@ -162,6 +182,7 @@ bundelt alle invarianten van het systeem op één plek.
 | SP2 | `sneller_events` stapt de factor **−0,1** (min **0,6**); `trager_events` **+0,1** (max **1,3**) → **range 0,6–1,3**. Gevolg `{type:"tempo", richting:"sneller"\|"trager"}`. |
 | SP3 | De factor wordt naar **1,0** gereset bij Stop/Herstart (beide `resetSpelStaat`). De huidige waarde staat in `pof/status.spelTempo`. |
 | SP4 | **Slechte aura**: events met `slechteAura: true` (Ziekte, Tijdbom — speler-events) kiezen hun doelwit **gewogen** naar regio: avond (uur 20–23 of 1–6) ×1,10, middernacht (uur 24) ×1,15, dag (7–19) ×1,00. Enkel actief als `global.badAuraAan !== false` (Spelinstellingen-tab → `sim/spel-config`). Uur-events en `geen`-doelwit (Nuke) vallen erbuiten; `selectie:"alle"` weegt niet. |
+| SP5 | **Valsspeel-aura**: elke foute verplaatsing bij de controle (TE VEEL, TE WEINIG, ONGELDIGE KEUZE, TERUG IN TIJD, BEWOOG (mocht niet), ONGELDIGE TELEPORT, MIDDERNACHT DICHT) geeft de speler **+1 `valsspeelpunten`** en **+3% `auraValsspeel`** (in "Verifieer beweging"). Dat aura% vermenigvuldigt **bovenop** het SP4-regiogewicht: `gewicht × (1 + auraValsspeel/100)` → valsspelers worden relatief vaker doelwit van een slechte-aura-event. `auraValsspeel` **reset naar 0** zodra de speler door een slechte-aura-event getroffen wordt (in "Kies event", na de doelwitkeuze). `valsspeelpunten` blijft staan, telt mee in de globale eindstand (transferStats), en reset enkel bij zeroHuidig/Wis. |
 
 ---
 
@@ -186,6 +207,8 @@ bundelt alle invarianten van het systeem op één plek.
 | D3 | **Doel 2 (`inhalen`)**: rivaal = volgende speler alfabetisch onder de deelnemers (**cyclisch**). Bereikt als A van een **lager uur** kwam (`startA < startB`), nu **≥ 1 voorbij** B eindigt (`endA >= endB+1`), en B's eindpositie **lopend (STAP)** passeerde. Een TELEPORT die voorbij B landt telt **niet**; portaal-terug-dan-lopen wél. Latcht in `doelBereikt` (blijft behaald). |
 | D4 | "Doel-controle" publiceert retained `pof/doelstatus` (percentage + per-speler) en zet `global.pofDoelBereikt`; de simulator-zijbalk toont % + highlight. |
 | D5 | **Stats per spel**: `spelerStats.totaalUren/sterftes` = huidig spel; bij **Stop** opgeteld bij `globaleStats` (cumulatief) en daarna gewist. `spelNummer` +1 per Start; reset via Admin "Reset ALLES" / "[BEHEER] Wis globale stats". De geslaagde-lijst + doel komen in `spelHistorie`. |
+| D6 | **Meta-stats**: per speler ook `valsspeelpunten` (per-spel; bij **Stop** cumulatief in `globaleStats`), `auraValsspeel` (per-spel slechte-aura-% door valsspelen, zie SP5) en `godPunten` (**persistent** saldo over spellen heen, niet gewist bij Start/Stop — enkel door beheer-reset). Getoond in de dashboard-tabel "Vals-spelen & God-punten" (huidig spel) + de globale tabel. Registratie/gebruik: zie SP5 (valsspeel + aura) en D7 (god-punten). |
+| D7 | **God-punten**: een speler die in een **lopend** spel zijn doel haalt, krijgt **eenmalig +2 god-punten** (in "Doel-controle"; `godAward`-latch, gereset bij spelstart/wis → opnieuw verdienbaar per spel). Bij een **foute verplaatsing** (de SP5-set, incl. MIDDERNACHT DICHT) wordt, als `godPunten > 0`, **automatisch 1 god-punt verbruikt**: de zet is dan **ongestraft** (geen levensuren/sterfte, status `… [GOD-PUNT]`) en telt **niet** als valsspelen (geen valsspeelpunt/aura). Een ziek persoon kan zo ook na een foute zet **genezen** op een medicijn-paal. Saldo `godPunten` is persistent; reset enkel via beheer-wis. |
 
 ## 6. Simulator vs. echt spel
 

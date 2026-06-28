@@ -83,7 +83,10 @@ index zodat het event niet voorkomt (de rij vult zich weer aan in "Bouw pof/stat
 en vermenigvuldigt in "Voer gevolg uit" de reactietijd van elk volgend event — bovenop de test-`tempoFactor`.
 Reset naar 1,0 bij Stop/Herstart. **Slechte aura**: events met `slechteAura: true` (Ziekte, Tijdbom) kiezen
 hun speler-doelwit in "Kies event" **gewogen** naar regio (avond uur 20–6 ×1,10, middernacht uur 24 ×1,15,
-dag ×1,00) wanneer `global.badAuraAan !== false` (Spelinstellingen-tab → `sim/spel-config`).
+dag ×1,00) wanneer `global.badAuraAan !== false` (Spelinstellingen-tab → `sim/spel-config`). Bovenop dat
+regiogewicht telt de **valsspeel-aura** per speler: elke foute verplaatsing geeft `+1 valsspeelpunt` en
+`+3% auraValsspeel` (in "Verifieer beweging"); het gewicht wordt `× (1 + auraValsspeel/100)`, dus
+valsspelers worden vaker doelwit. `auraValsspeel` reset zodra de speler zelf zo'n event krijgt.
 
 **Event-tiers**: elk event heeft een `tier` (keuze-gewicht common 50 / uncommon 25 / rare 15 / epic 8 /
 legendary 2). De engine kiest gewogen (in "Bouw pof/status" voor de wachtrij en in "Kies event" als

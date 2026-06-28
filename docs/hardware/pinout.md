@@ -8,7 +8,7 @@ wijzigen.
 
 | GPIO | Functie | Richting | Notitie |
 |------|---------|----------|---------|
-| GPIO0 | WS2812B data | OUT | 7 LEDs via 330Ω serieweerstand |
+| GPIO0 | WS2812B data | OUT | 7 LEDs via 330Ω serieweerstand. **Let op:** GPIO0 is een strapping/boot-pin → data-glitch-risico bij boot. WS2812B-aansturing gebruikt de **IDF-RMT-driver** (`-DFASTLED_RMT_BUILTIN_DRIVER=1`) tegen RMT-underrun (anders licht maar ~3 van 7 LEDs op door WiFi/BLE-interrupt-starvation). |
 | GPIO1 | MOSFET gate | OUT | IRLZ44N via 220Ω, 10k pull-down (schakelt LED-voeding) |
 | GPIO3 | Drukknop | IN | Tussen 3V3 en GPIO3, `INPUT_PULLDOWN`. HIGH = ingedrukt. Werkt met of zonder fysieke knop (zonder knop houdt de pulldown de pin LOW → geen valse triggers) |
 | GPIO4 | Batterij-ADC | IN (ADC1) | Spanningsdeler 2× 100k (V_adc = V_batt / 2), 12-bit |
