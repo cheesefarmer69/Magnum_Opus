@@ -16,6 +16,9 @@ ongeluk op drukt.
 | Knop **Levensuren → 0**       | Stap 2. Zet de losse levensuren op 0 (hele dagen blijven).           |
 | Knop **Achterstand → 0**      | Stap 2. Zet de `achterstand` van alle spelers op 0.                  |
 | Knop **Paal-effecten → 0**    | Stap 2. Wist alle blijvende effecten op de palen (`bordStaat`).      |
+| Knop **Middernacht-klok → start** | Stap 2. Zet de π-sequentie van de middernacht-poort terug naar de startstand (poort open, fase = eerste π-cijfer). Triggert meteen de "Middernacht"-node die `pof/middernacht` + de poort-LED herpubliceert. |
+| Knop **ALLES → 0**            | Stap 2. Voert alle resets in één klik uit — inclusief de middernacht-klok. |
+| Dropdown **Paal om te resetten** + knop **Reset paal → rust** | Stap 2. Zet één gekozen paal (1–24) terug naar zijn rusttoestand: effecten weg uit `bordStaat`, LED uit (actie 0). Handig om een blijvende/foute LED-staat op één paal te wissen. |
 | Notificatie                   | Bevestiging of waarschuwing ("vergrendeld") na elke klik.            |
 
 ## Twee-staps verificatie

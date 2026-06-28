@@ -27,8 +27,8 @@ SERIEEL_BAUD = 115200
 HERDETECTIE_INTERVAL = 5  # s, hoe vaak we naar nieuwe/verdwenen poorten zoeken
 
 # Commando-topics per master. De koppeling topic -> fysieke poort wordt geleerd
-# uit de binnenkomende paal_id (zie paal_naar_topic): een master die palen 1-7
-# rapporteert is master1, 8-16 master2, 17-24 master3.
+# uit de binnenkomende paal_id (zie paal_naar_topic): een master die palen 1-8
+# rapporteert is master1, 9-16 master2, 17-24 master3.
 COMMANDO_TOPICS = ["commando/master1", "commando/master2", "commando/master3"]
 
 # Thread-safe opslag voor seriële verbindingen
@@ -49,9 +49,9 @@ def paal_naar_topic(paal_id):
         p = int(paal_id)
     except (TypeError, ValueError):
         return None
-    if 1 <= p <= 7:
+    if 1 <= p <= 8:
         return "commando/master1"
-    if 8 <= p <= 16:
+    if 9 <= p <= 16:
         return "commando/master2"
     if 17 <= p <= 24:
         return "commando/master3"
@@ -155,12 +155,20 @@ def lees_poort(device):
 
             # Leer welke master op deze poort zit uit de paal_id, zodat
             # commando/masterN naar de juiste poort gerouteerd kan worden.
-            topic = paal_naar_topic(data.get("paal"))
-            if topic and topic not in geleerde_topics:
-                with serieel_lock:
-                    topic_naar_serieel[topic] = ser
-                geleerde_topics.add(topic)
-                print(f"[ROUTE] {device} -> {topic} (paal {data.get('paal')})")
+            # BELANGRIJK: alleen leren uit berichten die de EIGEN paal van deze
+            # master dragen (batch/heartbeat/fout/knop/batt). Status-echo's
+            # (regels met "status":...) zoals {"status":"buiten_bereik","paal":17,
+            # "master":1} dragen de paal van een VREEMD commando (de afgewezen
+            # paal), niet een eigen slave. Daaruit leren zou de route vergiftigen
+            # (bv. commando/master3 -> master1-poort) waardoor álle commando's voor
+            # die paal bij de verkeerde master belanden -> "buiten_bereik" in een lus.
+            if "status" not in data:
+                topic = paal_naar_topic(data.get("paal"))
+                if topic and topic not in geleerde_topics:
+                    with serieel_lock:
+                        topic_naar_serieel[topic] = ser
+                    geleerde_topics.add(topic)
+                    print(f"[ROUTE] {device} -> {topic} (paal {data.get('paal')})")
 
             # Inkomende data ongewijzigd doorpubliceren; de paal_id in de data
             # routeert verder in Node-RED (werkt voor elk aantal masters).

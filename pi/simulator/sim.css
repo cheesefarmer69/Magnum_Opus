@@ -40,6 +40,9 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 #event-balk h3 { margin: 0 0 8px 0; font-size: 0.95em; color: #444; border-bottom: 1px solid #ccd7e8; padding-bottom: 4px; }
 .event-kop { display: flex; align-items: center; gap: 8px; }
 .event-kop h3 { flex: 1; margin-bottom: 0; border-bottom: 0; }
+.tijd-terug { border: 0; background: #0277bd; color: #fff; cursor: pointer; font-size: 1.1em; line-height: 1; padding: 3px 9px; border-radius: 6px; flex-shrink: 0; }
+.tijd-terug:hover { background: #01579b; }
+.events-tier-select { position: absolute; bottom: 5px; right: 6px; font-size: 0.7em; border: 1px solid #bbb; border-radius: 3px; background: #fff; color: #333; padding: 0 2px; }
 .pof-teller {
     background: #0277bd; color: #fff; font-weight: bold; font-size: 1.1em;
     min-width: 2em; text-align: center; border-radius: 6px; padding: 4px 8px; line-height: 1;
@@ -124,6 +127,9 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .buzzer-icoon { font-size: 9px; text-anchor: middle; pointer-events: none; }
 .medicijn-icoon { font-size: 9px; text-anchor: middle; pointer-events: none; }
 .hart-icoon { font-size: 7px; text-anchor: middle; pointer-events: none; fill: #e53935; animation: hart-klop 0.6s infinite ease-in-out; }
+.speler-bom-label { fill: #b71c1c; font-size: 5.5px; font-weight: 700; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #fff; stroke-width: 0.6; }
+.knop-flits { fill: rgba(255,193,7,0.35); stroke: #ff8f00; stroke-width: 1.5; pointer-events: none; animation: knop-flits-anim 0.45s ease-out; }
+@keyframes knop-flits-anim { 0% { opacity: 1; r: 6px; } 100% { opacity: 0; r: 11px; } }
 
 /* LED-animaties (acties 11-16) */
 @keyframes knipperen-snel { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.1; } }
@@ -220,6 +226,8 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .events-naam  { font-weight: 600; font-size: 0.88em; margin-bottom: 2px; }
 .events-tekst { font-size: 0.80em; color: #555; font-style: italic; margin-bottom: 4px; }
 .events-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.events-wachtrij-btn { display: inline-block; margin-top: 5px; font-size: 0.72em; border: 1px solid #2e7d32; background: #fff; color: #2e7d32; border-radius: 3px; padding: 1px 6px; cursor: pointer; }
+.events-wachtrij-btn:hover { background: #2e7d32; color: #fff; }
 .events-chip  { background: rgba(0,0,0,0.08); border-radius: 3px; padding: 1px 5px; font-size: 0.73em; color: #333; }
 .events-leeg  { color: #888; font-size: 0.85em; padding: 8px 0; }
 
@@ -230,5 +238,97 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .pof-doelwit { background: #fff3e0; border-radius: 6px; padding: 10px 12px; margin-top: 4px;
     font-size: 1.05em; line-height: 1.6; white-space: pre-line; color: #4e342e; min-height: 40px; }
 .pof-wachtrij { margin: 4px 0 0 0; padding: 8px 12px 8px 30px; background: #eef4fb; border-radius: 6px; color: #1a2a3a; font-size: 0.95em; line-height: 1.5; }
-.pof-wachtrij li { padding: 1px 0; }
+.pof-wachtrij li { padding: 1px 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .pof-wachtrij .pof-wachtrij-leeg { list-style: none; margin-left: -18px; color: #888; }
+.wachtrij-weg { border: 0; background: transparent; color: #c62828; cursor: pointer; font-size: 0.95em; line-height: 1; padding: 0 4px; flex-shrink: 0; }
+.wachtrij-weg:hover { color: #fff; background: #c62828; border-radius: 3px; }
+
+/* Drukknop-bedieningspaneel (tussen het veld en de event-balk) */
+#knoppen-paneel {
+    width: 190px; flex-shrink: 0; background: #fff8e1; border-left: 1px solid #e6d9a8;
+    padding: 12px; overflow-y: auto; display: flex; flex-direction: column;
+}
+#knoppen-paneel h3 { margin: 0 0 4px 0; font-size: 0.95em; color: #6d4c00; border-bottom: 1px solid #e6d9a8; padding-bottom: 4px; }
+.knoppen-hint { margin: 0 0 8px 0; font-size: 0.74em; color: #8a7320; }
+.knoppen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.knop-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 8px 4px; border: 1px solid #c9a227; border-radius: 6px; cursor: pointer;
+    background: #ffe082; color: #5d4500; font-weight: 600; font-size: 0.8em; line-height: 1.1;
+    user-select: none; transition: transform 0.05s, background 0.15s;
+}
+.knop-btn:hover { background: #ffd54f; }
+.knop-btn:active, .knop-btn.ingedrukt { transform: scale(0.94); background: #ffb300; }
+.knop-btn.ontmantel { box-shadow: 0 0 0 2px #e53935 inset; }
+.knop-btn .knop-paal { font-size: 1.15em; }
+.knop-btn .knop-sub { font-size: 0.72em; font-weight: 400; color: #7a6200; }
+.knoppen-leeg { color: #998; font-size: 0.82em; grid-column: 1 / -1; }
+
+/* Systeeminstellingen-paneel (vast overlay, rechtsboven) */
+#systeem-paneel, #spel-paneel {
+    position: fixed; top: 60px; right: 10px; z-index: 95;
+    width: 280px; background: #fafafa; border: 1px solid #b0bec5; border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.22);
+}
+#spel-paneel { right: 300px; border-color: #a5b8a5; }
+#spel-paneel .sys-kop { background: #2e5d34; }
+#systeem-paneel.dicht, #spel-paneel.dicht { display: none; }
+.sys-kop { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #37474f; color: #fff; border-radius: 6px 6px 0 0; }
+.sys-titel { font-weight: 700; flex: 1; font-size: 0.92em; }
+#systeem-toggle, #spel-toggle { border: 0; background: transparent; color: #fff; cursor: pointer; font-size: 1em; line-height: 1; padding: 0 2px; }
+.sys-readout { cursor: default; }
+.sys-hint { color: #888; font-size: 0.82em; }
+.sys-inhoud { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.sys-rij { display: flex; align-items: center; gap: 6px; font-size: 0.86em; cursor: pointer; }
+.sys-rij input[type="checkbox"] { cursor: pointer; accent-color: #37474f; }
+.sys-rij.sys-slider { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; }
+.sys-rij.sys-slider input[type="range"] { width: 100%; }
+
+/* ============================================================
+   SPELTYPE-KEUZE + KLOKSLAG
+   ============================================================ */
+
+/* Speltype-selector in de header (gespiegeld op Modus) */
+.hdr-speltype label { display: flex; align-items: center; gap: 3px; }
+
+/* Spel-banner bovenaan de event-balk: toont duidelijk welk spel actief is */
+.spel-banner {
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+    padding: 8px 10px; margin-bottom: 10px; border-radius: 6px;
+    font-weight: 700; font-size: 1.05em; border-left: 5px solid;
+}
+.spel-banner-icoon { font-size: 1.2em; }
+.spel-banner-pof { background: #e3f2fd; color: #0d47a1; border-color: #2196f3; }
+.spel-banner-klokslag { background: #f3e5f5; color: #4a148c; border-color: #9c27b0; }
+
+/* Panelen wisselen per speltype: toon enkel het relevante blok */
+#klokslag-blok { display: none; flex-direction: column; }
+body.spel-klokslag #pof-blok { display: none; }
+body.spel-klokslag #klokslag-blok { display: flex; }
+/* PoF-only zijpanelen verbergen tijdens Klokslag (niet relevant) */
+body.spel-klokslag #middernacht-paneel,
+body.spel-klokslag #events-paneel,
+body.spel-klokslag #histo-paneel { display: none; }
+
+/* Klokslag-paneel (in de event-balk) */
+.ks-kop { display: flex; align-items: center; gap: 8px; }
+.ks-kop h3 { flex: 1; margin-bottom: 0; border-bottom: 0; }
+.ks-timer {
+    background: #6a1b9a; color: #fff; font-weight: bold; font-size: 1.15em;
+    min-width: 3.5em; text-align: center; border-radius: 6px; padding: 4px 10px; line-height: 1;
+}
+.ks-scorebord, .ks-teams { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.ks-score-rij, .ks-team-rij { display: flex; align-items: center; gap: 8px; font-size: 0.92em; }
+.ks-score-rij.ks-winnaar { font-weight: 700; }
+.ks-stip { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.25); }
+.ks-score-naam { flex: 1; }
+.ks-score-pts { color: #4a148c; }
+.ks-leeg { color: #998; font-size: 0.82em; }
+
+/* PoF-doel: percentage naast de "Spelers"-kop + highlight van geslaagde namen */
+.doel-percent { font-size: 0.72em; font-weight: 600; color: #2e7d32; margin-left: 6px; }
+.spel-actief { font-weight: 700; color: #4a148c; }
+#speler-lijst .naam.doel-bereikt {
+    background: #c8e6c9; color: #1b5e20; font-weight: 700;
+    border-radius: 3px; padding: 1px 5px;
+}

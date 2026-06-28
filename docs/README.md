@@ -14,7 +14,8 @@ docs/
 ├── versions.md          ← exacte versies van alle libraries/tools
 ├── todo.md              ← openstaande taken
 ├── spel/                ← SPELONTWERP (horen sterk samen, kruisverwijzen elkaar)
-│   ├── spel.md              ← oriëntering + mechanieken (middag-/avondspel)
+│   ├── spel.md              ← oriëntering + mechanieken (middag-/avondspel) + speltypes
+│   ├── klokslag.md          ← Klokslag-minigame (teamgebaseerde inname; tweede game-mode)
 │   ├── event-systeem.md     ← LEIDEND: verplaatsingscontrole, STAP/TELEPORT, scoring
 │   ├── event-catalogus.md   ← per-categorie overzicht van alle events
 │   ├── events.md            ← schema-referentie om een event-object op te stellen
@@ -24,7 +25,8 @@ docs/
 │   └── playfield.md         ← geometrie van het 24-hoekig speelveld
 └── handleidingen/       ← OPERATIONELE HOW-TO's per component
     ├── master.md · slave.md · serial-bridge.md · audio-player.md
-    └── dashboards.md        ← de Node-RED Dashboard 2.0-pagina's (functie/opbouw)
+    ├── dashboards.md        ← de Node-RED Dashboard 2.0-pagina's (functie/opbouw)
+    └── spel-testen.md       ← autonoom AI-agent testen: pre-flight + scripted + live-agent
 ```
 
 ## Waarom deze groepering
@@ -62,6 +64,14 @@ het onderwerp:
 **Bij de Pi-services:**
 - `pi/serial-bridge/bridge.py` (+ `pi/deploy.sh`), `pi/audio-player/player.py`,
   of `pi/simulator/sim.js` — naargelang wat je aanpakt.
+
+**Bij autonoom testen (bugs/crashes/exploits):**
+- `tools/speltest/` — AI-agent testharnas dat het Plates-of-Fate-spel via MQTT speelt en
+  elke ronde tegen een orakel toetst. **How-to (begin hier): `docs/handleidingen/spel-testen.md`**
+  — pre-flight-checklist + scripted + live-agent in één flow. Referentie: `tools/speltest/README.md`
+  (architectuur) en `tools/speltest/AGENT.md` (live-agent-modus). Steunt op
+  `docs/spel/event-systeem.md`, `docs/invarianten.md` en het `sim/bediening`-topic
+  (`docs/protocol.md` §5).
 
 > Tip: je hoeft zelden álles te geven. `CLAUDE.md` + `Design_rules.md` +
 > `docs/invarianten.md` + de 1–3 files van het onderwerp volstaan meestal. Claude leest

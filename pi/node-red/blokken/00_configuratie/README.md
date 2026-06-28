@@ -2,10 +2,11 @@
 
 ## Doel
 
-Eén centrale plek voor de twee lijsten die het hele systeem nodig heeft:
+Eén centrale plek voor de lijsten die het hele systeem nodig heeft:
 
 - de **spelerslijst** — welke BLE-beacons horen bij welke speler;
-- de **paaltjeslijst** — welke palen (slaves) het systeem verwacht.
+- de **paaltjeslijst** — welke palen (slaves) het systeem verwacht;
+- de **drukknop-palen** — welke palen een fysieke drukknop hebben.
 
 Andere flows (Locatiebepaling, Spelstatus) lezen deze lijsten uit de global
 context. Door alles hier te bundelen, pas je de configuratie op één plek aan en
@@ -21,6 +22,8 @@ kan niets uit sync raken.
 | `[CONFIG] Paaltjeslijst`   | inject-node met de paaltjeslijst als JSON                    |
 | `Sla op als paaltjesLijst` | schrijft die naar `global.paaltjesLijst`                     |
 | `paaltjesLijst (controle)` | debug-node die de actieve lijst toont                        |
+| `[CONFIG] Drukknop-palen`  | inject-node met de palen die een drukknop hebben (JSON-array) |
+| `Sla op als drukknopPalen` | schrijft die naar `global.drukknopPalen` én publiceert ze retained op `config/drukknoppen` (voor de simulator) |
 | `[TEST] LED (portaal-kleur)` | inject die een gekozen paal paars maakt (LED-test, `actie:1`) |
 | `[TEST] Zoemer (piep)`     | inject die een gekozen paal laat piepen (zoemer-test, `actie:3`) |
 | `commando/master1`         | MQTT-out die de test-commando's naar de master stuurt        |
@@ -39,6 +42,7 @@ elke deploy en bij het herstarten van Node-RED. Je kan ze ook handmatig aanklikk
 |-----------------------|-----------------------------------------------------|
 | `global.spelersLijst` | `{ "mac": "naam", ... }`                            |
 | `global.paaltjesLijst`| `[ 1, 2, 3, ... ]` — lijst van verwachte paal-id's  |
+| `global.drukknopPalen`| `[ 3, 4, 7, ... ]` — palen met een fysieke drukknop (ook retained op `config/drukknoppen`) |
 
 ## De spelerslijst opmaken en aanpassen
 
@@ -89,6 +93,25 @@ gebruikt die om te controleren of elke paal data stuurt.
    testen zet je hier enkel de palen die je echt aangesloten hebt.
 4. **Done** → **Deploy** → inject-node één keer aanklikken.
 
+## De drukknop-palen aanpassen
+
+Sommige palen hebben een fysieke drukknop waarmee spelers (bij bepaalde events, bv. de
+**tijdbom**) interactie hebben. Welke palen dat zijn, staat in **`[CONFIG] Drukknop-palen`**:
+
+1. Tab **00 Configuratie** → dubbelklik op **`[CONFIG] Drukknop-palen`**.
+2. Het veld `payload` (type **JSON**) is een lijst van paal-id's, bv.:
+
+   ```json
+   [3, 4, 7, 9, 11, 13, 15, 16, 17, 19, 21, 22]
+   ```
+
+3. **Done** → **Deploy** → inject-node één keer aanklikken.
+
+De lijst wordt naar `global.drukknopPalen` geschreven én **retained** gepubliceerd op
+`config/drukknoppen`, zodat de simulator meteen het juiste knoppen-paneel toont. De firmware
+stuurt knopdrukken sowieso al (`MSG_KNOP` → `{"paal":N,"knop":1}` op `plaatjes/data`); deze lijst
+bepaalt enkel op welke palen een druk **iets doet** in de spellogica.
+
 ## Hardware-test (LED + zoemer)
 
 Onderaan de tab staan twee test-inject-nodes (zie ook Design_rules §9 — "exact 2
@@ -98,9 +121,11 @@ test-injects"), met de **paal kiesbaar via de inject-payload**:
   paal N paars.
 - **`[TEST] Zoemer (piep)`** → `{"paal":N,"actie":3}`: laat paal N kort piepen.
 
-Ze publiceren op `commando/master1` (zie `docs/protocol.md` voor de actie-ids).
-Handig om per paal de hardware te controleren zonder de Plates-of-Fate engine
-te starten.
+Ze gaan via de **"Route commando"**-node, die elk commando per paal-bereik naar
+`commando/master1|2|3` routeert (1–8 / 9–16 / 17–24). Zet het `paal`-veld dus op
+**9** om **master 2** te testen of **17** voor **master 3** — het commando komt
+automatisch bij de juiste master. Handig om per paal de hardware te controleren
+zonder de Plates-of-Fate engine te starten.
 
 ## Controleren of de configuratie geladen is
 

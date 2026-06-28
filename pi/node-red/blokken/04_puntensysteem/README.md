@@ -122,11 +122,20 @@ gelijke stand (12 vs 12) wordt vooruit gekozen.
 - Flow **03** Bediening zet `global.spelToestand`. Punten tellen alleen mee
   als die op `"lopend"` staat.
 
+## Per spel vs. globaal (sinds de doelen-update)
+
+`spelerStats` is sinds kort de **huidig-spel**-telling: `totaalUren`/`sterftes` worden bij **Stop**
+opgeteld bij het cumulatieve `global.globaleStats` en daarna op 0 gezet (zie flow 03/06). De velden
+`verplaatstSpel` (som van vooruit-gelopen uren dit spel, opgehoogd in "Verifieer beweging") en
+`doelBereikt` (latch voor doel 2) voeden het PoF-doelsysteem. Het dashboard toont **Huidig spel**
+(`spelerStats`) én **Globaal (cumulatief)** (`globaleStats`).
+
 ## Globale variabelen
 
 | Variabele          | Type                                          | Gezet door | Gelezen door            |
 |--------------------|-----------------------------------------------|------------|-------------------------|
-| `spelerStats`      | `{ naam: { totaalUren, tijdTerug, achterstand, verplaatstRonde, huidigePaal } }` | 04 | 04, 01 (radar-tabel), 05/06 |
+| `spelerStats`      | `{ naam: { totaalUren, sterftes, verplaatstSpel, doelBereikt, tijdTerug, achterstand, verplaatstRonde, huidigePaal } }` | 04, 06 | 04, 01 (radar-tabel), 05/06 |
+| `globaleStats`     | `{ naam: { totaalUren, sterftes, skills } }` — cumulatief over alle gestopte spellen | 03/06 (bij Stop) | 06 (tabel Globaal) |
 
 ## Testen (zonder hardware)
 

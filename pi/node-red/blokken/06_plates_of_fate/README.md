@@ -49,14 +49,29 @@ Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
 - **ZIEKTE**: het gevolg `{type:"ziekte"}` (in `Voer gevolg uit`) maakt de doelwit-spelers ziek
   (`global.ziekeSpelers`) en plaatst `medicijn`-effecten (felroze) op evenveel vrije uren. De node
   **`Ziekte-beheer`** (na `Verifieer beweging`) regelt elke ronde de lifecycle: genezen op een
-  medicijn-uur, dubbel-genezing (medicijn verbruikt), aftellen, **dood** bij 0 (uren 0 + sterfte),
+  medicijn-uur, **medicijn-verbruik** (elk medicijn waar deze ronde iemand genas verdwijnt — felroze LED
+  uit, ook bij één genezer), aftellen voor **álle** resterende zieken, **dood** bij 0 (uren 0 + sterfte),
   hartslag-waarschuwing (`commando/master1` acties 5/6/7) vanaf ≤ 3 events, en opschoning van de
   medicijnen als er geen zieken meer zijn. Publiceert `pof/ziekte` voor de simulator. Genezen gebeurt
   enkel bij een **wettelijke** zet (lijst `global.pofGenezen`, gevuld in "Verifieer beweging").
+- **TIJDBOM** (`{type:"tijdbom"}`): maakt doelwit-spelers een tikkende tijdbom (`global.tijdbomSpelers`,
+  `duratie` events) en kiest evenveel **ontmantel-palen** uit `global.drukknopPalen` (palen mét drukknop) →
+  uur-effect `tijdbom` (LED `ACTIE_TIJDBOM` 13). De node **`Knop-verwerking`** (op `plaatjes/data`
+  `{paal,knop:1}`, werkt in **elke** fase) ontmantelt een bom-speler op zo'n paal: **dag** (7–18) 80% /
+  **nacht** (19–6) 50%. Mislukt het of loopt de klok af (node **`Tijdbom-beheer`**, elke ronde) → iedereen
+  op die paal verliest `uur` levensuren. Publiceert `pof/tijdbom`. Knopdrukken zijn ook zichtbaar via `pof/knop`.
+- **TORNADO** (`{type:"tornado"}`): één-shot uur-toestand. "Voer gevolg uit" zet `global.tornadoActief`
+  (1–2 centers + hun buururen; uur-keuze met `event.minAfstand` 3 zodat ze niet overlappen). "Sync toestanden
+  + LEDs" overschrijft de center-LED (`ACTIE_TORNADO` 14) + buururen (`ACTIE_TORNADO_RAND` 15). De **tornado-tak**
+  in "Verifieer beweging" dwingt af dat rand-spelers naar het center bewegen — zo niet, **alle** levensuren kwijt
+  (geen sterfte, `WEGGEZOGEN`); daarna wist het `tornadoActief` + forceert een LED-rebuild (LED's terug naar origineel).
 - **NUKE** (wereld-event `{type:"nuke"}`): "Verifieer beweging" detecteert het en laat **elke nog
   gedetecteerde speler** (`spelerLocaties`) ontploffen (uren 0 + sterfte); wie ontkomen is overleeft.
   Een nuke **wist de wereld**: ze ruimt ook de lopende ziekte-episode (`ziekeSpelers` + medicijn-effecten)
   en alle `dienaars` op; "Ziekte-beheer" (via output 1) herpubliceert dan lege `pof/ziekte`/`pof/dienaars`.
+  De groene nuke-lichtshow (actie 8 in "Sync toestanden + LEDs") dekt alle palen **behalve de
+  middernacht-poort-paal** (hoogste paal); na de ontploffing forceert `paalLedForceRebuild` elke paal terug
+  naar zijn juiste kleur (geen blijvend-groene palen).
   Daarna zet het de fase op **`regroup`** (`regroup_s` s) — de "Engine tick" telt die af en keert daarna
   terug naar `aanloop`. Reset (`Stop`/`Herstart` in "Verwerk bediening") wist `ziekeSpelers`/`pofGenezen`
   en triggert "Ziekte-beheer" om `pof/ziekte` leeg te publiceren.
@@ -65,6 +80,37 @@ Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
   Staat ze uit, dan zet de node **`Middernacht`** `middernachtActief=false` en behandelt de hoogste paal als
   een **gewoon uur** (geen poort-LED, geen oversteek-blokkade in "Verifieer beweging", geen oogst). De
   π-stand (`midnightIndex/Open/Remaining`) blijft bevroren en loopt verder bij heractivering.
+  Bij een **dichte** poort is oversteken verboden: wie over de poort heen stapt (de voorwaartse
+  hoogste→laagste-paal-wrap) krijgt `MIDDERNACHT DICHT` → **alle levensuren kwijt + 1 sterfte**; tot aan
+  de poort lopen zonder oversteken mag wél. De straf wordt toegepast door de **`Middernacht poort-bewaker`**
+  (flow 04), die op **elke** settled paalwissel reageert — ook **tussen events** — zolang de poort dicht
+  is. "Verifieer beweging" markeert een oversteek nog wel (status `MIDDERNACHT DICHT`, `delta 0`) maar
+  straft niet dubbel. **Oogst/dienaars:** bij een 0 in π wordt elke meester hoogstens **één** dienaar
+  toegewezen (armste-eerst, willekeurige volgorde bij gelijktijdig oogsten). De admin-knop "Middernacht-klok → start" (topic `reset_klok`, ook in "Reset
+  ALLES") zet de π-stand terug naar de startstand en triggert de "Middernacht"-node om te herpubliceren.
+- **TEMPO** (`{type:"tempo", richting:"sneller"|"trager"}`, wereld-events `sneller_events`/`trager_events`):
+  stapt `global.spelTempoFactor` (sneller −0,1 min 0,6; trager +0,1 max 1,3) — die factor schaalt de
+  reactietijd in "Voer gevolg uit". Reset naar 1,0 bij Stop; uitgelezen in `pof/status.spelTempo`.
+- **SLECHTE AURA** (spelinstelling): events met `slechteAura: true` (ziekte, tijdbom) kiezen hun
+  speler-doelwit in "Kies event" **gewogen** naar regio (avond ×1,10, middernacht ×1,15, dag ×1,00) wanneer
+  `global.badAuraAan !== false` (Spelinstellingen-tab → `sim/spel-config`, node "Sla spel-config op").
+- **EVENT-TIERS**: elk event heeft een `tier` (gewicht common 50 / uncommon 25 / rare 15 / epic 8 /
+  legendary 2). "Kies event" (fallback) en "Bouw pof/status" (wachtrij) kiezen **gewogen**, zodat
+  ingrijpende events zeldzaam blijven. Override per event via de events-tab → `sim/tiers-config` →
+  `global.eventTiers`.
+- **TIJD TERUG**: "Kies event" snapshot de spelstaat (`global.pofSnapshots`); de node **"Tijd terug"**
+  (op `sim/tijd-terug`) herstelt de laatste snapshot, herpubliceert de states + `pof/herstel-posities`.
+- **DRAMATISCHE ANIMATIE**: "Sync toestanden + LEDs" publiceert nuke/oogst/tornado óók als één retained
+  **`pof/animatie`**-bericht (robuust voor de sim; firmware blijft op de per-paal acties via de FIFO).
+- **SPELER-TOESTANDEN-TABEL**: het Bediening-dashboard toont ziekte- + tijdbom-spelers met resterende
+  rondes (builder gevoed door de 2s-ververs-inject; werkt voor sim én echt spel).
+- **MIDDERNACHT gate-block**: een doelwit dat tegen de dichte poort wordt tegengehouden (eindigt op de
+  poort-paal) wordt niet bestraft voor te weinig/ongeldige keuze; écht oversteken blijft alle uren + sterfte.
+- **SYSTEEMINSTELLINGEN** (simulator → `sim/systeem-config`, node "Sla systeem-config op"):
+  `global.toestandExclusief` (default `true`) zorgt dat een event met `exclusiefGroep` (ziekte & tijdbom =
+  `"speler-toestand"`) géén speler kiest die al in zo'n toestand zit — afgedwongen in "Kies event"
+  (doelwit-keuze) met defensieve dubbelcheck in "Voer gevolg uit". `global.tempoFactor` (default `1`)
+  vermenigvuldigt de reactietijd in "Voer gevolg uit".
 
 Besturing staat in de **bovenbalk** (Speltoestand-groep, volle breedte) op de **Bediening**-
 én **Simulatie**-pagina: een **Spel-schakelaar** (start/stop, node "Spel aan/uit"), een
@@ -197,6 +243,20 @@ effecten** (`Niveau | Doel | Effect | Rondes resterend`), gevoed door
 | `bordStaat`      | object  | 06 Voer gevolg/Verouder | 06 Bouw effecten-tabel / Kies event (max) / Sync toestanden + LEDs, 04 (portaal/happy hour) |
 | `spelerEffecten` | object  | 06 Voer gevolg/Verouder | 06, 04 (mag_niet_bewegen)        |
 | `wereldEffecten` | array   | 06 Voer gevolg/Verouder | 06 (events_sneller)              |
+
+## Doelen per spel + stats
+
+- **Doel-keuze** (Bediening): `global.pofDoel` (`{type:"verplaats_uur"|"inhalen", x}`),
+  `global.pofDoelAantal`, `global.pofAutoEinde`.
+- **`verplaatstSpel`** (per-spel, in `spelerStats`) wordt in "Verifieer beweging" opgehoogd met `r.voor`.
+  **Doel 2 (inhalen)** wordt daar gelatcht in `spelerStats[naam].doelBereikt` (rivaal = volgende in
+  alfabet cyclisch; van lager uur komen, ≥1 voorbij eindigen, passeren door STAP; portaal-voorbij telt
+  niet, portaal-terug-dan-lopen wel).
+- **Doel-controle** (2s-refresh): bepaalt per speler `doelBereikt`, publiceert `pof/doelstatus`
+  (percentage + per-speler) en stuurt bij **auto-einde** een Stop via "Spel aan/uit".
+- **Stats per spel → globaal**: bij Stop telt "Spel aan/uit"/"Verwerk noodstop" `spelerStats` op bij
+  `globaleStats` (cumulatief) en wist het huidig spel; `spelNummer` telt elke Start. Tabellen **Huidig
+  spel** + **Globaal (cumulatief)**.
 
 ## Testen
 

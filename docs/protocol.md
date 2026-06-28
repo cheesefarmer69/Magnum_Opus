@@ -26,15 +26,19 @@ Dit voorkomt dat componenten uit sync raken.
 | `0x03` | `MSG_CMD_ACK`   | slave → master (ná uitvoering) | `cmd_ack_message` | 5 B |
 | `0x04` | `MSG_HEARTBEAT` | slave → master (periodiek) | `heartbeat_message` | 9 B |
 | `0x05` | `MSG_FOUT`      | slave → master | `fout_message` | 8 B |
-| `0x06` | `MSG_KNOP`      | slave → master (bij druk) | `knop_message` | 2 B |
+| `0x06` | `MSG_KNOP`      | slave → master (bij druk) | `knop_message` | 4 B |
+| `0x07` | `MSG_BUZZER_TOON` | master → slave (buzzer-tuning) | `buzzer_toon_message` | 4 B |
+| `0x08` | `MSG_KLOKSLAG`  | master → slave (Klokslag-LED) | `klokslag_message` | 7 B |
 
 ```cpp
-#define MSG_BATCH      0x01
-#define MSG_COMMANDO   0x02
-#define MSG_CMD_ACK    0x03
-#define MSG_HEARTBEAT  0x04
-#define MSG_FOUT       0x05
-#define MSG_KNOP       0x06
+#define MSG_BATCH        0x01
+#define MSG_COMMANDO     0x02
+#define MSG_CMD_ACK      0x03
+#define MSG_HEARTBEAT    0x04
+#define MSG_FOUT         0x05
+#define MSG_KNOP         0x06
+#define MSG_BUZZER_TOON  0x07
+#define MSG_KLOKSLAG     0x08
 
 typedef struct __attribute__((packed)) {        // 0x01 — slave → master
   uint8_t  msg_type;        // = MSG_BATCH
@@ -85,16 +89,51 @@ typedef struct __attribute__((packed)) {        // 0x05 — slave → master
 typedef struct __attribute__((packed)) {        // 0x06 — slave → master, bij knopdruk
   uint8_t  msg_type;        // = MSG_KNOP
   uint8_t  paal_id;
+  uint16_t teller;          // cumulatieve druk-teller (kogelvrij: ~6x hervast, laatste waarde telt)
 } knop_message;
+
+typedef struct __attribute__((packed)) {        // 0x07 — master → slave, buzzer-tuning
+  uint8_t  msg_type;        // = MSG_BUZZER_TOON
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint16_t freq_hz;         // 0 = stop (noTone), anders een CONTINUE toon op deze frequentie
+} buzzer_toon_message;
+
+typedef struct __attribute__((packed)) {        // 0x08 — master → slave, Klokslag-LED
+  uint8_t  msg_type;        // = MSG_KLOKSLAG
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint8_t  r, g, b;         // teamkleur (controller/eigenaar)
+  uint8_t  helderheid;      // 0..255 — de engine schaalt al met de voortgang P/H
+  uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
+} klokslag_message;
 ```
+
+> **`MSG_KLOKSLAG` (Klokslag-minigame).** De Klokslag-engine kleurt elke paal in de **teamkleur**
+> van de controller/eigenaar met een **helderheid die met de inname-voortgang (`P/H`) meeschaalt** en
+> een **kaarsflikker** tijdens het innemen — dat past niet in de vaste `actie_id`-kleurenset van
+> `commando_message_v2`. Daarom een eigen berichttype met `r/g/b/helderheid/modus`. Net als
+> `MSG_BUZZER_TOON` loopt het **niet** via de commando-FIFO/ACK: het is fire-and-forget; de slave
+> rendert continu (`updateAnimatie()`) tot een volgend `MSG_KLOKSLAG` of een gewone `MSG_COMMANDO`
+> binnenkomt. JSON van Node-RED: `{"paal":N,"actie":16,"r":R,"g":G,"b":B,"helderheid":H,"modus":M}`
+> (de master vertaalt actie 16 naar `MSG_KLOKSLAG`, zoals actie 12 → `MSG_BUZZER_TOON`).
+
+> **`MSG_BUZZER_TOON` (buzzer-tuning).** Een passieve piezo is het luidst rond zijn
+> eigen resonantiefrequentie; die verschilt per bordje (productiespreiding). Dit
+> bericht laat de master een **continue** toon op een willekeurige frequentie
+> starten/stoppen zodat je per paal de luidste toon kunt zoeken (zie het Node-RED
+> dashboard "Buzzer-tuning"). Het loopt **niet** via de commando-FIFO/ACK: het is
+> een fire-and-forget tuning-hulpmiddel (de toon houdt op de slave aan tot een
+> volgende `MSG_BUZZER_TOON` binnenkomt). De bestaande `commando_message_v2` heeft
+> geen parameter-veld, daarom een eigen berichttype met `freq_hz`.
 
 ### Dispatch + lengte-validatie
 
 - **Master `OnDataRecv`**: check `len ≥ 1`, dan `switch (incomingData[0])`. Valideer per type de **exacte
   lengte** (`len >= sizeof(<struct>)`) vóór `memcpy`. Onbekend `msg_type` of verkeerde lengte → log + drop.
   De sender-MAC-gate (`vindSlaveIndex` tegen `slaveAdressen[]`) blijft als eerste filter staan.
-- **Slave `OnDataRecv`**: accepteert **alleen** `MSG_COMMANDO` (`incomingData[0] == 0x02` + lengtecheck);
-  al het andere wordt genegeerd.
+- **Slave `OnDataRecv`**: accepteert `MSG_COMMANDO` (`incomingData[0] == 0x02` + lengtecheck),
+  `MSG_BUZZER_TOON` (`0x07`, buzzer-tuning) en `MSG_KLOKSLAG` (`0x08`, Klokslag-LED); al het andere
+  wordt genegeerd. Buzzer-toon en Klokslag zetten enkel `volatile` doelwaarden (geen `tone()`/
+  `FastLED.show()` in de WiFi-callback); de loop past ze toe (`verwerkTestToon()`/`verwerkKlokslag()`).
 
 ### Applicatie-ACK (afronding ná uitvoering)
 
@@ -207,6 +246,13 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 9  | `ACTIE_MN_OPEN`     | LED strip **zacht wit** continu (middernacht-poort **open**) |
 | 10 | `ACTIE_MN_DICHT`    | LED strip **rood** continu (middernacht-poort **dicht**) |
 | 11 | `ACTIE_OOGST`       | LED strip **geanimeerd** dramatische wit/rood-strobe (middernacht-oogst bij een 0 in pi) |
+| 12 | `ACTIE_BUZZER_TOON` | Buzzer-tuning: **continue** toon op een instelbare frequentie. **Geen `commando_message_v2`** — de master vertaalt dit naar een `MSG_BUZZER_TOON` (zie §0). Vereist het extra JSON-veld `toon` (Hz; `0` = stop). |
+| 13 | `ACTIE_TIJDBOM`     | LED strip **geanimeerd** tikkende rode flits (~2 Hz). Gezet op de **ontmantel-palen** van een actief tijdbom-event (paal met drukknop waar een bom ontmanteld kan worden). |
+| 14 | `ACTIE_TORNADO`     | LED strip **donkergrijs** continu (tornado-center; zuigt de aanliggende uren naar zich toe). Overschrijft tijdelijk een onderliggend effect; herstelt na het event. |
+| 15 | `ACTIE_TORNADO_RAND`| LED strip **geanimeerd** trage grijze pulse (aanliggend uur van een tornado). |
+| 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus`. |
+| 17 | `ACTIE_KNOP_ARM`    | Drukknop-paal **actief** zetten: GPIO6-feedback-LED **aan** (uit zolang de knop ingedrukt is) en de cumulatieve druk-teller op 0. Raakt de WS2812B-strip niet. |
+| 18 | `ACTIE_KNOP_UIT`    | Drukknop-paal **inactief** zetten: GPIO6-LED **uit**, geen tellen meer. |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -267,7 +313,7 @@ of overschreven wordt**. De drop-teller is zichtbaar in de seriële debug (`[CMD
 Master stuurt detecties door naar de Pi, één JSON-bericht per regel.
 
 - **Poort op Pi**: automatisch gedetecteerd (CH340 USB-UART, elke USB-poort).
-  De bridge routeert per master op `paal_id` (1–7/8–16/17–24). Zie
+  De bridge routeert per master op `paal_id` (1–8/9–16/17–24). Zie
   `docs/handleidingen/serial-bridge.md`.
 - **Baudrate**: 115200
 - **Regelafsluiting**: `\n`
@@ -296,13 +342,15 @@ in de buurt is. Node-RED bewaart de laatste waarde per paal in
 ### Formaat: drukknop
 
 ```json
-{"paal":1,"knop":1}
+{"paal":1,"knop":1,"teller":4}
 ```
 
-De slave detecteert een **druk op de knop** (GPIO3, rising edge) en stuurt een `MSG_KNOP`-pakket via
-**ESP-NOW** naar de master (tegelijk een puls op de rode LED). De master vertaalt dat naar de regel
-hierboven op de Pi. *(In v1 ging dit naar de eigen USB-CDC van de slave en bereikte het de Pi nooit; v2
-lost dat op.)*
+De slave detecteert een **druk op de knop** (GPIO3) via een **interrupt** (werkt ook tijdens de
+BLE-scan), houdt een **cumulatieve `teller`** bij en stuurt een `MSG_KNOP`-pakket via **ESP-NOW** naar
+de master — **~6 keer hervast** zodat een verloren pakket door het volgende gecorrigeerd wordt
+(**kogelvrij tellen**, de laatste `teller`-waarde telt). Node-RED **zet** de dashboard-teller op die
+waarde (niet optellen). Tellen + de GPIO6-feedback-LED zijn enkel actief als de paal **gewapend** is
+(`ACTIE_KNOP_ARM`). De master vertaalt dat naar de regel hierboven op de Pi.
 
 ### Formaat: heartbeat
 
@@ -375,6 +423,11 @@ De Pi/Node-RED stuurt enkel `{"paal","actie"}`; de master kent zelf het `cmd_seq
 (`commando_message_v2`) achteraan de **per-slave FIFO** van die paal (zie sectie 2 "Reliability"). Master
 antwoordt per regel met een status-JSON:
 
+**Buzzer-tuning (actie 12).** Bij `{"paal":1,"actie":12,"toon":2500}` gaat het commando **niet** door de
+FIFO/ACK: de master stuurt direct een `MSG_BUZZER_TOON` (zie §0) naar die paal met `freq_hz = toon`
+(`toon:0` = stop). Het veld `actie` blijft aanwezig zodat `bridge.py` (eist `paal`+`actie`) ongewijzigd
+blijft; `toon` is het extra frequentie-veld (Hz).
+
 | Status         | Betekenis |
 |----------------|-----------|
 | `queued`       | Commando achteraan de per-slave FIFO gezet, wordt in volgorde async verzonden (geen laatste-wint). |
@@ -395,19 +448,36 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | Topic              | Richting           | Payload                                      |
 |--------------------|--------------------|----------------------------------------------|
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
-| `commando/master1` | Node-RED → Pi      | `{"paal":1,"actie":1}`                       |
+| `commando/master1\|2\|3` | Node-RED → Pi | `{"paal":1,"actie":1}` — Node-RED routeert per paal-bereik (1–8/9–16/17–24); de bridge levert bij de juiste master |
 | `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["getallen/3.wav","woorden/spelers.wav","events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` — de event-fase begint met de aantal-prefix (`getallen/<aantal>` + `woorden/<speler\|spelers\|uur\|uren>`) |
 | `locatie/spelers`  | Node-RED → browser | `{"Lilou":5,"Maud":12}` — opgeloste paal per speler (algoritme-uitkomst) |
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
-| `sim/modus`        | browser → Node-RED | `{"sim24":true}` — simulator in simulatiemodus → Node-RED forceert een 24-uur veld (`palenActief`) |
+| `sim/modus`        | browser ↔ Node-RED | `{"sim24":true}` (retained) — monitor/simulatie-keuze → Node-RED forceert een 24-uur veld (`palenActief`). Wordt **zowel door de browser-simulator als door de monitor/sim-schakelaar op het Bediening-dashboard** gepubliceerd; de simulator abonneert er ook op zodat zijn radio meeschuift |
 | `sim/locatie`      | browser → Node-RED | `[{"mac":"aa:..","paal":7}]` — exacte paal per speler (sim-modus, deterministisch, geen RSSI) |
-| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"getalWaarde2":null,"groepLabel":null,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller; `getalWaarde2` is het tweede getal `y` (bij `voorwaarde: "of"`, anders `null`); `doelwitType` kan `"groep"` zijn met `groepLabel` (`"kleur: rood"`) en afroep-prefix "een groep" |
+| `sim/systeem-config` | client → Node-RED | `{"toestandExclusief":true,"tempo":1}` (retained) — systeeminstellingen: `toestandExclusief` = tijdbom & ziekte niet samen op één speler; `tempo` = reactietijd-multiplier (`global.tempoFactor`) |
+| `sim/wachtrij-weg` | client → Node-RED | `{"index":2}` — verwijder het aankomende event op die index uit `global.pofWachtrij` ("Volgende events"-paneel); de rij schuift door en vult zich weer aan |
+| `sim/wachtrij-toevoegen` | client → Node-RED | `{"id":"<event-id>"}` — zet dat event **vooraan** in `global.pofWachtrij` (= volgend event); de rij wordt op 5 gecapt en schuift door. Bron: de "→ wachtrij"-knop per event-kaart in de simulator-events-zijbalk |
+| `sim/spel-config` | client → Node-RED | `{"badAura":true}` (retained) — spelinstelling: **slechte aura** (`global.badAuraAan`); negatieve speler-events (ziekte/tijdbom) treffen 's avonds/'s nachts vaker |
+| `sim/tiers-config` | client → Node-RED | `{"<event-id>":"rare",...}` (retained) — per-event **tier-override** (`global.eventTiers`); bepaalt de kans dat een event gekozen wordt |
+| `sim/tijd-terug` | client → Node-RED | trigger om **één ronde terug** te gaan: herstelt de laatste snapshot (`global.pofSnapshots`) |
+| `pof/animatie` | Node-RED → browser | `{"type":"nuke"\|"oogst"\|"tornado"\|null,"gate":24,"centers":[...]}` (retained) — **dramatische animatie** als één bericht; de sim animeert hierop (robuust tegen verloren per-paal commando's). De firmware blijft op de per-paal acties 8/11/14/15 |
+| `pof/herstel-posities` | Node-RED → browser | `{"Lilou":5,...}` — bij 'tijd terug' de herstelde paal per speler (de sim zet de bolletjes terug) |
+| `sim/bediening`    | client → Node-RED | UTF-8 string-commando om de engine programmatisch te besturen (AI-testharnas, zie `tools/speltest/`). Geldige waarden: `start`/`aan`, `stop`/`uit`, `manueel-aan`, `manueel-uit`, `volgende`, `controle`, `wis-stats`. **Werkt enkel in sim-modus** (`simVeld24 === true`) — buiten sim-modus wordt het genegeerd zodat een echt spel nooit geraakt wordt. |
+| `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"getalWaarde2":null,"groepLabel":null,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller; `getalWaarde2` is het tweede getal `y` (bij `voorwaarde: "of"`, anders `null`); `doelwitType` kan `"groep"` zijn met `groepLabel` (`"kleur: rood"`) en afroep-prefix "een groep"; `wachtrij` = `[{id,naam}]` (preview volgende events); `spelTempo` = huidige spel-tempo-factor (0,6–1,3) |
 | `pof/controle`     | Node-RED → browser | `{"event":"...","resultaten":[{"speler":"Lilou","status":"TE WEINIG","verplaatst":1,"delta":-1,"tag":"-"}]}` — `delta` = toegekende/afgetrokken levensuren |
 | `pof/portalen`     | Node-RED → browser | `[{"palen":[12,20]}]` — actieve portaal-paren (retained); simulator tekent de verbindingslijn en teleporteert |
 | `pof/toestanden`   | Node-RED → browser | `[{"uur":12,"effect":"portaal","naam":"Portalen","resterendeRondes":3}]` — actieve uur-effecten (retained); voedt het sim-"Toestanden"-paneel |
 | `pof/ziekte`       | Node-RED → browser | `[{"speler":"Lilou","rondesOver":3,"uur":12}]` — actieve zieke spelers + events resterend (retained); voedt het sim-"Ziekte"-paneel (badge + hart-waarschuwing) |
 | `pof/middernacht`  | Node-RED → browser | `{"index":7,"open":true,"remaining":2,"eventsTotOogst":14,"paal":24}` — middernacht-poort: pi-cijfer-index, open/dicht, events in fase + tot volgende oogst (retained) |
 | `pof/dienaars`     | Node-RED → browser | `{"Maud":"Mien"}` — geoogste spelers → hun meester (retained); voedt sim-speler-menu + dashboard-tabel |
+| `pof/tijdbom`      | Node-RED → browser | `{"spelers":[{"speler":"Lilou","rondesOver":7,"uur":5}],"ontmantelPalen":[3,7]}` — actieve tijdbommen + de gekozen ontmantel-palen (retained); voedt de 💣-badges + het knoppen-paneel |
+| `pof/knop`         | Node-RED → browser | `{"paal":7,"teller":4}` — een drukknop is ingedrukt (visuele flits in de sim; `teller` = cumulatieve druk-teller voor het drukknop-testdashboard; transient) |
+| `config/drukknoppen` | Node-RED → browser | `[3,4,7,9,11,13,15,16,17,19,21,22]` — palen met een fysieke drukknop (retained); bron = `[CONFIG] Drukknop-palen`. Voedt het sim-knoppen-paneel |
+| `spel/type`        | browser ↔ Node-RED | `{"type":"plates_of_fate"\|"klokslag"}` (retained) — **gekozen spel**, één bron van waarheid. Zowel de simulator als het Bediening-dashboard publiceren én abonneren erop; beide engines lezen `global.spelType` en draaien enkel als het hún spel is |
+| `klokslag/status`  | Node-RED → browser | `{"actief":true,"fase":"lopend"\|"einde"\|"idle","resterend_s":480,"speeltijd_s":600,"winnaar":"team1"\|null}` (retained) — Klokslag-timer + einde/winnaar |
+| `klokslag/palen`   | Node-RED → browser | `{"palen":[{"paal":10,"P":4.2,"H":10,"controller":"team1","eigenaar":null,"modus":"capturing"}]}` (retained) — per-paal inname-staat; voedt de Klokslag-LED-render in de sim. `modus`: `rust`/`capturing`/`owned`/`frozen` |
+| `klokslag/score`   | Node-RED → browser | `{"teams":[{"id":"team1","naam":"Blauw","kleur":"blauw","score":5,"somUren":42,"uren":5}],"winnaar":null}` (retained) — scorebord + teamlegenda |
+| `pof/doelstatus`   | Node-RED → browser | `{"doel":{"type":"verplaats_uur","x":5},"percent":40,"aantal":2,"totaal":5,"spelers":{"Lilou":true,"Maud":false}}` (retained) — PoF-doelvoortgang: per-speler `doelBereikt` + percentage; voedt de %-weergave + highlight in de simulator-zijbalk |
 
 ### Plates-of-Fate: doelwit-reveal en `pof/status`
 
@@ -525,15 +595,15 @@ sequentieel via `aplay` over de aux-jack speelt. Zie `docs/handleidingen/audio-p
   de **doelwit-fase** is `doelwit/voor` + per doelwit een clip + `doelwit/na`.
 - `prioriteit`: vrije tekst voor latere afspeel-volgorde.
 
-Plates-of-Fate LED-toestanden worden centraal gestuurd op het bestaande
-`commando/master1`-pad (zie sectie 2, `actie_id` 0–3: `1` = paars/portaal,
-`2` = goud/happy hour, `3` = piep) — er is dus geen apart commando-formaat voor events.
+Plates-of-Fate LED-toestanden worden centraal gestuurd. Node-RED **routeert** elk `{paal,actie}`-commando
+via de node **"Route commando"** naar `commando/master1|2|3` op basis van het paal-bereik (1–8/9–16/17–24)
+— hetzelfde bereik als de bridge en de firmware. Er is geen apart commando-formaat voor events.
 
 ## 6. Slave-registratie en sender-MAC gate (master code)
 
 ### Multi-master: één codebase, drie environments
 
-Het veld heeft **3 masters**: master 1 bedient palen **1–7**, master 2 **8–16**, master 3 **17–24**.
+Het veld heeft **3 masters**: master 1 bedient palen **1–8**, master 2 **9–16**, master 3 **17–24**.
 Eén master-codebase, drie PlatformIO-environments (`master1/2/3` in `firmware/Master/platformio.ini`) die
 elk `PAAL_MIN`/`PAAL_MAX`/`MASTER_NR` via `build_flags` zetten. Afgeleid:
 
@@ -546,7 +616,7 @@ elk `PAAL_MIN`/`PAAL_MAX`/`MASTER_NR` via `build_flags` zetten. Afgeleid:
   eigen `PAAL_ID` matcht.
 - De slave-MAC's per master staan in `firmware/Master/include/slave_macs.h` (`#if MASTER_NR`-blokken) —
   elke master kent **uitsluitend zijn eigen** slaves, zodat de sender-MAC gate automatisch segmenteert.
-- De **slave** kiest zijn master-MAC uit `PAAL_ID` (1–7→master1, 8–16→master2, 17–24→master3) via een
+- De **slave** kiest zijn master-MAC uit `PAAL_ID` (1–8→master1, 9–16→master2, 17–24→master3) via een
   tabel `masterMacs[3][6]` — niets extra per slave te configureren behalve `PAAL_ID`.
 
 MAC-adressen van slaves staan per master in `slave_macs.h` (geladen in `slaveAdressen[]`).
@@ -577,6 +647,21 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-06-14: **`MSG_BUZZER_TOON` (0x07) + actie 12 `ACTIE_BUZZER_TOON`** voor buzzer-tuning. Een nieuw
+  parameter-dragend ESP-NOW-bericht (`buzzer_toon_message`, 4 B) waarmee de master een **continue** toon
+  op een willekeurige frequentie op een slave start/stopt — om per bordje de luidste resonantie te zoeken.
+  Aangestuurd via `{"paal":1,"actie":12,"toon":<Hz>}` op `commando/master1` (`toon:0` = stop); de master
+  vertaalt dit naar `MSG_BUZZER_TOON` en stuurt het **direct** (geen FIFO/ACK, fire-and-forget). Slave:
+  `OnDataRecv` accepteert nu ook `0x07` en zet een `volatile` doelfrequentie; de loop houdt de continue toon
+  aan (over de blokkerende BLE-scan heen). `bridge.py` ongewijzigd (`actie` blijft aanwezig). Node-RED:
+  nieuwe dashboardpagina "Buzzer-tuning". Vereist herflash van slave(s) + master(s).
+- 2026-06-12: **`sim/bediening`-topic** toegevoegd (AI-testharnas `tools/speltest/`). Een UTF-8
+  string-commando (`start`/`stop`/`manueel-aan`/`manueel-uit`/`volgende`/`controle`/`wis-stats`)
+  waarmee de Plates-of-Fate-engine **programmatisch over MQTT** bestuurd kan worden i.p.v. via de
+  dashboard-knoppen. Node-RED-zijde: één mqtt-in + functie-node "Verwerk sim-bediening" die naar de
+  bestaande besturingsnodes routeert (`Spel aan/uit`, `Sla pofManueel op`, `Engine tick`,
+  `Wis globale stats`). **Werkt enkel in sim-modus** (`simVeld24 === true`). Geen wire-format- of
+  firmware-wijziging; enkel een Node-RED-flow-edit (chirurgisch, daarna `deploy-flows.ps1`).
 - 2026-06-11: **MSG_BATCH variabele lengte** (veldfix). De slave verstuurde altijd het volle 215-byte
   frame (30 slots), óók bij 0 spelers; in de praktijk bereikten die lange frames de master niet terwijl
   de kleine v2-frames (heartbeat 9 B) wél aankwamen. De slave verstuurt nu enkel het gebruikte deel

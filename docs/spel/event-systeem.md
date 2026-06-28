@@ -52,9 +52,51 @@ bij; **medicijn** is een uur-effect (`medicijn` in `bordStaat`, felroze LED) dat
 zieke loopt door de **normale** controle (geen vrijstelling): verdient **geen** levensuren, verliest wél
 bij onwettige zetten. Genezen kan **enkel** bij een **wettelijke** zet (OK / OK (stil)) op een
 medicijn-uur — "Verifieer beweging" zet die spelers in `global.pofGenezen`. De node "Ziekte-beheer" doet
-elke ronde na de controle: genezen (uit `pofGenezen`), dubbel-genezing (medicijn op), aftellen, **dood**
-bij 0 (uren 0 + sterfte), hartslag-waarschuwing vanaf ≤ 3, en opschoning van de medicijnen als er geen
-zieken meer zijn. Zie `docs/spel/event-catalogus.md`.
+elke ronde na de controle: genezen (uit `pofGenezen`), **medicijn-verbruik** (elk medicijn waar deze
+ronde iemand genas verdwijnt — felroze LED uit, ook bij één genezer), aftellen voor **álle** resterende
+zieken, **dood** bij 0 (uren 0 + sterfte), hartslag-waarschuwing vanaf ≤ 3, en opschoning van de
+medicijnen als er geen zieken meer zijn. Zie `docs/spel/event-catalogus.md`.
+
+**Tijdbom**: `global.tijdbomSpelers` (`{ naam: rondesOver }`) houdt de bom-spelers bij; `global.tijdbomOntmantelPalen`
+zijn de gekozen palen-mét-drukknop waarop ontmanteld kan worden (uur-effect `tijdbom`, felrood/knipperend,
+`ACTIE_TIJDBOM` 13). De node **"Knop-verwerking"** (op `plaatjes/data` `{paal,knop:1}`, werkt in **elke**
+fase) probeert te ontmantelen wanneer een bom-speler op een ontmantel-paal staat: **dag** (7–18) 80%,
+**nacht** (19–6) 50%. Slagen = bom weg; mislukken = iedereen op die paal verliest `uur` levensuren. De node
+**"Tijdbom-beheer"** (elke ronde na de controle) telt af en laat de bom bij 0 ontploffen (= mislukking) en
+publiceert `pof/tijdbom`. **Toestand-exclusiviteit**: events met `exclusiefGroep` (ziekte én tijdbom =
+`"speler-toestand"`) worden niet op een speler gelegd die al zo'n toestand heeft, tenzij `global.toestandExclusief`
+op `false` staat (Systeeminstellingen). De **`global.tempoFactor`** (Systeeminstellingen) schaalt de reactietijd.
+Drukknop-palen staan in `global.drukknopPalen` (`[CONFIG] Drukknop-palen`, ook retained op `config/drukknoppen`).
+
+**Tornado**: een **één-shot** toestand-event (uur-doelwit). "Voer gevolg uit" zet `global.tornadoActief`
+(`[{center, randen:[a,b]}]`); "Sync toestanden + LEDs" overschrijft de center-LED (`ACTIE_TORNADO` 14,
+donkergrijs) en de buururen (`ACTIE_TORNADO_RAND` 15, grijze pulse) — wint van een onderliggend effect.
+Het uur-doelwit wordt gekozen met `event.minAfstand` (ring-afstand ≥ 3) zodat twee tornado's niet overlappen.
+"Verifieer beweging" heeft een **tornado-tak**: spelers die op een rand-uur startten moeten op het center
+eindigen, anders verliezen ze **al** hun levensuren (geen sterfte, status `WEGGEZOGEN`); daarna wordt
+`tornadoActief` geleegd + een LED-rebuild geforceerd zodat de oorspronkelijke LED's terugkeren. Het
+"Volgende events"-paneel toont `global.pofWachtrij`; een entry wegklikken (`sim/wachtrij-weg`) splice't die
+index zodat het event niet voorkomt (de rij vult zich weer aan in "Bouw pof/status").
+
+**Spel-tempo**: `global.spelTempoFactor` (start 1,0, **range 0,6–1,3**) wordt door de wereld-events
+`sneller_events` (−0,1, min 0,6) en `trager_events` (+0,1, max 1,3) gestapt (gevolg `{type:"tempo", richting}`)
+en vermenigvuldigt in "Voer gevolg uit" de reactietijd van elk volgend event — bovenop de test-`tempoFactor`.
+Reset naar 1,0 bij Stop/Herstart. **Slechte aura**: events met `slechteAura: true` (Ziekte, Tijdbom) kiezen
+hun speler-doelwit in "Kies event" **gewogen** naar regio (avond uur 20–6 ×1,10, middernacht uur 24 ×1,15,
+dag ×1,00) wanneer `global.badAuraAan !== false` (Spelinstellingen-tab → `sim/spel-config`). Bovenop dat
+regiogewicht telt de **valsspeel-aura** per speler: elke foute verplaatsing geeft `+1 valsspeelpunt` en
+`+3% auraValsspeel` (in "Verifieer beweging"); het gewicht wordt `× (1 + auraValsspeel/100)`, dus
+valsspelers worden vaker doelwit. `auraValsspeel` reset zodra de speler zelf zo'n event krijgt.
+
+**Event-tiers**: elk event heeft een `tier` (keuze-gewicht common 50 / uncommon 25 / rare 15 / epic 8 /
+legendary 2). De engine kiest gewogen (in "Bouw pof/status" voor de wachtrij en in "Kies event" als
+fallback); per event te overschrijven via de events-tab (`sim/tiers-config` → `global.eventTiers`).
+**Tijd-terug**: "Kies event" snapshot de volledige spelstaat (`global.pofSnapshots`); `sim/tijd-terug`
+herstelt de laatste en herpubliceert states + `pof/herstel-posities`. **Middernacht gate-block**: een
+doelwit dat tegen de dichte poort wordt tegengehouden (eindigt op de poort-paal, exact de ring-afstand
+gelopen) wordt niet bestraft voor te weinig/ongeldige keuze (M3b). **Dramatische animaties** (nuke/oogst/
+tornado) gaan als één retained `pof/animatie`-bericht naar de simulator (robuust); de firmware blijft op
+de per-paal acties.
 
 **NUKE** (wereld): bij de controle ontploft elke nog **gedetecteerde** speler (in `spelerLocaties`) →
 uren 0 + sterfte; wie ontkomen is overleeft. Geen bewegings-straffen. Een nuke **wist de wereld**: ze ruimt
@@ -73,7 +115,9 @@ poort open/dicht en publiceert `pof/middernacht`. Het mechanisme is **uitschakel
 `middernachtActief=false` en is de hoogste paal een **gewoon uur** (geen poort-LED, geen oversteek-blokkade,
 geen oogst, kiesbaar als uur-doelwit); de π-stand blijft bevroren en loopt verder zodra je weer inschakelt. Bij een **0**-cijfer worden alle spelers op de
 middernacht-paal **geoogst** (uren 0 + sterfte + dienaar van de armste). In "Verifieer beweging": een speler
-die bij een **dichte** poort **op de middernacht-paal staat** en tóch beweegt → `MIDDERNACHT DICHT` (`−voor`); en een
+die bij een **dichte** poort **over de poort heen steekt** (de voorwaartse 24→1-wrap, `r.kruist`) verliest
+**al zijn levensuren + 1 sterfte** → `MIDDERNACHT DICHT`; tot aan de poort lopen zonder oversteken mag wél. De
+admin-knop "Middernacht-klok → start" (of "Reset ALLES") zet de π-stand terug naar de startstand. En een
 **dienaar** verdient niets voor zichzelf — positieve `delta` gaat naar `stats[meester].totaalUren` (verlies
 + sterfte blijven bij de dienaar).
 

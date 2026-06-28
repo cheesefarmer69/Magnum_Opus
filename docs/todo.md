@@ -28,10 +28,12 @@ en waarom het nodig is.
   Opgelost: `batch_message_v2` draagt tot **30** spelers (binaire MAC's, 215 B). Bij >30 in één vak
   wordt niet meer stil gedropt maar een `MSG_FOUT` (BLE-overflow) gestuurd.
 
-- [ ] **Multi-master indexering / `commando/masterN`-routing** *(Batch 4)*
-  De simulator en de routing volgen nu alleen `commando/master1`. Voor 3 masters /
-  24 palen moeten `commando/master2`/`master3` toegevoegd worden (sim-subscriptions
-  én Node-RED-routing per `paal_id`-bereik 1–7 / 8–16 / 17–24).
+- [x] **Multi-master indexering / `commando/masterN`-routing** *(Batch 4)*
+  Opgelost: de simulator abonneert op `commando/master1|2|3`, en Node-RED routeert elk commando via de
+  node **"Route commando"** naar de juiste master op paal-bereik **1–8 / 9–16 / 17–24** (gelijk aan de
+  bridge `paal_naar_topic` en de firmware `platformio.ini`/slave-master-keuze). **Resteert (hardware):**
+  master2/master3-MAC's in de slave-firmware (`masterMacs[1]/[2]`) + de slave-MAC's per master in
+  `slave_macs.h` invullen en herflashen; daarna alle masters via USB aansluiten.
 
 ## Node-RED blokken
 
@@ -65,17 +67,12 @@ en waarom het nodig is.
 
 ## Hardware / firmware
 
-- [ ] **Buzzer-resonantiefrequentie per paal kalibreren**
-  Buzzers uit dezelfde batch verschillen in volume op dezelfde frequentie
-  (productiespreiding op de resonantiefrequentie). Per buzzer de luidste
-  frequentie opmeten en die per slave instellen, zodat alle palen even
-  hoorbaar zijn. Sinds Batch 1 staat `BUZZER_FREQ` als **per-paal constante** naast `PAAL_ID`
-  in `firmware/Slave/src/main.cpp` (gebruikt in `MELODIE_PIEP`); de waarden zijn nu nog allemaal
-  1500 Hz. **Resteert:** per bordje de luidste frequentie opmeten en die waarde invullen.
-  Aanpak: per buzzer een frequentiesweep afspelen en de luidste frequentie
-  opmeten (gehoor of dB-meter); die waarde per slave vastleggen — ofwel als
-  `PAAL_ID`-afhankelijke constante in de firmware, ofwel via een kleine
-  kalibratietabel `{paal → freq}` zodat één firmware-build alle palen dekt.
+- [x] **Buzzer-resonantiefrequentie per paal kalibreren**
+  Opgelost: de gemeten luidste frequentie per paal (1..24) staat ingevuld in
+  `BUZZER_FREQ_TABEL[25]` in `firmware/Slave/src/main.cpp`. `setup()` kiest automatisch
+  `BUZZER_FREQ_TABEL[PAAL_ID]` voor `MELODIE_PIEP`, dus **één** firmware-build dekt alle
+  palen — enkel `PAAL_ID` per bordje aanpassen. Hermeten kan altijd met het dashboard
+  "Buzzer-tuning" (actie 12 / `MSG_BUZZER_TOON`).
 
 ## Spelontwerp
 

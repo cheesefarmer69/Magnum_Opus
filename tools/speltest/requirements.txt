@@ -1,0 +1,2 @@
+# Zelfde pin als pi/serial-bridge/requirements.txt (paho-mqtt 2.x, VERSION2 API).
+paho-mqtt==2.1.0

@@ -20,6 +20,46 @@ testen als tijdens een echt spel. In deze eerste versie beheert het de
 > zijn verwijderd; de Plates-of-Fate engine stuurt commando's nu zelf. De
 > POF-besturingsgroep is naar deze Bediening-pagina verplaatst.
 
+## Speltype kiezen (Plates of Fate / Klokslag)
+
+In de **Speltoestand**-groep staat een **Speltype**-dropdown (Plates of Fate / Klokslag) plus een
+**Actief spel**-uitlezing. De keuze zet `global.spelType` én publiceert retained op **`spel/type`**
+— één bron van waarheid, gedeeld met de simulator (die er ook op abonneert en publiceert). De
+`spel/type (in)`-mqtt-node synchroniseert omgekeerd een keuze uit de simulator terug naar Node-RED.
+
+Beide engines lezen `global.spelType` en draaien enkel als het hún spel is: **Plates of Fate**
+(flow 06) of **Klokslag** (flow 07). De gewone **Spel-schakelaar** start/stopt beide; in
+Klokslag-modus laat "Spel aan/uit" de PoF-engine bewust uit (`pofActief = false`). Zie
+`pi/node-red/blokken/07_klokslag/README.md`.
+
+## Eén dashboard: monitor of simulatie
+
+De aparte **Simulatie**-pagina is verwijderd. Er is nu **één Bediening-pagina** met een
+**monitor/sim-schakelaar** (groep Speltoestand): die publiceert retained `sim/modus` →
+"Sim-veld instellen" zet `global.simVeld24` + `palenActief`. De browser-simulator abonneert ook op
+`sim/modus`, dus zijn modus-radio schuift mee (en omgekeerd).
+
+Bovenaan staat de **spel-teller** (`Spel #`, `global.spelNummer`, +1 per Start). De **Pauze**-knop
+(switch + status-tekst) staat in een eigen groep rechts.
+
+## Stats: Huidig spel vs. Globaal
+
+- **Tabel Huidig spel** (`spelerStats`): levensdagen/uren/sterftes van de **lopende** partij.
+- **Tabel Globaal (cumulatief)** (`globaleStats`): som over alle gestopte partijen.
+- Bij **Stop** worden de huidig-spel-cijfers opgeteld bij Globaal en wordt het huidig-spel gewist
+  (in "Spel aan/uit", "Verwerk noodstop" en de stop-tak van "Verwerk bediening").
+- Wissen: Admin "Reset ALLES" of "[BEHEER] Wis globale stats" (wist ook `spelNummer`).
+
+## PoF-doelen (doel + aantal + auto-einde)
+
+In de groep Speltoestand kies je **Doel** (`Verplaats X uur` of `Inhalen (alfabet)`), **Aantal uur
+(X)**, **Aantal spelers** dat het doel moet halen, en **Auto-einde bij doel**. De node
+**Doel-controle** berekent per speler of het doel bereikt is, publiceert `pof/doelstatus` (voor de
+simulator-zijbalk) en stuurt bij auto-einde een Stop. Geslaagde spelers komen in de **historiek**.
+Doel-detectie: `verplaatstSpel` (doel 1) wordt opgehoogd in "Verifieer beweging"; doel 2 (inhalen)
+wordt daar gelatcht op `spelerStats[naam].doelBereikt`. Zie
+`pi/node-red/blokken/06_plates_of_fate/README.md` en `docs/spel/spel.md`.
+
 ## De speltoestand
 
 De flow houdt één globale variabele bij: `global.spelToestand`.

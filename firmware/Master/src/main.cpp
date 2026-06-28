@@ -12,13 +12,13 @@ const int WIFI_KANAAL = 1;
 // Elke master bedient een paalbereik: master1 = 1..7, master2 = 8..16, master3 = 17..24.
 // Defaults (master1) zodat het bestand los compileert in de editor.
 #ifndef PAAL_MIN
-#define PAAL_MIN 1
+#define PAAL_MIN 9
 #endif
 #ifndef PAAL_MAX
-#define PAAL_MAX 7
+#define PAAL_MAX 16
 #endif
 #ifndef MASTER_NR
-#define MASTER_NR 1
+#define MASTER_NR 2
 #endif
 // Aantal slaves dat deze master bedient (afgeleid uit het bereik).
 #define AANTAL_SLAVES (PAAL_MAX - PAAL_MIN + 1)
@@ -33,12 +33,21 @@ const unsigned long RECV_KNIPPER_MS = 30;       // duur puls bij batch-ontvangst
 unsigned long ingebouwdeLedTot = 0;             // millis() tot wanneer LED aan
 
 // ---- PROTOCOL v2 ----
-#define MSG_BATCH      0x01   // slave -> master
-#define MSG_COMMANDO   0x02   // master -> slave
-#define MSG_CMD_ACK    0x03   // slave -> master, NA uitvoering
-#define MSG_HEARTBEAT  0x04   // slave -> master, periodiek
-#define MSG_FOUT       0x05   // slave -> master
-#define MSG_KNOP       0x06   // slave -> master, bij druk
+#define MSG_BATCH        0x01   // slave -> master
+#define MSG_COMMANDO     0x02   // master -> slave
+#define MSG_CMD_ACK      0x03   // slave -> master, NA uitvoering
+#define MSG_HEARTBEAT    0x04   // slave -> master, periodiek
+#define MSG_FOUT         0x05   // slave -> master
+#define MSG_KNOP         0x06   // slave -> master, bij druk
+#define MSG_BUZZER_TOON  0x07   // master -> slave, buzzer-tuning (continue toon)
+#define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
+
+// JSON-actie 12 = buzzer-toon (tuning): geen commando_message_v2, maar een directe
+// MSG_BUZZER_TOON met de frequentie uit het extra JSON-veld "toon" (zie docs/protocol.md).
+#define ACTIE_BUZZER_TOON  12
+// JSON-actie 16 = Klokslag-LED: directe MSG_KLOKSLAG met r/g/b/helderheid/modus uit het JSON
+// (geen FIFO/ACK, fire-and-forget zoals buzzer-tuning). Zie docs/protocol.md.
+#define ACTIE_KLOKSLAG     16
 
 #define MAX_SPELERS 30
 
@@ -89,7 +98,22 @@ typedef struct __attribute__((packed)) fout_message {
 typedef struct __attribute__((packed)) knop_message {
   uint8_t  msg_type;        // = MSG_KNOP
   uint8_t  paal_id;
+  uint16_t teller;          // cumulatieve druk-teller (kogelvrij: laatste waarde telt)
 } knop_message;
+
+typedef struct __attribute__((packed)) buzzer_toon_message {
+  uint8_t  msg_type;        // = MSG_BUZZER_TOON
+  uint8_t  paal_id;
+  uint16_t freq_hz;         // 0 = stop (noTone), anders continue toon
+} buzzer_toon_message;
+
+typedef struct __attribute__((packed)) klokslag_message {
+  uint8_t  msg_type;        // = MSG_KLOKSLAG
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint8_t  r, g, b;         // teamkleur (controller/eigenaar)
+  uint8_t  helderheid;      // 0..255 (engine schaalt al met voortgang P/H)
+  uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
+} klokslag_message;
 
 // ---- SLAVES REGISTREREN ----
 // De slave-MAC's per master staan in include/slave_macs.h (geselecteerd op MASTER_NR).
@@ -329,7 +353,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
       if (len < (int)sizeof(knop_message)) return;
       knop_message k;
       memcpy(&k, incomingData, sizeof(k));
-      logRegel("{\"paal\":%d,\"knop\":1}\n", k.paal_id);
+      logRegel("{\"paal\":%d,\"knop\":1,\"teller\":%u}\n", k.paal_id, k.teller);
       break;
     }
     default:
@@ -351,6 +375,42 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   q.items[q.head].laatstVerstuurd = millis() - (APP_ACK_TIMEOUT - 150);
 }
 
+// Buzzer-tuning: stuur direct een MSG_BUZZER_TOON (geen FIFO/ACK, fire-and-forget).
+// Een continue toon op de slave waarmee per bordje de luidste resonantie te zoeken is.
+static void stuurBuzzerToon(int paal, uint16_t freq) {
+  int i = paalNaarIndex(paal);
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    return;
+  }
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return;
+  }
+  buzzer_toon_message bt = { MSG_BUZZER_TOON, (uint8_t)paal, freq };
+  esp_err_t r = esp_now_send(slaveAdressen[i], (uint8_t *)&bt, sizeof(bt));
+  logRegel("{\"status\":\"%s\",\"paal\":%d,\"toon\":%u}\n",
+           (r == ESP_OK) ? "toon" : "send_err", paal, freq);
+}
+
+// Klokslag-LED: stuur direct een MSG_KLOKSLAG (geen FIFO/ACK, fire-and-forget zoals buzzer-tuning).
+// De slave rendert continu (solid/flikker/ademend) tot het volgende bericht binnenkomt.
+static void stuurKlokslag(int paal, uint8_t r, uint8_t g, uint8_t b, uint8_t helderheid, uint8_t modus) {
+  int i = paalNaarIndex(paal);
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    return;
+  }
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return;
+  }
+  klokslag_message km = { MSG_KLOKSLAG, (uint8_t)paal, r, g, b, helderheid, modus };
+  esp_err_t res = esp_now_send(slaveAdressen[i], (uint8_t *)&km, sizeof(km));
+  logRegel("{\"status\":\"%s\",\"paal\":%d,\"actie\":16}\n",
+           (res == ESP_OK) ? "klokslag" : "send_err", paal);
+}
+
 // ---- SERIEEL COMMANDO VAN RASPBERRY PI ----
 // Parse één complete regel en zet het commando in het juiste paal-slot.
 void verwerkRegel(const char *regel) {
@@ -363,6 +423,36 @@ void verwerkRegel(const char *regel) {
 
   int     paal  = lijn.substring(paalIndex + 7).toInt();
   uint8_t actie = lijn.substring(actieIndex + 8).toInt();
+
+  // Buzzer-tuning (actie 12): niet via de FIFO, maar direct als MSG_BUZZER_TOON met de
+  // frequentie uit het extra veld "toon" (Hz; 0 = stop). Zo blijft de bridge ongewijzigd.
+  if (actie == ACTIE_BUZZER_TOON) {
+    int toonIndex = lijn.indexOf("\"toon\":");
+    uint16_t toon = (toonIndex == -1) ? 0 : (uint16_t)lijn.substring(toonIndex + 7).toInt();
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+      stuurBuzzerToon(paal, toon);
+    } else {
+      logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    }
+    return;
+  }
+
+  // Klokslag-LED (actie 16): niet via de FIFO, maar direct als MSG_KLOKSLAG met r/g/b/helderheid/modus.
+  if (actie == ACTIE_KLOKSLAG) {
+    int rIdx = lijn.indexOf("\"r\":"), gIdx = lijn.indexOf("\"g\":"), bIdx = lijn.indexOf("\"b\":");
+    int hIdx = lijn.indexOf("\"helderheid\":"), mIdx = lijn.indexOf("\"modus\":");
+    uint8_t r = (rIdx == -1) ? 0 : (uint8_t)lijn.substring(rIdx + 4).toInt();
+    uint8_t g = (gIdx == -1) ? 0 : (uint8_t)lijn.substring(gIdx + 4).toInt();
+    uint8_t b = (bIdx == -1) ? 0 : (uint8_t)lijn.substring(bIdx + 4).toInt();
+    uint8_t helderheid = (hIdx == -1) ? 255 : (uint8_t)lijn.substring(hIdx + 13).toInt();
+    uint8_t modus = (mIdx == -1) ? 0 : (uint8_t)lijn.substring(mIdx + 8).toInt();
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+      stuurKlokslag(paal, r, g, b, helderheid, modus);
+    } else {
+      logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    }
+    return;
+  }
 
   if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
     if (enqueueCommando(paal, actie)) {

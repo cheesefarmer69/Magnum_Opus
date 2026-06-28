@@ -19,6 +19,14 @@
             <label><input type="radio" name="modus" value="monitor" checked> Monitor</label>
             <label><input type="radio" name="modus" value="sim"> Simulatie</label>
         </div>
+        <div class="hdr-group hdr-speltype">
+            <span>Spel:</span>
+            <span id="spel-actief" class="spel-actief">🎲 Plates of Fate</span>
+        </div>
+        <div class="hdr-group">
+            <button id="btn-spel" title="Spelinstellingen openen/sluiten">🎲 Spelinstellingen</button>
+            <button id="btn-systeem" title="Systeeminstellingen openen/sluiten">⚙ Systeeminstellingen</button>
+        </div>
     </header>
 
     <main>
@@ -30,29 +38,55 @@
                 <g id="paaltjes"></g>
                 <g id="led-bolletjes"></g>
                 <g id="buzzers"></g>
+                <g id="knop-flitsen"></g>
                 <g id="ziekte-iconen"></g>
                 <g id="spelers"></g>
                 <g id="paal-labels"></g>
             </svg>
         </section>
 
+        <section id="knoppen-paneel">
+            <h3>Drukknoppen</h3>
+            <p class="knoppen-hint">Klik om de knop op die paal in te drukken.</p>
+            <div id="knoppen-grid" class="knoppen-grid"><div class="knoppen-leeg">Geen knoppen geconfigureerd.</div></div>
+        </section>
+
         <div id="event-balk">
-            <div class="event-kop">
-                <div id="pof-teller" class="pof-teller" title="Events deze ronde">0</div>
-                <h3>Huidig event</h3>
+            <div id="spel-banner" class="spel-banner spel-banner-pof">
+                <span class="spel-banner-icoon">🎲</span>
+                <span id="spel-banner-naam" class="spel-banner-naam">Plates of Fate</span>
             </div>
-            <div id="pof-paneel" class="pof-paneel">
-                <div id="pof-timer" class="pof-timer">—</div>
-                <div id="pof-event-naam" class="pof-meta"></div>
+
+            <div id="pof-blok">
+                <div class="event-kop">
+                    <div id="pof-teller" class="pof-teller" title="Events deze ronde">0</div>
+                    <h3>Huidig event</h3>
+                    <button id="btn-tijd-terug" class="tijd-terug" title="Eén ronde terug in de tijd">↶</button>
+                </div>
+                <div id="pof-paneel" class="pof-paneel">
+                    <div id="pof-timer" class="pof-timer">—</div>
+                    <div id="pof-event-naam" class="pof-meta"></div>
+                </div>
+                <h3>Doelwit</h3>
+                <div id="pof-doelwit" class="pof-doelwit">—</div>
+                <h3>Volgende events</h3>
+                <ol id="pof-wachtrij" class="pof-wachtrij"><li class="pof-wachtrij-leeg">—</li></ol>
             </div>
-            <h3>Doelwit</h3>
-            <div id="pof-doelwit" class="pof-doelwit">—</div>
-            <h3>Volgende events</h3>
-            <ol id="pof-wachtrij" class="pof-wachtrij"><li class="pof-wachtrij-leeg">—</li></ol>
+
+            <div id="klokslag-blok">
+                <div class="ks-kop">
+                    <h3>Klokslag</h3>
+                    <div id="ks-timer" class="ks-timer">—</div>
+                </div>
+                <h3>Scorebord</h3>
+                <div id="ks-scorebord" class="ks-scorebord"><div class="ks-leeg">Spel niet gestart.</div></div>
+                <h3>Teams</h3>
+                <div id="ks-teams" class="ks-teams"><div class="ks-leeg">Geen teams geconfigureerd.</div></div>
+            </div>
         </div>
 
         <aside id="zijbalk">
-            <h3>Spelers</h3>
+            <h3>Spelers <span id="doel-percent" class="doel-percent"></span></h3>
             <ul id="speler-lijst"></ul>
             <div class="aside-actions">
                 <button id="btn-add-speler">+ Speler</button>
@@ -70,6 +104,9 @@
                 <h4 class="toestand-sub">Spelers</h4>
                 <div id="ziekte-lijst" class="ziekte-lijst">
                     <div class="ziekte-leeg">Geen zieke spelers.</div>
+                </div>
+                <div id="tijdbom-lijst" class="ziekte-lijst">
+                    <div class="ziekte-leeg">Geen tijdbommen.</div>
                 </div>
             </div>
         </aside>
@@ -95,10 +132,41 @@
     <aside id="middernacht-paneel" class="open">
         <div class="mn-kop">
             <span class="mn-titel">Middernacht</span>
-            <label class="mn-aan" title="Middernacht-mechanisme aan/uit"><input type="checkbox" id="middernacht-aan" checked> Actief</label>
             <button id="middernacht-toggle" title="In-/uitklappen">▾</button>
         </div>
         <div id="middernacht-lijst"><div class="middernacht-leeg">Nog geen data.</div></div>
+    </aside>
+
+    <aside id="spel-paneel" class="dicht">
+        <div class="sys-kop">
+            <span class="sys-titel">🎲 Spelinstellingen</span>
+            <button id="spel-toggle" title="Sluiten">✕</button>
+        </div>
+        <div class="sys-inhoud">
+            <label class="sys-rij" title="Negatieve speler-events (ziekte, tijdbom) treffen 's avonds/'s nachts vaker, zodat de dag veiliger is">
+                <input type="checkbox" id="bad-aura" checked> Slechte aura (avond/nacht gevaarlijker)
+            </label>
+            <div class="sys-rij sys-readout">Spel-tempo: <b id="spel-tempo-waarde">×1.0</b> <span class="sys-hint">(0,6–1,3 via sneller/trager-events)</span></div>
+        </div>
+    </aside>
+
+    <aside id="systeem-paneel" class="dicht">
+        <div class="sys-kop">
+            <span class="sys-titel">⚙ Systeeminstellingen</span>
+            <button id="systeem-toggle" title="Sluiten">✕</button>
+        </div>
+        <div class="sys-inhoud">
+            <label class="sys-rij" title="Middernacht-mechanisme (nacht-poort) aan/uit">
+                <input type="checkbox" id="middernacht-aan" checked> Nacht (middernacht) actief
+            </label>
+            <label class="sys-rij" title="Tijdbom en ziekte mogen niet samen op één speler (clutter vermijden)">
+                <input type="checkbox" id="toestand-exclusief" checked> Toestanden exclusief (tijdbom ⇄ ziekte niet samen)
+            </label>
+            <label class="sys-rij sys-slider">
+                <span>Tempo — reactietijd ×<span id="tempo-waarde">1.0</span></span>
+                <input type="range" id="tempo-slider" min="0.25" max="2" step="0.25" value="1">
+            </label>
+        </div>
     </aside>
 
     <section id="log-paneel">

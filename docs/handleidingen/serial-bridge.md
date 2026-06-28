@@ -35,8 +35,14 @@ De bridge gebruikt **geen vaste `/dev/ttyMaster1` meer**. In plaats daarvan:
   en opent automatisch elke gevonden poort — ongeacht in welke USB-poort een
   master zit, en ook als een master later (her)ingeplugd wordt.
 - **Routering leren:** uit de binnenkomende `paal_id` leidt de bridge af welke
-  master op een poort zit (palen 1–7 → master1, 8–16 → master2, 17–24 →
-  master3) en koppelt zo `commando/masterN` aan de juiste poort.
+  master op een poort zit (palen 1–8 → master1, 9–16 → master2, 17–24 →
+  master3) en koppelt zo `commando/masterN` aan de juiste poort. De bridge leert
+  **alleen** uit regels zónder `"status"`-veld (batch/heartbeat/fout/knop/batt) —
+  die dragen de eigen paal van de master. Status-echo's zoals
+  `{"status":"buiten_bereik","paal":17,"master":1}` dragen de paal van een
+  afgewezen, vreemd commando; daaruit leren zou de route vergiftigen (bv.
+  `commando/master3` → master1-poort) en alle commando's voor die paal naar de
+  verkeerde master sturen.
 - **Inkomend** wordt ongewijzigd op `plaatjes/data` gepubliceerd; de `paal_id`
   in de data routeert verder in Node-RED.
 
