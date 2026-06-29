@@ -1,0 +1,5 @@
+# Python bytecode-cache (mag nooit getrackt worden: regenereert lokaal en blokkeert
+# anders `git pull` op de Pi met "local changes would be overwritten").
+__pycache__/
+*.pyc
+*.pyo
