@@ -16,6 +16,7 @@ docs/
 ├── spel/                ← SPELONTWERP (horen sterk samen, kruisverwijzen elkaar)
 │   ├── spel.md              ← oriëntering + mechanieken (middag-/avondspel) + speltypes
 │   ├── klokslag.md          ← Klokslag-minigame (teamgebaseerde inname; tweede game-mode)
+│   ├── infected.md          ← Infected-minigame (besmetting + bestrijders; derde game-mode)
 │   ├── event-systeem.md     ← LEIDEND: verplaatsingscontrole, STAP/TELEPORT, scoring
 │   ├── event-catalogus.md   ← per-categorie overzicht van alle events
 │   ├── events.md            ← schema-referentie om een event-object op te stellen

@@ -300,15 +300,31 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .spel-banner-icoon { font-size: 1.2em; }
 .spel-banner-pof { background: #e3f2fd; color: #0d47a1; border-color: #2196f3; }
 .spel-banner-klokslag { background: #f3e5f5; color: #4a148c; border-color: #9c27b0; }
+.spel-banner-infected { background: #ffebee; color: #b71c1c; border-color: #e53935; }
 
 /* Panelen wisselen per speltype: toon enkel het relevante blok */
 #klokslag-blok { display: none; flex-direction: column; }
+#infected-blok { display: none; flex-direction: column; }
 body.spel-klokslag #pof-blok { display: none; }
 body.spel-klokslag #klokslag-blok { display: flex; }
-/* PoF-only zijpanelen verbergen tijdens Klokslag (niet relevant) */
+body.spel-infected #pof-blok { display: none; }
+body.spel-infected #infected-blok { display: flex; }
+/* PoF-only zijpanelen verbergen tijdens Klokslag/Infected (niet relevant) */
 body.spel-klokslag #middernacht-paneel,
 body.spel-klokslag #events-paneel,
-body.spel-klokslag #histo-paneel { display: none; }
+body.spel-klokslag #histo-paneel,
+body.spel-infected #middernacht-paneel,
+body.spel-infected #events-paneel,
+body.spel-infected #histo-paneel { display: none; }
+
+/* Infected-statuspaneel */
+.inf-status { display: flex; flex-direction: column; gap: 4px; font-size: 0.92em; }
+.inf-rij { display: flex; justify-content: space-between; gap: 8px; padding: 3px 6px; border-radius: 4px; background: #fafafa; }
+.inf-rij .inf-veld { color: #666; font-weight: 600; white-space: nowrap; }
+.inf-rij .inf-waarde { text-align: right; }
+.inf-rij.inf-besmet { background: #ffebee; }
+.inf-rij.inf-bestrijder { background: #e3f2fd; }
+.inf-rij.inf-winnaar { background: #e8f5e9; font-weight: 700; }
 
 /* Klokslag-paneel (in de event-balk) */
 .ks-kop { display: flex; align-items: center; gap: 8px; }

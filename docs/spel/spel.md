@@ -5,6 +5,8 @@
 > Bediening-dashboard. Elke engine draait enkel als het hún spel is:
 > - **Plates of Fate** — dit document (flow 06).
 > - **Klokslag** — een teamgebaseerde inname-minigame; zie `docs/spel/klokslag.md` (flow 07).
+> - **Infected** — besmetting-minigame (1 besmette → iedereen; bestrijders; laatste 3 winnen); zie
+>   `docs/spel/infected.md`.
 
 ## Overzicht
 

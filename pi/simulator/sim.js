@@ -121,11 +121,12 @@ const state = {
     client: null,
     verbonden: false,
     modus: "monitor",           // "monitor" of "sim"
-    spelType: "plates_of_fate", // "plates_of_fate" of "klokslag" (gesynct via retained spel/type)
+    spelType: "plates_of_fate", // "plates_of_fate" | "klokslag" | "infected" (gesynct via retained spel/type)
     klokslagPalen: {},          // { <paal>: {P,H,controller,eigenaar,modus} } (uit klokslag/palen)
     klokslagTeams: {},          // { <teamId>: {naam,kleur} } (uit klokslag/score)
     klokslagScore: [],          // [{id,naam,kleur,score,somUren}] (uit klokslag/score)
     klokslagStatus: { actief: false, resterend_s: 0, winnaar: null },  // uit klokslag/status
+    infected: { actief: false, fase: "", besmet: [], overlevenden: [], bestrijders: [], winnaars: [], palen: {} },  // uit infected/status
     doelStatus: { percent: 0, aantal: 0, totaal: 0, spelers: {}, doel: null },  // uit pof/doelstatus (PoF-doelen)
     spelers: [],                // {naam, mac, kleur, x, y, auto, drag}
     paalActie: new Array(AANTAL_PALEN + 1).fill(0),  // actie-ID per paal
@@ -175,7 +176,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "pof/doelstatus", "sim/modus"]);
+        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "pof/doelstatus", "sim/modus"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
         publishUitgeslotenEvents();   // synchroniseer de event-checkboxes (retained)
         publishMiddernachtConfig();   // synchroniseer de middernacht-aan/uit-checkbox (retained)
@@ -222,12 +223,12 @@ function verwerkBericht(topic, raw) {
         log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
     } else if (topic === "spel/type") {
         // Speltype-keuze (retained, één bron van waarheid): synct de header-radio's + de UI.
-        const t = data.type === "klokslag" ? "klokslag" : "plates_of_fate";
+        const t = (data.type === "klokslag" || data.type === "infected") ? data.type : "plates_of_fate";
         if (t !== state.spelType) {
             state.spelType = t;
             const radio = document.querySelector(`input[name="speltype"][value="${t}"]`);
             if (radio) radio.checked = true;
-            log("info", "Speltype: " + (t === "klokslag" ? "Klokslag" : "Plates of Fate"));
+            log("info", "Speltype: " + (t === "klokslag" ? "Klokslag" : (t === "infected" ? "Infected" : "Plates of Fate")));
             pasSpelTypeToe();
         }
     } else if (topic === "klokslag/status") {
@@ -246,6 +247,10 @@ function verwerkBericht(topic, raw) {
         for (const t of state.klokslagScore) if (t && t.id != null) state.klokslagTeams[t.id] = { naam: t.naam, kleur: t.kleur };
         if (data.winnaar !== undefined) state.klokslagStatus.winnaar = data.winnaar;
         renderKlokslag();
+    } else if (topic === "infected/status") {
+        state.infected = data || { actief: false, palen: {} };
+        renderInfected();
+        if (state.spelType === "infected") renderLeds();
     } else if (topic === "pof/doelstatus") {
         // PoF-doel: percentage geslaagde spelers + per-speler doelBereikt → zijbalk highlight.
         state.doelStatus = {
@@ -890,21 +895,66 @@ function renderKlokslagLeds() {
 // banner-tekst/kleur en een verse render. Eén keer bij wijziging aanroepen.
 function pasSpelTypeToe() {
     const ks = state.spelType === "klokslag";
+    const inf = state.spelType === "infected";
+    const pof = !ks && !inf;
     document.body.classList.toggle("spel-klokslag", ks);
-    document.body.classList.toggle("spel-pof", !ks);
+    document.body.classList.toggle("spel-infected", inf);
+    document.body.classList.toggle("spel-pof", pof);
     const banner = document.getElementById("spel-banner");
     const naam = document.getElementById("spel-banner-naam");
     const icoon = banner ? banner.querySelector(".spel-banner-icoon") : null;
     if (banner) {
         banner.classList.toggle("spel-banner-klokslag", ks);
-        banner.classList.toggle("spel-banner-pof", !ks);
+        banner.classList.toggle("spel-banner-infected", inf);
+        banner.classList.toggle("spel-banner-pof", pof);
     }
-    if (naam) naam.textContent = ks ? "Klokslag" : "Plates of Fate";
-    if (icoon) icoon.textContent = ks ? "🕐" : "🎲";
+    const lbl = ks ? "Klokslag" : (inf ? "Infected" : "Plates of Fate");
+    const ico = ks ? "🕐" : (inf ? "🦠" : "🎲");
+    if (naam) naam.textContent = lbl;
+    if (icoon) icoon.textContent = ico;
     const hdr = document.getElementById("spel-actief");
-    if (hdr) hdr.textContent = ks ? "🕐 Klokslag" : "🎲 Plates of Fate";
+    if (hdr) hdr.textContent = ico + " " + lbl;
     renderKlokslag();
+    renderInfected();
     renderLeds();
+}
+
+// Rendert het Infected-paneel: fase, besmette, overlevenden, bestrijders, winnaars.
+function renderInfected() {
+    const faseEl = document.getElementById("inf-fase");
+    const s = state.infected || {};
+    if (faseEl) {
+        if (s.fase === "klaar") faseEl.textContent = "🏆 " + ((s.winnaars || []).join(", ") || "—");
+        else if (s.actief) faseEl.textContent = "🦠 " + (s.aantalBesmet || (s.besmet || []).length || 0);
+        else faseEl.textContent = "—";
+    }
+    const el = document.getElementById("inf-status");
+    if (!el) return;
+    if (!s.actief && s.fase !== "klaar") { el.innerHTML = '<div class="ks-leeg">Spel niet gestart.</div>'; return; }
+    const j = (a) => (a && a.length) ? a.join(", ") : "—";
+    const rij = (veld, waarde, kls) => `<div class="inf-rij ${kls || ""}"><span class="inf-veld">${veld}</span><span class="inf-waarde">${waarde}</span></div>`;
+    const rest = s.bestrijderResterend ? ` (${s.bestrijderResterend}s)` : "";
+    let html = "";
+    html += rij("Besmet (" + ((s.besmet || []).length) + ")", j(s.besmet), "inf-besmet");
+    html += rij("Overlevenden (" + ((s.overlevenden || []).length) + ")", j(s.overlevenden));
+    html += rij("Bestrijders", j(s.bestrijders) + rest, "inf-bestrijder");
+    if (s.fase === "klaar") html += rij("Winnaars", j(s.winnaars), "inf-winnaar");
+    el.innerHTML = html;
+}
+
+// Infected-LED's: besmette paal = rood, bestrijder-paal = blauw, rest = zacht dim wit (uit infected/status.palen).
+function renderInfectedLeds() {
+    const palen = (state.infected && state.infected.palen) || {};
+    const nu = Date.now();
+    for (let n = 1; n <= AANTAL_PALEN; n++) {
+        const led = document.getElementById("led-paal-" + n);
+        if (!led) continue;
+        led.setAttribute("class", "led");
+        const kl = palen[n];
+        if (kl === "rood") led.style.fill = "rgb(224,36,36)";
+        else if (kl === "blauw") led.style.fill = "rgb(30,111,255)";
+        else { const v = Math.round(34 + (Math.sin(nu / 1400 + n) / 2 + 0.5) * 26); led.style.fill = `rgb(${v},${v},${v})`; }
+    }
 }
 
 // Rendert het Klokslag-paneel: timer, scorebord per team en de teamlegenda.
@@ -970,6 +1020,7 @@ function renderKlokslag() {
 
 function renderLeds() {
     if (state.spelType === "klokslag") { renderKlokslagLeds(); return; }
+    if (state.spelType === "infected") { renderInfectedLeds(); return; }
     // De dramatische animaties (nuke/oogst/tornado) komen authoritatief uit het retained pof/animatie-
     // bericht — robuust tegen verloren per-paal commando's (WebSocket, geen ACK). Per-paal acties 8/11/14/15
     // worden hier daarom genegeerd: zo blijft geen paal hangen als een commando-burst deels wegvalt.
