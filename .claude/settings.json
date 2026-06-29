@@ -3,7 +3,8 @@
     "allow": [
       "PowerShell(@\\(\"node\", \"node.exe\", \"py\", \"python\", \"python3\"\\) | ForEach-Object { $cmd = Get-Command $_ -ErrorAction SilentlyContinue; if \\($cmd\\) { \"$_ -> $\\($cmd.Source\\)\" } })",
       "Read(//c/Users/Nic/.platformio/penv/Scripts/**)",
-      "Bash(mkdir -p \"/tmp/magnum_patch\" 2>&1 || echo \"ok\")"
+      "Bash(mkdir -p \"/tmp/magnum_patch\" 2>&1 || echo \"ok\")",
+      "PowerShell($pio = \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\"; & $pio run -v -e esp32-c3-devkitm-1 -d \"c:\\\\Users\\\\nic.degrande\\\\OneDrive - vanheede.com\\\\Documents\\\\code\\\\Magnum_Opus\\\\firmware\\\\Slave\" 2>&1 | Tee-Object -FilePath \"$env:TEMP\\\\claude\\\\pio_slave_build.log\"; Write-Output \"EXITCODE=$LASTEXITCODE\")"
     ],
     "additionalDirectories": [
       "\\tmp",

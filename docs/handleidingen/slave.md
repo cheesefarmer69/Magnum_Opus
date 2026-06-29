@@ -172,7 +172,7 @@ loopt een effect af of stopt het spel, dan stuurt Node-RED `ACTIE_NIETS`.
 
 | ID | Constante | Gedrag |
 |----|-----------|--------|
-| 0 | `ACTIE_NIETS` | LEDs uit, MOSFET uit |
+| 0 | `ACTIE_NIETS` | LEDs uit (`CRGB::Black`); MOSFET blijft aan (permanent) |
 | 1 | `ACTIE_PORTAAL` | LED strip paars continu (portaal-toestand) |
 | 2 | `ACTIE_HAPPY_HOUR` | LED strip goud continu (happy-hour-toestand) |
 | 3 | `ACTIE_BUZZER_PIEP` | Eén piep 1500 Hz, 600 ms (uur-afroep / zoemer-test) |
@@ -198,7 +198,15 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 1. Stel `PAAL_ID` in op het gewenste paal-nummer. De slave kiest daaruit **automatisch** zijn master-MAC
    (1–7→master1, 8–16→master2, 17–24→master3, uit `masterMacs[]`) — verder niets per slave in te stellen.
    Bij opstart logt hij `[SETUP] Paal N -> master M`.
-2. Flash de slave met PlatformIO (`Upload`)
+2. Flash de slave **via PlatformIO** (`Upload`), **niet via de Arduino IDE**.
+   > ⚠️ **Altijd PlatformIO, nooit de Arduino IDE.** De Arduino IDE negeert
+   > `platformio.ini` volledig en mist daardoor de build-flag
+   > `-DFASTLED_RMT_BUILTIN_DRIVER=1`. Zonder die vlag verhongert WiFi/BLE
+   > FastLED's RMT-refill-ISR → RMT-underrun → maar ~3 van de 7 LEDs branden.
+   > CLI-equivalent: `pio run -e esp32-c3-devkitm-1 -t upload`. Wijzig je een
+   > `build_flag`, forceer dan een schone build (`pio run -e esp32-c3-devkitm-1
+   > -t clean` daarna opnieuw uploaden), want een gewijzigde flag hercompileert
+   > gecachte library-objecten (zoals FastLED) niet altijd vanzelf.
 3. Open Serial Monitor — bij het opstarten toont de slave eenmalig een
    banner met zijn MAC-adres:
    ```

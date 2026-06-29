@@ -234,11 +234,11 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 
 | ID | Constante | Gedrag |
 |----|-----------|--------|
-| 0  | `ACTIE_NIETS`       | LEDs uit (CRGB::Black), MOSFET uit |
-| 1  | `ACTIE_PORTAAL`     | LED strip **paars** continu (portaal-toestand), MOSFET aan |
-| 2  | `ACTIE_HAPPY_HOUR`  | LED strip **goud** continu (happy-hour-toestand), MOSFET aan |
+| 0  | `ACTIE_NIETS`       | LEDs uit (CRGB::Black) |
+| 1  | `ACTIE_PORTAAL`     | LED strip **paars** continu (portaal-toestand) |
+| 2  | `ACTIE_HAPPY_HOUR`  | LED strip **goud** continu (happy-hour-toestand) |
 | 3  | `ACTIE_BUZZER_PIEP` | Eén duidelijke piep, 1500 Hz, 600 ms (niet-blokkend, auto-stop). Gebruikt om een afgeroepen **uur** hoorbaar te maken én als zoemer-test. |
-| 4  | `ACTIE_MEDICIJN`    | LED strip **felroze** (`CRGB(255,20,147)`) continu (medicijn-toestand, ziekte-event), MOSFET aan |
+| 4  | `ACTIE_MEDICIJN`    | LED strip **felroze** (`CRGB(255,20,147)`) continu (medicijn-toestand, ziekte-event) |
 | 5  | `ACTIE_ZIEK_W3`     | Zoemer: ziekenhuis-monitor-piep + **3** hartslagen (zieke speler, nog 3 events te gaan) |
 | 6  | `ACTIE_ZIEK_W2`     | Zoemer: ziekenhuis-monitor-piep + **2** hartslagen (nog 2 events) |
 | 7  | `ACTIE_ZIEK_W1`     | Zoemer: ziekenhuis-monitor-piep + **1** hartslag (nog 1 event) |
@@ -259,8 +259,11 @@ op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het s
 Node-RED `ACTIE_NIETS`. De zoemer-acties (3/5/6/7) zijn niet-blokkende melodieën op de slave
 (state-machine `updateMelodie()`); de hartslag-waarschuwingen (5/6/7) verschillen enkel in het
 aantal hartslagen na de monitor-piep. De **geanimeerde** acties (8 = nuke, 11 = oogst) worden op de
-slave gerenderd door `updateAnimatie()` (millis-gebaseerd, blijft animeren tot een nieuwe actie binnenkomt). Bij een kleur-actie wordt de MOSFET eerst HIGH gezet (5 ms delay)
-voordat FastLED de LEDs aanstuurt — dit voorkomt een voedingsvalletje bij inschakelen.
+slave gerenderd door `updateAnimatie()` (millis-gebaseerd, blijft animeren tot een nieuwe actie binnenkomt).
+De LED-voeding/massa-gate (IRLZ44N op GPIO1, low-side) wordt **eenmalig in `setup()` permanent
+AAN gezet** en door de acties **niet** geschakeld; "uit" (`ACTIE_NIETS`) is puur `CRGB::Black`.
+De WS2812B-bitstream gebruikt de IDF-RMT-driver (`-DFASTLED_RMT_BUILTIN_DRIVER=1`) tegen
+RMT-underrun onder WiFi/BLE-belasting (zie `docs/hardware/pinout.md`).
 
 ### Reliability: per-slave commando-FIFO + applicatie-ACK
 

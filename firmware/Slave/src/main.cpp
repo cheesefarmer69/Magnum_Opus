@@ -51,7 +51,9 @@ const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
 // PIN MAPPING (komt overeen met PCB schema)
 // ====================================================================
 #define LED_DATA_PIN     0   // WS2812B data via 330Ohm
-#define MOSFET_PIN       1   // IRLZ44N gate via 220Ohm (10k pull-down)
+#define MOSFET_PIN       1   // IRLZ44N gate via 220Ohm (10k pull-down) - PERMANENT AAN in setup(),
+                             // niet per-actie geschakeld: low-side switch in de LED-massa, dus de
+                             // strip heeft enkel massaretour zolang de gate HIGH is. "Uit" = CRGB::Black.
 #define BUTTON_PIN       3   // Drukknop tussen 3V3 en GPIO3 (INPUT_PULLDOWN -> HIGH = ingedrukt)
 #define BATTERY_ADC_PIN  4   // Spanningsdeler 2x 100k (ADC1)
 #define BUZZER_PIN       5   // Passieve buzzer via 100Ohm (digitaal)
@@ -115,7 +117,7 @@ volatile unsigned long ingebouwdeLedTot = 0;   // millis() tot wanneer LED aan
 //
 // ID | Constante           | Type   | Beschrijving
 // ---|---------------------|--------|------------------------------------------
-//  0 | ACTIE_NIETS         | stop   | Alles uit, MOSFET laag
+//  0 | ACTIE_NIETS         | stop   | Alle 7 LEDs zwart (CRGB::Black); MOSFET blijft aan
 //  1 | ACTIE_PORTAAL       | kleur  | Alle 7 LEDs continu paars (portaal-toestand)
 //  2 | ACTIE_HAPPY_HOUR    | kleur  | Alle 7 LEDs continu goud (happy-hour-toestand)
 //  3 | ACTIE_BUZZER_PIEP   | buzzer | 1x 1500 Hz, 600 ms (uur-afroep / zoemer-test)
@@ -605,15 +607,13 @@ void verwerkTestToon() {
 }
 
 // Klokslag-LED: pas een nieuw MSG_KLOKSLAG toe. Zet de actie op ACTIE_KLOKSLAG zodat
-// updateAnimatie() de teamkleur continu rendert (flikker/ademend); MOSFET aan voor de strip.
+// updateAnimatie() de teamkleur continu rendert (flikker/ademend). MOSFET staat al permanent aan.
 void updateAnimatie();   // forward-declaratie (gedefinieerd verderop)
 void verwerkKlokslag() {
   if (!klokslagDirty) return;
   klokslagDirty = false;
   huidigeActie = ACTIE_KLOKSLAG;
   actieStartMs = millis();
-  digitalWrite(MOSFET_PIN, HIGH);
-  delay(5);   // stabiele voeding voor WS2812B
   updateAnimatie();   // teken meteen het eerste frame
 }
 
@@ -736,10 +736,8 @@ void voerActieUit(uint8_t actie) {
   huidigeActie = actie;
   actieStartMs = millis();
 
-  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom): MOSFET aan, updateAnimatie() tekent ---
+  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom): updateAnimatie() tekent ---
   if (actie == ACTIE_NUKE || actie == ACTIE_OOGST || actie == ACTIE_TIJDBOM || actie == ACTIE_TORNADO_RAND) {
-    digitalWrite(MOSFET_PIN, HIGH);
-    delay(5);
     Serial.printf("[ACTIE] Animatie %d\n", actie);
     updateAnimatie();   // teken meteen het eerste frame
     return;
@@ -766,11 +764,8 @@ void voerActieUit(uint8_t actie) {
       FastLED.show();
       xSemaphoreGive(xLedMutex);
     }
-    delay(5);
-    digitalWrite(MOSFET_PIN, LOW);
+    // MOSFET blijft aan: "uit" is puur software-zwart (CRGB::Black).
   } else {
-    digitalWrite(MOSFET_PIN, HIGH);
-    delay(5);   // wacht op stabiele voedingsspanning voor WS2812B
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
       fill_solid(leds, NUM_LEDS, kleur);
       FastLED.show();
@@ -819,6 +814,12 @@ void setup() {
   // ADC configuratie voor ESP32-C3
   analogReadResolution(12);  // 12-bit (0-4095)
 
+  // MOSFET (low-side in de LED-massa): PERMANENT aan en nooit meer geschakeld.
+  // De strip krijgt zijn massaretour enkel via het MOSFET-kanaal, dus dit moet HIGH
+  // staan vóór de eerste FastLED.show() anders kan de strip niets aansturen.
+  pinMode(MOSFET_PIN, OUTPUT);
+  digitalWrite(MOSFET_PIN, HIGH);
+
   // LED strip init
   FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
@@ -827,10 +828,6 @@ void setup() {
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 700);
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   FastLED.show();
-
-  // MOSFET pin
-  pinMode(MOSFET_PIN, OUTPUT);
-  digitalWrite(MOSFET_PIN, LOW);
 
   // Buzzer pin
   pinMode(BUZZER_PIN, OUTPUT);
