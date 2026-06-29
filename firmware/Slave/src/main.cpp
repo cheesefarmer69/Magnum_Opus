@@ -157,6 +157,9 @@ const uint8_t ACTIE_KLOKSLAG     = 16;
 // 17/18 = drukknop-feedback: ARM = paal actief (GPIO6-LED aan, teller=0), UIT = paal inactief (LED uit).
 const uint8_t ACTIE_KNOP_ARM     = 17;
 const uint8_t ACTIE_KNOP_UIT     = 18;
+// 19 = regenboog-test: roterende regenboog over de 7 LEDs. Puur voor kleur-/LED-controle (via een
+// Node-RED-inject). updateAnimatie() blijft tekenen tot een andere actie binnenkomt (bv. ACTIE_NIETS).
+const uint8_t ACTIE_REGENBOOG    = 19;
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -623,8 +626,21 @@ void verwerkKlokslag() {
 // Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
 // vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
 void updateAnimatie() {
-  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG) return;
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG) return;
   const unsigned long t = millis() - actieStartMs;
+
+  if (huidigeActie == ACTIE_REGENBOOG) {
+    // Kleur-/LED-test: spreidt de volledige kleurencirkel over de 7 LEDs (deltaHue = 255/7 ≈ 36) en
+    // roteert hem traag. Elke LED doorloopt zo het hele spectrum -> dode LEDs, foute R/G/B-volgorde of
+    // een scheve witbalans vallen meteen op.
+    uint8_t startHue = (uint8_t)(millis() / 15);
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_rainbow(leds, NUM_LEDS, startHue, 255 / NUM_LEDS);
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+    return;
+  }
 
   if (huidigeActie == ACTIE_KLOKSLAG) {
     // Klokslag-LED: teamkleur op helderheid (engine schaalt al met P/H).
@@ -736,8 +752,8 @@ void voerActieUit(uint8_t actie) {
   huidigeActie = actie;
   actieStartMs = millis();
 
-  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom): updateAnimatie() tekent ---
-  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST || actie == ACTIE_TIJDBOM || actie == ACTIE_TORNADO_RAND) {
+  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom, 19 = regenboog): updateAnimatie() tekent ---
+  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST || actie == ACTIE_TIJDBOM || actie == ACTIE_TORNADO_RAND || actie == ACTIE_REGENBOOG) {
     Serial.printf("[ACTIE] Animatie %d\n", actie);
     updateAnimatie();   // teken meteen het eerste frame
     return;
