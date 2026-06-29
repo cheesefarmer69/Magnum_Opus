@@ -32,6 +32,12 @@ static inline int paalNaarIndex(int paal) { return paal - PAAL_MIN; }
 const unsigned long RECV_KNIPPER_MS = 30;       // duur puls bij batch-ontvangst
 unsigned long ingebouwdeLedTot = 0;             // millis() tot wanneer LED aan
 
+// ---- IDENTITEITS-AANKONDIGING ----
+// De master stuurt periodiek wie hij is (master-nr + paalbereik) op serial, zodat de bridge meteen weet
+// welke poort welke master is en commando/masterN kan routeren -- ZONDER te moeten wachten op een
+// rapporterende slave (anders blijft de route ongeleerd en worden alle commando's genegeerd).
+const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
+
 // ---- PROTOCOL v2 ----
 #define MSG_BATCH        0x01   // slave -> master
 #define MSG_COMMANDO     0x02   // master -> slave
@@ -565,6 +571,16 @@ void loop() {
       gemeldeDrops = d;
       logRegel("{\"status\":\"log_drop\",\"aantal\":%u}\n", d);
     }
+  }
+
+  // Identiteit aankondigen (meteen na boot + elke ANNOUNCE_INTERVAL_MS). De bridge leert hieruit welke
+  // poort = welke master en kan zo commando/masterN routeren, ook als er nog geen slave detecteert.
+  // GEEN "status"-veld: de bridge negeert status-echo's bij het leren van routes.
+  static uint32_t laatsteAnnounce = 0;
+  if (laatsteAnnounce == 0 || nu - laatsteAnnounce > ANNOUNCE_INTERVAL_MS) {
+    laatsteAnnounce = nu;
+    logRegel("{\"announce\":1,\"master\":%d,\"paal_min\":%d,\"paal_max\":%d}\n",
+             MASTER_NR, PAAL_MIN, PAAL_MAX);
   }
 
   verwerkLogQueue();   // enige Serial-schrijver

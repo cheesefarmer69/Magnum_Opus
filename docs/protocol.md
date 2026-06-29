@@ -317,7 +317,8 @@ of overschreven wordt**. De drop-teller is zichtbaar in de seriële debug (`[CMD
 Master stuurt detecties door naar de Pi, één JSON-bericht per regel.
 
 - **Poort op Pi**: automatisch gedetecteerd (CH340 USB-UART, elke USB-poort).
-  De bridge routeert per master op `paal_id` (1–8/9–16/17–24). Zie
+  De bridge leert welke poort welke master is uit de **identiteits-aankondiging** (`announce`, zie onder)
+  en routeert `commando/masterN` daarheen (master1 = palen 1–8, master2 = 9–16, master3 = 17–24). Zie
   `docs/handleidingen/serial-bridge.md`.
 - **Baudrate**: 115200
 - **Regelafsluiting**: `\n`
@@ -365,6 +366,20 @@ waarde (niet optellen). Tellen + de GPIO6-feedback-LED zijn enkel actief als de 
 Periodiek "ik leef"-bericht (uit `MSG_HEARTBEAT`), ook zonder spelers in de buurt — interval is een
 firmware-constante (`HEARTBEAT_INTERVAL_S`, default 10 s). `uptime` in seconden, `fw` = firmware-versie.
 Hiermee kan de pre-flight check in Node-RED echte connectiviteit per paal vaststellen.
+
+### Formaat: identiteits-aankondiging (announce)
+
+```json
+{"announce":1,"master":1,"paal_min":1,"paal_max":8}
+```
+
+Periodiek door de master verstuurd (elke `ANNOUNCE_INTERVAL_MS`, default 3 s; **ook meteen na boot**) zodat
+de **bridge** weet welke seriële poort welke master is en `commando/masterN` correct kan routeren —
+**zonder** te moeten wachten tot een slave een batch/heartbeat stuurt. Zonder dit bericht bleef de route
+ongeleerd zolang geen slave rapporteerde, waardoor commando's werden genegeerd (`Nog geen poort geleerd`).
+De bridge gebruikt de aankondiging **enkel intern** om de route te (her)koppelen
+(`[ROUTE] /dev/ttyUSBx -> commando/masterN`) en stuurt ze **niet** door naar MQTT. Een master die naar een
+andere USB-poort verhuist, wordt door de volgende aankondiging automatisch opnieuw correct gerouteerd.
 
 ### Formaat: fout
 

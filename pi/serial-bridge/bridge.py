@@ -153,6 +153,22 @@ def lees_poort(device):
                 print(f"[DEBUG] {device}: {lijn}")
                 continue
 
+            # Identiteits-aankondiging van een master ({"announce":1,"master":N,...}): leer hieruit
+            # METEEN welke poort welke master is -> commando/masterN routeert ook zonder dat er al een
+            # slave detecteert. Altijd (her)koppelen zodat een her-geplugde master naar de juiste poort
+            # blijft wijzen. De aankondiging is bridge-plumbing en wordt NIET naar MQTT doorgestuurd.
+            if data.get("announce"):
+                m = data.get("master")
+                topic = f"commando/master{m}" if m in (1, 2, 3) else None
+                if topic:
+                    with serieel_lock:
+                        verandert = topic_naar_serieel.get(topic) is not ser
+                        topic_naar_serieel[topic] = ser
+                    geleerde_topics.add(topic)
+                    if verandert:
+                        print(f"[ROUTE] {device} -> {topic} (announce master {m})")
+                continue
+
             # Leer welke master op deze poort zit uit de paal_id, zodat
             # commando/masterN naar de juiste poort gerouteerd kan worden.
             # BELANGRIJK: alleen leren uit berichten die de EIGEN paal van deze
