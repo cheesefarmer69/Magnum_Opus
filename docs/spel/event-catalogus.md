@@ -58,6 +58,36 @@ zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LE
 > `docs/spel/event-systeem.md`. `voor` = aantal STAP vooruit, `x` = budget. Een TELEPORT (sprong
 > tussen twee actieve portaal-palen) telt 0 stappen.
 
+## Overzicht (gestructureerd)
+
+### verplaatsingMax — "Maximum x uur vooruit."
+- **Tier:** common
+- **Uitleg:** De gekozen spelers mogen hoogstens `x` STAPpen vooruit; niet-doelwitten blijven stil. Levensuren worden bij de controle toegekend.
+- **Max:** —
+- **Audio (opkomst):** `maximum.wav` + getal + `uur_vooruit.wav`
+- **Audio (weggaan):** —
+
+### Of-verplaatsing — "x of y uur vooruit."
+- **Tier:** common
+- **Uitleg:** De gekozen spelers moeten exact `x` óf exact `y` STAPpen vooruit zetten.
+- **Max:** —
+- **Audio (opkomst):** getal + `uur_vooruit.wav` (geen aparte audioVoor)
+- **Audio (weggaan):** —
+
+### Groep-verplaatsing — "maximum x uur vooruit."
+- **Tier:** common
+- **Uitleg:** Zoals verplaatsingMax, maar het doelwit is een hele groep (kleur of jaar); alle leden mogen hoogstens `x` vooruit.
+- **Max:** —
+- **Audio (opkomst):** `maximum.wav` + getal + `uur_vooruit.wav`
+- **Audio (weggaan):** —
+
+### Groep-of-verplaatsing — "x of y uur vooruit."
+- **Tier:** common
+- **Uitleg:** Groep-variant van Of-verplaatsing; alle groepsleden moeten exact `x` óf exact `y` vooruit.
+- **Max:** —
+- **Audio (opkomst):** getal + `uur_vooruit.wav` (geen aparte audioVoor)
+- **Audio (weggaan):** —
+
 ## Huidige events
 
 ### verplaatsingMax — "Maximum x uur." (Event A)
@@ -143,6 +173,57 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 > leidt de LED-kleur af uit het actieve uur-effect (`portaal` → paars, `happy_hour` →
 > goud) en zet de LED ook weer uit zodra het effect afloopt of het spel stopt. Toestand-
 > events hebben dus normaal géén `commando`-gevolg nodig voor hun LED.
+
+## Overzicht (gestructureerd)
+
+### Portalen — "Een portaal opent tussen twee uren."
+- **Tier:** uncommon
+- **Uitleg:** Opent een portaal tussen 2 willekeurige uren (paars); een sprong ertussen telt 0 stappen en levert 0 levensuren.
+- **Max:** 1
+- **Audio (opkomst):** `een_portaal_opent_tussen_twee_uren.wav`
+- **Audio (weggaan):** `portaal_gesloten.wav`
+
+### Happy Hour — "worden Happy Hour."
+- **Tier:** uncommon
+- **Uitleg:** 1–3 uren worden goud; een verplaatsing die op zo'n uur eindigt levert dubbele levensuren.
+- **Max:** 1
+- **Audio (opkomst):** `worden_happy_hour.wav`
+- **Audio (weggaan):** `happy_hour_voorbij.wav`
+
+### Ziekte — "worden ziek."
+- **Tier:** rare
+- **Uitleg:** 1–3 spelers worden ziek; genezen kan enkel via een wettelijke zet op een medicijn-uur, anders sterven ze na `duratie` events.
+- **Max:** 1
+- **Audio (opkomst):** `worden_ziek.wav`
+- **Audio (weggaan):** —
+
+### Tijdbom — "worden een tijdbom."
+- **Tier:** rare
+- **Uitleg:** 1–3 spelers worden een tikkende bom; ontmantelen via een drukknop-paal (dag 80% / nacht 50%), anders ontploft ze (iedereen op de paal verliest `uur` levensuren).
+- **Max:** 1
+- **Audio (opkomst):** `worden_een_tijdbom.wav`
+- **Audio (weggaan):** —
+
+### Tornado — "worden getroffen door een tornado."
+- **Tier:** epic
+- **Uitleg:** 1–2 uren worden tornado-center; spelers op de aanliggende uren moeten mee naar het center, anders zijn ze al hun levensuren kwijt (geen sterfte).
+- **Max:** 1
+- **Audio (opkomst):** `worden_getroffen_door_een_tornado.wav`
+- **Audio (weggaan):** —
+
+### Etenstijd — "Een wolf zal jagen op zijn schaapjes."
+- **Tier:** epic
+- **Uitleg:** Een groep wordt schaapjes; een wolf (beste aura, buiten de groep) steelt levensuren telkens hij op hetzelfde uur eindigt als een schaap.
+- **Max:** 1
+- **Audio (opkomst):** `etenstijd.wav` (nog opnemen)
+- **Audio (weggaan):** `etenstijd_voorbij.wav` (nog opnemen)
+
+### Tweeling — "2 spelers worden een tweeling."
+- **Tier:** epic
+- **Uitleg:** Koppelt 2 spelers; ze mogen enkel samen bewegen of samen stilstaan, anders verliezen beiden alles. Blijft tot spel-einde of tot één van beide sterft.
+- **Max:** 3
+- **Audio (opkomst):** `tweeling.wav` (nog opnemen)
+- **Audio (weggaan):** — (eindigt op een dood, geen afloop-cue)
 
 ## Huidige events
 
@@ -270,8 +351,9 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - Elk event heeft een **`tier`** met een keuze-**gewicht**: `common` 50 · `uncommon` 25 · `rare` 15 ·
   `epic` 8 · `legendary` 2 (default `common`). De engine kiest events **gewogen** (in "Bouw pof/status"
   voor de wachtrij en in "Kies event" als fallback), zodat ingrijpende events zeldzaam blijven en het spel
-  niet wild heen en weer geslingerd wordt. Standaard: verplaatsing-events `common`; portalen/happy_hour/
-  sneller/trager `uncommon`; ziekte/tijdbom `rare`; tornado `epic`; nuke `legendary`. Per event aanpasbaar
+  niet wild heen en weer geslingerd wordt. Standaard (zoals in de `[CONFIG]`-injects): verplaatsing-events
+  `common`; portalen/happy_hour `uncommon`; ziekte/tijdbom/sneller/trager/bomaanslag/tijdreizen `rare`;
+  tornado/etenstijd/tweeling/identiteitscrisis `epic`; nuke `legendary`. Per event aanpasbaar
   via de **events-tab** in de simulator (`sim/tiers-config` → `global.eventTiers`).
 
 ### Slechte aura (geen event — een eigenschap van negatieve events)
@@ -348,6 +430,50 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 `effect`-`niveau: wereld`, of via een globale regelaanpassing. Het `doelwit` is
 **altijd `type: geen`** (een wereld-event kiest geen spelers/uren en roept geen doelwit af).
 
+## Overzicht (gestructureerd)
+
+### Nuke — "Nuke."
+- **Tier:** legendary
+- **Uitleg:** Aftelklok om weg te lopen; wie bij de controle nog gedetecteerd is verliest alles + 1 sterfte. Daarna een regroup-pauze.
+- **Max:** 1
+- **Audio (opkomst):** `nuke.wav`
+- **Audio (weggaan):** —
+
+### Sneller — "events komen sneller."
+- **Tier:** rare
+- **Uitleg:** Verlaagt `spelTempoFactor` met −0,1 (min 0,6); elk volgend event krijgt een kortere reactietijd.
+- **Max:** —
+- **Audio (opkomst):** `events_komen_sneller.wav`
+- **Audio (weggaan):** —
+
+### Trager — "events komen trager."
+- **Tier:** rare
+- **Uitleg:** Verhoogt `spelTempoFactor` met +0,1 (max 1,3); elk volgend event krijgt een langere reactietijd.
+- **Max:** —
+- **Audio (opkomst):** `events_komen_trager.wav`
+- **Audio (weggaan):** —
+
+### Bomaanslag — "Een bomaanslag vind plaats op uur 9 en 11."
+- **Tier:** rare
+- **Uitleg:** Gelokaliseerde bom op de vaste uren 9 en 11; wie er bij de controle staat verliest `uur` levensuren (vluchten mag).
+- **Max:** —
+- **Audio (opkomst):** `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`
+- **Audio (weggaan):** —
+
+### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis."
+- **Tier:** epic
+- **Uitleg:** Schuift de luisternamen één alfabetische stap door (cyclisch): elke actieve speler luistert nu naar de naam van een andere speler. Duurt 7–15 rondes.
+- **Max:** 1
+- **Audio (opkomst):** `identiteitscrisis.wav`
+- **Audio (weggaan):** `identiteitscrisis_voorbij.wav`
+
+### Tijdreizen wordt toegestaan — "Tijdreizen zal worden toegestaan."
+- **Tier:** rare
+- **Uitleg:** Zolang de toestand loopt (10–15 rondes) mag iedereen ook achteruit in de tijd zonder straf (behalve de middernacht-poort).
+- **Max:** 1
+- **Audio (opkomst):** `tijdreizen.wav` (nog opnemen)
+- **Audio (weggaan):** `tijdreizen_voorbij.wav` (nog opnemen)
+
 ## Huidige events
 
 ### Nuke — "Nuke." (ontploffing + regroup)
@@ -380,6 +506,19 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   gaan ze weer uit (via een Sync-rebuild).
 - **Audio**: centraal ontploffingsgeluid via **`events/bomaanslag.wav`** op de audio-player — dit
   WAV-bestand moet je nog toevoegen in `pi/audio-player/audio/events/`.
+
+### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis." (luisternamen verschuiven)
+- **Werking**: schuift de **luisternamen** (`global.luisterNaam`) één **alfabetische** stap door,
+  **cyclisch** over alle actieve (niet-gepauzeerde) spelers: wie alfabetisch als eerste komt, luistert
+  voortaan naar de tweede naam, enz., en de laatste naar de eerste. Roept een event of doelwit dus een
+  naam af, dan geldt die voor de speler die nú die luisternaam draagt — spelers moeten uitkijken naar
+  de naam van iemand anders. De toestand loopt `duratie [10, 15]` rondes; bij afloop keren de
+  luisternamen terug naar normaal.
+- **Doelwit**: `type: geen`. **Gevolg**: `{type:"identiteitscrisis"}`. `max: 1`. De verschoven namen
+  staan in `global.luisterNaam` (gezet in "Voer gevolg uit", afgeteld via een `wereldEffecten`-effect,
+  teruggezet bij het verlopen van de toestand en bij Stop/Herstart).
+- **Audio**: `events/wereld-events/identiteitscrisis.wav` (afroep) +
+  `events/afgelopen/identiteitscrisis_voorbij.wav` (bij afloop).
 
 ### Tijdreizen — "Tijdreizen zal worden toegestaan." (tijdelijke regelwijziging)
 - **Werking**: zolang de toestand loopt (`duratie [10, 15]` rondes) mag **iedereen** bij het verplaatsen
