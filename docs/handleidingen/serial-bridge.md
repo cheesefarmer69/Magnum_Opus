@@ -128,8 +128,8 @@ De container krijgt toegang via `--device-cgroup-rule 'c 188:* rmw'` + `-v
 | Topic | Richting | Payload |
 |-------|----------|---------|
 | `plaatjes/data` | Bridge → Node-RED | `{"paal":1,"mac":"aa:bb:cc:dd:ee:ff","rssi":-67}` |
-| `commando/master1` | Node-RED → Bridge | `{"paal":1,"actie":2}` (palen 1–7) |
-| `commando/master2` | Node-RED → Bridge | `{"paal":8,"actie":2}` (palen 8–16) |
+| `commando/master1` | Node-RED → Bridge | `{"paal":1,"actie":2}` (palen 1–8) |
+| `commando/master2` | Node-RED → Bridge | `{"paal":9,"actie":2}` (palen 9–16) |
 | `commando/master3` | Node-RED → Bridge | `{"paal":17,"actie":2}` (palen 17–24) |
 
 ---

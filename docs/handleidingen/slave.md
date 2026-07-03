@@ -107,7 +107,7 @@ verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 | `RSSI_DREMPEL` | ~176 | Minimale RSSI (dBm) om een beacon door te laten |
 | `HEARTBEAT_INTERVAL_S` | ~34 | Interval (s) van het "ik leef"-bericht |
 | `FW_VERSIE` | ~33 | Firmware-versie meegestuurd in de heartbeat |
-| `masterMacs[3][6]` | ~200 | MAC's van master 1/2/3 — de slave kiest automatisch op `PAAL_ID` (1–7→m1, 8–16→m2, 17–24→m3) |
+| `masterMacs[3][6]` | ~200 | MAC's van master 1/2/3 — de slave kiest automatisch op `PAAL_ID` (1–8→m1, 9–16→m2, 17–24→m3) |
 | `BATT_KRITIEK` | ~47 | Spanning (V) waaronder een `MSG_FOUT` (batterij kritiek) wordt gestuurd |
 
 > **Batterijmeting:** `leesBatterijSpanning()` gebruikt `analogReadMilliVolts()`
@@ -213,7 +213,7 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 ## Nieuwe slave in gebruik nemen
 
 1. Stel `PAAL_ID` in op het gewenste paal-nummer. De slave kiest daaruit **automatisch** zijn master-MAC
-   (1–7→master1, 8–16→master2, 17–24→master3, uit `masterMacs[]`) — verder niets per slave in te stellen.
+   (1–8→master1, 9–16→master2, 17–24→master3, uit `masterMacs[]`) — verder niets per slave in te stellen.
    Bij opstart logt hij `[SETUP] Paal N -> master M`.
 2. Flash de slave **via PlatformIO** (`Upload`), **niet via de Arduino IDE**.
    > ⚠️ **Altijd PlatformIO, nooit de Arduino IDE.** De Arduino IDE negeert

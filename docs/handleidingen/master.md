@@ -75,7 +75,7 @@ opnieuw (idempotent); na `MAX_POGINGEN` volgt `opgegeven` en gaat de FIFO verder
 
 ## Multi-master: drie environments, één codebase
 
-Het veld heeft **3 masters**: master 1 → palen **1–7**, master 2 → **8–16**, master 3 → **17–24**.
+Het veld heeft **3 masters**: master 1 → palen **1–8**, master 2 → **9–16**, master 3 → **17–24**.
 Eén codebase, drie PlatformIO-environments in `platformio.ini`:
 
 ```ini
@@ -153,12 +153,12 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 
 | Output | Betekenis |
 |--------|-----------|
-| `[GATE] Genegeerd: AC:A7:...` | Pakket van een slave die NIET in `slaveAdressen[]` staat — gedropt |
-| `[RECV] 124 bytes van paal 2 (AC:A7:...)` | Batch ontvangen van een geregistreerde slave |
-| `[RECV] Paal 2, 3 spelers, batt 3.87V` | Batch inhoud + gerapporteerde batterij-spanning slave |
+| `[GATE] Genegeerd: AC:A7:... (niet in slaveAdressen[])` | Pakket van een slave die NIET in `slaveAdressen[]` staat — gedropt |
+| `[RECV] Paal 2, 3 spelers, batt 3870 mV` | Batch inhoud + gerapporteerde batterij-spanning slave (mV, integer) |
 | `{"paal":2,"mac":"...","rssi":-65}` | JSON doorgestuurd naar Pi (per gevonden speler) |
 | `{"paal":2,"batt":3.87}` | JSON met batterij-spanning, één regel per batch (`batt > 0`) |
-| `[RECV] Te kort: 10 < 206, genegeerd` | Corrupt/kort pakket ontvangen (206 = sizeof batch_message) |
+| `[RECV] Batch te kort: 10 < 33 (aantal 4)` | Pakket korter dan de header of dan `5 + aantal×7` (batch is variabel-lang, max 215 B) — gedropt |
+| `[RECV] Batch ongeldig: aantal 40 > 30` | `aantal`-veld groter dan `MAX_SPELERS` (30) — gedropt |
 | `{"status":"queued","paal":3,"actie":2}` | Commando achteraan de per-slave FIFO gezet (in volgorde, geen laatste-wint) |
 | `{"status":"fifo_vol","paal":3,"gedropt_seq":40}` | FIFO van die paal zat vol (4) — oudste commando gedropt |
 | `{"status":"uitgevoerd","paal":3,"seq":42}` | Slave bevestigde **uitvoering** (`MSG_CMD_ACK status 0`) — vervangt de v1 `ack` |
@@ -171,7 +171,7 @@ debug-output beschouwd en niet doorgestuurd naar MQTT.
 | `{"status":"log_drop","aantal":N}` | Serial-log-queue zat vol onder pieklast; N regels verloren |
 | `[PEER] Paal 3 toegevoegd: ...` | Slave als peer geregistreerd bij startup |
 | `[PEER] Paal 1 overgeslagen` | Placeholder MAC, wordt niet geregistreerd |
-| `[SETUP] Master 2, palen 8-16 (9 slaves)` | Opstart-banner: welke master + paalbereik (uit de env) |
+| `[SETUP] Master 2, palen 9-16 (8 slaves)` | Opstart-banner: welke master + paalbereik (uit de env) |
 | `{"status":"buiten_bereik","paal":25,"master":2}` | Pi stuurde een paal buiten het bereik van deze master → routeringsfout |
 
 ---

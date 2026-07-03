@@ -230,7 +230,7 @@ bundelt alle invarianten van het systeem op één plek.
 | C1 | MAC-adressen zijn altijd **lowercase** — NimBLE geeft ze lowercase door; een adres met hoofdletters wordt niet herkend. |
 | C2 | Seriële baudrate is altijd **115200 baud**. |
 | C3 | JSON-berichten op serial zijn **één object per regel**, afgesloten met `\n`. |
-| C4 | `paal_id` loopt van 1 t/m 24. Routing: 1–7 → master1, 8–16 → master2, 17–24 → master3. |
+| C4 | `paal_id` loopt van 1 t/m 24. Routing: 1–8 → master1, 9–16 → master2, 17–24 → master3. |
 | C5 | ESP-NOW structs gebruiken altijd `__attribute__((packed))` — voorkomt alignment-issues tussen Xtensa (WROOM) en RISC-V (C3). |
 | C6 | Master handhaaft een **ontvangst-whitelist** (`slaveAdressen[]`): pakketten van niet-geregistreerde slaves worden gedropt en niet doorgestuurd. |
 | C7 | Bridge detecteert **alle CH340-masters automatisch** (VID 0x1A86, PID 0x7523) — geen vaste USB-poort vereist. Routering per `paal_id` wordt geleerd uit de eerste binnenkomende batch. |
