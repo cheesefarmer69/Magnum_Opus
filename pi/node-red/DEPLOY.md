@@ -74,7 +74,8 @@ reboot of deploy wist de hele speeldag. Twee complementaire lagen lossen dat op:
 1. **`settings.js` → `contextStorage: localfilesystem`** (primair). Elke `global.set` wordt
    periodiek (`flushInterval` 15 s) naar `/data/context/` geschreven en overleeft restart +
    deploy. `settings.js` staat in de repo (`pi/node-red/settings.js`) en wordt gemount op
-   `/data/settings.js`.
+   `/data/settings.js`. (SD-kaart-slijtage is verwaarloosbaar: enkele KB per 15 s; wil je
+   toch zuiniger, verhoog `flushInterval`.)
 2. **Retained `spel/state`-topic** (secundair vangnet). Flow 04 (Puntensysteem) dumpt elke
    30 s een compacte snapshot (`spelerStats`, `globaleStats`, `spelHistorie`, π-stand,
    `spelToestand`, `spelNummer`) naar het retained MQTT-topic `spel/state`. Bij (her)start
@@ -82,31 +83,38 @@ reboot of deploy wist de hele speeldag. Twee complementaire lagen lossen dat op:
    nog leeg is**, zodat een lopend spel nooit overschreven wordt. Zo herstelt zelfs een verse
    container zónder SSD-volume nog de laatste snapshot.
 
-### Container + SSD-bind-mount (eenmalige migratie)
+### Container + persistente bind-mount (eenmalige migratie)
 
 De Node-RED-container ligt nu vast in **`pi/node-red/docker-compose.yml`** met `/data` als
-bind-mount naar de SSD (zodat `/data/context` een container-recreate overleeft). Migreer de
+bind-mount naar persistente opslag (zodat `/data/context` een container-recreate overleeft).
+Op deze Pi is er **geen aparte SSD**: de SD-kaart (`/`, root-fs) is de persistente opslag, dus
+`NODE_RED_DATA` wijst naar een map in de home (bv. `/home/pi/nodered-data`). Migreer de
 bestaande, handmatig aangemaakte container éénmalig:
 
 ```bash
-# 1. Kopieer de HUIDIGE /data uit de draaiende container naar het SSD-pad (pas het pad aan).
-export NODE_RED_DATA=/mnt/ssd/magnum-opus/nodered-data
-sudo mkdir -p "$NODE_RED_DATA"
-docker cp magnum-Opus:/data/. "$NODE_RED_DATA"/      # incl. flows.json, flows_cred.json, .config.*
+# 1. Kies het datapad (SD-kaart / home) en maak het aan.
+export NODE_RED_DATA=/home/pi/nodered-data
+mkdir -p "$NODE_RED_DATA"
 
-# 2. Stop/verwijder de oude container en start via compose (vanuit pi/node-red/).
+# 2. Kopieer de HUIDIGE /data uit de draaiende container ERHEEN (incl. credentials + sleutel).
+docker cp magnum-Opus:/data/. "$NODE_RED_DATA"/      # flows.json, flows_cred.json, .config.*
+sudo chown -R 1000:1000 "$NODE_RED_DATA"             # Node-RED draait als uid 1000
+
+# 3. Leg het pad vast in .env (naast de compose) en start via compose.
+cd ~/Magnum_Opus/pi/node-red
+echo "NODE_RED_DATA=$NODE_RED_DATA" > .env
 docker rm -f magnum-Opus
-cd pi/node-red
-NODE_RED_DATA="$NODE_RED_DATA" docker compose up -d
+docker compose up -d
 
-# 3. Deploy de repo-flows en controleer.
+# 4. Deploy de repo-flows en controleer.
 ./deploy-flows.sh
 ```
 
 > ⚠️ Kopieer `/data` **vóór** de eerste `compose up`, anders start Node-RED met een lege
 > `/data` en ben je de bestaande flows én de credential-sleutel kwijt. `settings.js` zet
 > bewust géén `credentialSecret` zodat de bestaande auto-sleutel uit `.config.runtime.json`
-> (mee gemigreerd) blijft werken.
+> (mee gemigreerd) blijft werken. `.env` staat lokaal op de Pi (machine-specifiek pad) en
+> hoort niet in de repo.
 
 ## Belangrijk: één bron van waarheid
 

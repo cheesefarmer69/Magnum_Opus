@@ -8,8 +8,9 @@
  * naar `/data/context/` geschreven en overleeft de state een herstart.
  *
  * Deze file wordt gemount op `/data/settings.js` (zie pi/node-red/docker-compose.yml).
- * `/data` moet een PERSISTENTE bind-mount naar de SSD zijn, anders staat `/data/context`
- * in de wegwerpbare containerlaag en helpt dit niets bij een container-recreate.
+ * `/data` moet een PERSISTENTE bind-mount zijn (op deze Pi: de SD-kaart / root-fs, want er is
+ * geen aparte SSD), anders staat `/data/context` in de wegwerpbare containerlaag en helpt dit
+ * niets bij een container-recreate.
  *
  * LET OP — credentials: deze file zet BEWUST GEEN `credentialSecret`. Node-RED gebruikt dan
  * de automatisch gegenereerde sleutel uit `/data/.config.runtime.json` (blijft bewaard zolang

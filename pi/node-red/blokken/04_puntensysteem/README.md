@@ -81,8 +81,8 @@ enkel de positie wordt bijgewerkt. Het effect loopt af volgens zijn `duurRondes`
 De primaire persistentie loopt via `contextStorage: localfilesystem` in
 `pi/node-red/settings.js` (alle `global.*` naar `/data/context/`, overleeft restart + deploy).
 De `spel/state`-dump/rehydrate hierboven is een **tweede vangnet** waarmee zelfs een verse
-container zónder SSD-volume de laatste snapshot (`spelerStats`, `globaleStats`, `spelHistorie`,
-π-stand, `spelToestand`, `spelNummer`) terugkrijgt. Zie `pi/node-red/DEPLOY.md`
+container zónder persistente `/data` de laatste snapshot (`spelerStats`, `globaleStats`,
+`spelHistorie`, π-stand, `spelToestand`, `spelNummer`) terugkrijgt. Zie `pi/node-red/DEPLOY.md`
 ("Persistente spelstate") en invarianten NR7/NR8.
 
 > De `[TEST]`-injects en de helperfuncties `Stel tijdreizen in` / `Reset
