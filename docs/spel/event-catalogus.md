@@ -477,11 +477,16 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 ## Huidige events
 
 ### Nuke — "Nuke." (ontploffing + regroup)
-- **Werking**: speelt "NUKE" af + een **aftelklok** (`reactietijd_s`, standaard 5 s, aanpasbaar) om
-  weg te lopen. Bij de controle ontploft **elke speler die nog gedetecteerd is** — in het echte spel:
-  RSSI boven de vloer; in de simulator: binnen het veld (in `spelerLocaties`). Gevolg: **levensuren → 0
-  en +1 sterfte**. Wie **ontkomen** is (onder de RSSI-vloer / buiten het veld → weg uit
-  `spelerLocaties`) overleeft als "VEILIG".
+- **Werking**: speelt "NUKE" af + een **aftelklok** (`reactietijd_s`, standaard 8 s, aanpasbaar) om
+  weg te lopen. Bij de controle ontploft **elke speler die nog gedetecteerd is** (in `spelerLocaties`):
+  **levensuren → 0 en +1 sterfte**. Wie **ontkomen** is, overleeft als "VEILIG (ontkomen)".
+- **Ontsnappen op hardware** (`escape_s`, default 4 s): `spelerLocaties` wordt normaal nooit opgeschoond,
+  dus zonder ingreep zou `loc[naam] != null` altijd waar zijn en kon niemand ontsnappen. **Enkel tijdens
+  de nuke** (`nukeActief`, niet in sim) haalt `Evalueer spelstatus` spelers die > `escape_s` niet meer
+  **vers gezien** zijn (via `status_lastSeenMac`) uit `spelerLocaties` — vluchters verdwijnen live van de
+  radar. Na de nuke stopt de prune (weer accumulerend, normaal). In de **simulator** regelt `Sim directe
+  locatie` dit al (prune uitgeschakeld). **Vereiste**: `reactietijd_s ≥ escape_s + 2` (de prune loopt op
+  ~1 s-cadans). Zie `docs/invarianten.md §4c` (N1/N7).
 - **Doelwit**: `type: geen`. **Gevolg**: `{type:"nuke"}`. `max: 1`.
 - **Lichtshow**: tijdens het aftellen kleurt de hele arena groen↔geel (actie 8), **behalve de
   middernacht-poort-paal** (de hoogste paal) — die houdt zijn poort-status. Na de ontploffing gaan

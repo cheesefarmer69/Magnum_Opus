@@ -77,6 +77,11 @@ Tags zijn nog op `latest` — bij significant breekrisico of vóór een release 
 | Node-RED | 4.1.7 |
 | Node.js (in container) | 20.20.0 |
 
+De Node-RED-container ligt nu vast in **`pi/node-red/docker-compose.yml`** (image gepind op
+`nodered/node-red:4.1.7`, `/data` als SSD-bind-mount) en gebruikt **`pi/node-red/settings.js`**
+met `contextStorage: localfilesystem` voor persistente global-context. Zie `pi/node-red/DEPLOY.md`
+("Persistente spelstate") voor de eenmalige migratie.
+
 ### Serial-bridge runtime details
 
 | Component | Versie |

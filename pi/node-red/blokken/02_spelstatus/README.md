@@ -26,7 +26,7 @@ spel van start gaat. Hij geeft een duidelijk **GO / NO-GO**.
 | `MQTT status watcher` + UI | groen/rood blokje linksboven dat de MQTT-broker verbinding toont          |
 | `Toon batterij`-switch     | toggelt of de Batterij-kolom in de palen-tabel met data wordt gevuld      |
 | `Override NO-GO`-switch    | laat het Bediening-blok het spel starten ook al is de spelstatus NO-GO    |
-| `Evalueer (elke 3s)`       | timer-inject die de evaluatie elke 3 seconden start                       |
+| `Evalueer (elke 3s)`       | timer-inject die de evaluatie start (naam zegt 3s, maar `repeat` staat op **1 s**)   |
 | `Evalueer spelstatus`      | berekent de status van spelers, palen, batterij en foutcodes              |
 | `[TEST] Detectie`          | inject-node om zonder hardware een detectie te simuleren                  |
 | 3× tabel + statustekst     | dashboard-weergave op de pagina **Spelstatus**                            |
@@ -70,6 +70,23 @@ Bovenaan de functie `Evalueer spelstatus`:
 - `SPELER_TIMEOUT_MS` (15 s) — speler geldt als niet-gedetecteerd na deze stilte.
 - `SLAVE_STALE_MS` (60 s) — paal geldt als "verouderd" na deze stilte.
 - `GEEN_DATA_MS` (10 s) — geen enkele data → master/bridge-fout.
+
+## NUKE-ontsnapping (nuke-scoped prune van `spelerLocaties`)
+
+`spelerLocaties` wordt buiten een nuke **nooit** opgeschoond (een stilgevallen beacon blijft als ghost
+staan). Dat maakt ontsnappen aan een NUKE op hardware onmogelijk (de nuke-controle checkt `loc[naam] !=
+null`). Daarom bevat `Evalueer spelstatus` een **nuke-scoped** prune, die **alleen** loopt zolang
+`global.nukeActief === true` **én** niet in sim (`simVeld24 !== true`):
+
+- Voor elke geregistreerde speler (`spelersLijst` = `{mac:naam}`) wordt `status_lastSeenMac[mac]`
+  vergeleken met `global.nukeEscapeMs` (= het nuke-event-veld `escape_s` × 1000, default **4000 ms**).
+- Is de beacon > `nukeEscapeMs` niet meer gezien (of nooit), dan wordt de speler uit `spelerLocaties`
+  gehaald → hij geldt bij de nuke-controle als **VEILIG (ontkomen)** en verdwijnt live van de radar.
+
+Buiten de nuke raakt deze node `spelerLocaties` **niet** aan (locatiebepaling blijft ongewijzigd voor
+Klokslag/Infected/overige events). In sim regelt `Sim directe locatie` het ontsnappen al. `nukeEscapeMs`
+wordt gezet in `Voer gevolg uit` bij nuke-start. Zie `docs/spel/event-catalogus.md` (Nuke) en
+`docs/invarianten.md §4c` (N1/N7).
 
 ## Globale variabelen
 

@@ -73,6 +73,7 @@ Eén event is één object in die array.
 | `max`           | nee       | Hoeveel instanties van dít event tegelijk actief mogen zijn (toestand). |
 | `duratie`       | nee       | Hoelang de toestand blijft (events/rondes): vast getal, `[min,max]`-bereik (willekeurig), of preset `kort`/`middel`/`lang`. Overschrijft per-gevolg `duurRondes`. Bij `ziekte`: aantal events dat een zieke heeft. |
 | `regroup_s`     | nee       | Enkel bij het NUKE-event: seconden regroup-pauze ná de ontploffing vóór het spel verdergaat. |
+| `escape_s`      | nee       | Enkel bij het NUKE-event: hoe lang (s) een beacon **niet meer vers gezien** mag zijn om als **ontsnapt** te gelden (default 4). Zorg dat `reactietijd_s ≥ escape_s + 2` — anders kan de ~1 s-prune niet op tijd opschonen. |
 | `audioVoor` / `audioNa` | nee | WAV-bestandsnamen voor de afroep (knip-en-plak rond het getal). |
 | `gevolgen`      | ja        | Eén of meer gevolgen (`commando` / `score` / `effect` / `geen`). |
 
@@ -185,7 +186,7 @@ Elk gevolg is één object in de array; combineren mag.
 | `score`    | `delta` (geheel, +/-)                     | Past direct de levensuren van de doel-spelers aan (clamp ≥ 0). |
 | `effect`   | `niveau`, `effect`, `duurRondes`, `data`  | Plaatst een **blijvend effect** (zie hieronder). |
 | `ziekte`   | —                                         | Maakt de doelwit-spelers **ziek** (`duratie` events) en plaatst **medicijn** op evenveel vrije uren. Zie hieronder. |
-| `nuke`     | —                                         | Wereld-event: na de aftelklok (`reactietijd_s`) ontploft iedereen die nog **gedetecteerd** is (uren 0 + sterfte); daarna een **regroup**-pauze van `regroup_s` s. Zie hieronder. |
+| `nuke`     | —                                         | Wereld-event: na de aftelklok (`reactietijd_s`) ontploft iedereen die nog **gedetecteerd** is (uren 0 + sterfte); wie zijn beacon > `escape_s` (default 4 s) niet meer laat zien is **ontsnapt** (VEILIG). Daarna een **regroup**-pauze van `regroup_s` s. Zie hieronder. |
 | `tijdbom`  | —                                         | Maakt de doelwit-spelers een **tikkende tijdbom** (`duratie` events) + kiest evenveel **ontmantel-palen** (palen met een drukknop). Ontmantelen = de knop op zo'n paal indrukken (dag 80% / nacht 50%). Mislukken of ontploffen → iedereen op die paal verliest `uur` levensuren. Zie hieronder. |
 | `tornado`  | —                                         | **Tornado** op de doelwit-uren (1–2 centers, `minAfstand` houdt ze uit elkaar): spelers op de twee **aanliggende** uren worden naar het center gezogen. Wie niet meebeweegt → **alle** levensuren kwijt (geen sterfte). Zie hieronder. |
 | `bom`      | —                                         | **Bomaanslag** op de doelwit-uren: tijdens `reactietijd_s` een waarschuwing (rode tik-LED + zoemer) op die uren; bij de controle ontploft de bom — wie **dan** op een doel-uur staat verliest `uur` levensuren (vluchten mag, geen bewegingsstraf). Witte flikker (OOGST-strobe) + ontploffingsgeluid (`audioVoor`). Gebruik `doelwit:{type:"uur","vast":[9,11]}` voor vaste uren. |
@@ -439,11 +440,20 @@ met **+0,1** (max **1,3**). Die factor vermenigvuldigt de reactietijd van elk vo
 
 ```js
 { id:"nuke", naam:"Nuke", categorie:"wereld", tekst:"Nuke.",
-  reactietijd_s:5, regroup_s:60, max:1, doelwit:{ type:"geen" },
+  reactietijd_s:8, escape_s:4, regroup_s:60, max:1, doelwit:{ type:"geen" },
   audioVoor:"nuke.wav", gevolgen:[ { type:"nuke" } ] }
 ```
-Speelt "NUKE" af + een **aftelklok** van `reactietijd_s` (5 s, aanpasbaar) om weg te lopen. Bij de
-controle ontploft **elke speler die nog gedetecteerd is** (RSSI boven de vloer / binnen het veld):
-levensuren → 0 **en +1 sterfte**. Wie **ontkomen** is (onder de RSSI-vloer / buiten het veld → uit
-`spelerLocaties`) overleeft. Daarna een **regroup**-pauze van `regroup_s` s (60, aanpasbaar) vóór het
-spel verdergaat. `regroup_s` is een nieuw, optioneel veld; de fase heet `regroup` in `pof/status`.
+Speelt "NUKE" af + een **aftelklok** van `reactietijd_s` (8 s, aanpasbaar) om weg te lopen. Bij de
+controle ontploft **elke speler die nog gedetecteerd is** (in `spelerLocaties`): levensuren → 0 **en
++1 sterfte**. Wie **ontkomen** is, overleeft. Daarna een **regroup**-pauze van `regroup_s` s (60,
+aanpasbaar) vóór het spel verdergaat. `regroup_s` en `escape_s` zijn optionele velden; de fase heet
+`regroup` in `pof/status`.
+
+> **Ontsnappen op hardware (`escape_s`).** `spelerLocaties` wordt normaal nooit opgeschoond (een beacon
+> die stilvalt blijft als ghost staan), dus zonder ingreep zou `loc[naam] != null` altijd waar zijn en
+> kon niemand ontsnappen. **Enkel tijdens een nuke** (`nukeActief`, niet in sim) haalt `Evalueer
+> spelstatus` spelers die > `escape_s` niet meer **vers gezien** zijn (via `status_lastSeenMac`) uit
+> `spelerLocaties` — je ziet vluchters live van de radar verdwijnen. Bij de controle geldt zo'n speler dan
+> als **VEILIG (ontkomen)**. Na de nuke stopt de prune en is `spelerLocaties` weer accumulerend (normaal).
+> In de **simulator** werkt ontsnappen al via `Sim directe locatie` (integrale herschrijving), dus daar is
+> de prune uitgeschakeld.

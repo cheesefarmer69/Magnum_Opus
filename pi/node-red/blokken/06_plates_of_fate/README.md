@@ -67,6 +67,11 @@ Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
   (geen sterfte, `WEGGEZOGEN`); daarna wist het `tornadoActief` + forceert een LED-rebuild (LED's terug naar origineel).
 - **NUKE** (wereld-event `{type:"nuke"}`): "Verifieer beweging" detecteert het en laat **elke nog
   gedetecteerde speler** (`spelerLocaties`) ontploffen (uren 0 + sterfte); wie ontkomen is overleeft.
+  **Ontsnappen op hardware:** bij nuke-start zet "Voer gevolg uit" `nukeActief=true` én `nukeEscapeMs`
+  (uit `escape_s`, default 4 s). Zolang `nukeActief` haalt `Evalueer spelstatus` (flow 02, nuke-scoped,
+  niet-sim) spelers met een stale `status_lastSeenMac` uit `spelerLocaties` → zij gelden als VEILIG en
+  verdwijnen live van de radar. Buiten de nuke blijft `spelerLocaties` accumulerend. Zet de nuke
+  `reactietijd_s ≥ escape_s + 2`. Zie `docs/invarianten.md §4c` (N7).
   Een nuke **wist de wereld**: ze ruimt ook de lopende ziekte-episode (`ziekeSpelers` + medicijn-effecten)
   en alle `dienaars` op; "Ziekte-beheer" (via output 1) herpubliceert dan lege `pof/ziekte`/`pof/dienaars`.
   De groene nuke-lichtshow (actie 8 in "Sync toestanden + LEDs") dekt alle palen **behalve de

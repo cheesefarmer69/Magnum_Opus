@@ -70,8 +70,20 @@ enkel de positie wordt bijgewerkt. Het effect loopt af volgens zijn `duurRondes`
 | Node                          | Functie                                                                 |
 |-------------------------------|-------------------------------------------------------------------------|
 | `Beweging van Locatiebepaling`| `link in` — ontvangt paal-wissels van flow 01                           |
-| `Bereken levensuren`          | berekent de kortste verplaatsing op de klok en past de score aan        |
+| `Bereken levensuren`          | berekent de kortste verplaatsing op de klok en past de score aan; neemt ook het pad op (`pofPad`) in `reactie`/`wacht_controle`/`grace` |
 | `Levensjaren (debug)`         | toont de laatste mutatie in de debug-sidebar én als node-status         |
+| `Middernacht poort-bewaker`   | handhaaft de dichte π-poort **tussen** events (`idle`/`aanloop`/`wacht`/`regroup`); slaat het hele event-venster incl. `grace` over (dan doet flow 06 de controle). Dedup via `global.mnGestraft` (max 1 straf/ronde, zie invariant M3a) |
+| `State-dump (30s)` → `Bouw spel-state snapshot` → `spel/state (retain)` | dumpt elke 30 s een compacte state-snapshot naar het retained MQTT-topic `spel/state` |
+| `spel/state` (mqtt in) → `Rehydrate spel-state` | leest bij (her)start de retained snapshot terug, **enkel als de global nog leeg is** (nooit een lopend spel overschrijven) |
+
+### Persistente spelstate
+
+De primaire persistentie loopt via `contextStorage: localfilesystem` in
+`pi/node-red/settings.js` (alle `global.*` naar `/data/context/`, overleeft restart + deploy).
+De `spel/state`-dump/rehydrate hierboven is een **tweede vangnet** waarmee zelfs een verse
+container zónder SSD-volume de laatste snapshot (`spelerStats`, `globaleStats`, `spelHistorie`,
+π-stand, `spelToestand`, `spelNummer`) terugkrijgt. Zie `pi/node-red/DEPLOY.md`
+("Persistente spelstate") en invarianten NR7/NR8.
 
 > De `[TEST]`-injects en de helperfuncties `Stel tijdreizen in` / `Reset
 > levensjaren` zijn verwijderd. Resetten gebeurt nu via het **Admin**-paneel

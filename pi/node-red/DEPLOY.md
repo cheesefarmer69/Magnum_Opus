@@ -60,9 +60,53 @@ chmod +x deploy-flows.sh      # eenmalig
   (spelerslijst, paaltjeslijst, POF-events) staan op "inject once" en vuren dus
   meteen opnieuw → `global.spelersLijst`, `paaltjesLijst`, `pofEvents` worden vers
   geladen.
-- De **global context wordt geleegd** (in-memory). Lopende toestand zoals
-  `spelerStats`, `bordStaat`, `pofActief` start dus blanco — meestal precies wat
-  je wilt bij een verse import.
+- De **global context blijft nu bewaard** — zodra `settings.js` met `contextStorage`
+  (`localfilesystem`) actief is (zie "Persistente spelstate" hieronder). Lopende toestand
+  zoals `spelerStats`, `globaleStats`, `spelHistorie`, de π-stand en `godPunten` overleeft
+  dus een deploy én een container-restart. (Vóór deze wijziging draaide Node-RED op de
+  default in-memory store en werd álle global context bij elke deploy geleegd.)
+
+## Persistente spelstate (contextStorage + `spel/state`)
+
+Zonder configuratie draait Node-RED met een **in-memory** context-store: één stroomdip,
+reboot of deploy wist de hele speeldag. Twee complementaire lagen lossen dat op:
+
+1. **`settings.js` → `contextStorage: localfilesystem`** (primair). Elke `global.set` wordt
+   periodiek (`flushInterval` 15 s) naar `/data/context/` geschreven en overleeft restart +
+   deploy. `settings.js` staat in de repo (`pi/node-red/settings.js`) en wordt gemount op
+   `/data/settings.js`.
+2. **Retained `spel/state`-topic** (secundair vangnet). Flow 04 (Puntensysteem) dumpt elke
+   30 s een compacte snapshot (`spelerStats`, `globaleStats`, `spelHistorie`, π-stand,
+   `spelToestand`, `spelNummer`) naar het retained MQTT-topic `spel/state`. Bij (her)start
+   leest node **`Rehydrate spel-state`** dit terug — maar **alleen als de betreffende global
+   nog leeg is**, zodat een lopend spel nooit overschreven wordt. Zo herstelt zelfs een verse
+   container zónder SSD-volume nog de laatste snapshot.
+
+### Container + SSD-bind-mount (eenmalige migratie)
+
+De Node-RED-container ligt nu vast in **`pi/node-red/docker-compose.yml`** met `/data` als
+bind-mount naar de SSD (zodat `/data/context` een container-recreate overleeft). Migreer de
+bestaande, handmatig aangemaakte container éénmalig:
+
+```bash
+# 1. Kopieer de HUIDIGE /data uit de draaiende container naar het SSD-pad (pas het pad aan).
+export NODE_RED_DATA=/mnt/ssd/magnum-opus/nodered-data
+sudo mkdir -p "$NODE_RED_DATA"
+docker cp magnum-Opus:/data/. "$NODE_RED_DATA"/      # incl. flows.json, flows_cred.json, .config.*
+
+# 2. Stop/verwijder de oude container en start via compose (vanuit pi/node-red/).
+docker rm -f magnum-Opus
+cd pi/node-red
+NODE_RED_DATA="$NODE_RED_DATA" docker compose up -d
+
+# 3. Deploy de repo-flows en controleer.
+./deploy-flows.sh
+```
+
+> ⚠️ Kopieer `/data` **vóór** de eerste `compose up`, anders start Node-RED met een lege
+> `/data` en ben je de bestaande flows én de credential-sleutel kwijt. `settings.js` zet
+> bewust géén `credentialSecret` zodat de bestaande auto-sleutel uit `.config.runtime.json`
+> (mee gemigreerd) blijft werken.
 
 ## Belangrijk: één bron van waarheid
 

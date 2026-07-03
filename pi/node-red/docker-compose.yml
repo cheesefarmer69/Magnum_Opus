@@ -1,0 +1,35 @@
+# Node-RED container voor Magnum Opus (`magnum-Opus`), gecodificeerd.
+#
+# WAAROM: de container werd tot nu toe handmatig op de Pi aangemaakt (niets in de repo).
+# Voor persistente spelstate moet `/data` (incl. `/data/context/` van de contextStorage in
+# settings.js) op de SSD staan i.p.v. de wegwerpbare containerlaag. Deze compose legt dat vast.
+#
+# EENMALIGE MIGRATIE (zie pi/node-red/DEPLOY.md): kopieer de bestaande container-`/data`
+# (flows.json, flows_cred.json, settings.js, .config.*) naar het SSD-pad VOOR de eerste
+# `docker compose up`, anders raakt de huidige setup (flows + credential-sleutel) kwijt.
+#
+# Draaien vanuit deze map:
+#   NODE_RED_DATA=/mnt/ssd/magnum-opus/nodered-data docker compose up -d
+# of zet NODE_RED_DATA in een .env-bestand naast deze compose.
+
+services:
+  node-red:
+    image: nodered/node-red:4.1.7        # gepind (zie docs/versions.md); was 'latest'
+    container_name: magnum-Opus
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    environment:
+      - TZ=Europe/Brussels
+    volumes:
+      # /data op de SSD -> flows + credentials + /data/context (persistente global-context).
+      # Pas NODE_RED_DATA aan naar het echte SSD-pad; default is een voorbeeld.
+      - ${NODE_RED_DATA:-/mnt/ssd/magnum-opus/nodered-data}:/data
+      # settings.js uit de repo is autoritatief (bevat contextStorage). Read-only overlay:
+      # Node-RED schrijft nooit naar settings.js zelf, wel naar de rest van /data.
+      - ./settings.js:/data/settings.js:ro
+
+# AANDACHTSPUNT (buiten scope van deze wijziging): Mosquitto (`MQTT-broker`) heeft dezelfde
+# SSD-overweging voor `/mosquitto/data/` (retained messages, waaronder nu ook `spel/state`).
+# Wil je die ook op de SSD + gepind vastleggen, voeg dan een tweede service toe met een
+# bind-mount naar de SSD en config/mqtt/mosquitto.conf gemount op /mosquitto/config/.
