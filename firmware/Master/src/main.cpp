@@ -47,6 +47,7 @@ const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
 #define MSG_KNOP         0x06   // slave -> master, bij druk
 #define MSG_BUZZER_TOON  0x07   // master -> slave, buzzer-tuning (continue toon)
 #define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
+#define MSG_SCAN_CONFIG  0x09   // master -> slave, BLE-scan-vensterduur (ms) instellen
 
 // JSON-actie 12 = buzzer-toon (tuning): geen commando_message_v2, maar een directe
 // MSG_BUZZER_TOON met de frequentie uit het extra JSON-veld "toon" (zie docs/protocol.md).
@@ -54,6 +55,10 @@ const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
 // JSON-actie 16 = Klokslag-LED: directe MSG_KLOKSLAG met r/g/b/helderheid/modus uit het JSON
 // (geen FIFO/ACK, fire-and-forget zoals buzzer-tuning). Zie docs/protocol.md.
 #define ACTIE_KLOKSLAG     16
+// JSON-actie 20 = BLE-scan-config: directe MSG_SCAN_CONFIG met de vensterduur uit het extra
+// JSON-veld "scan_ms" (ms). Geen FIFO/ACK, fire-and-forget zoals buzzer/klokslag. Zie docs/protocol.md.
+#define ACTIE_SCAN_CONFIG  20
+#define SCAN_MS_DEFAULT  1000   // fallback wanneer "scan_ms" ontbreekt in de JSON
 
 #define MAX_SPELERS 30
 
@@ -120,6 +125,12 @@ typedef struct __attribute__((packed)) klokslag_message {
   uint8_t  helderheid;      // 0..255 (engine schaalt al met voortgang P/H)
   uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
 } klokslag_message;
+
+typedef struct __attribute__((packed)) scan_config_message {
+  uint8_t  msg_type;        // = MSG_SCAN_CONFIG
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint16_t scan_ms;         // gewenste BLE-scan-vensterduur in ms (slave clamp't 300..2000)
+} scan_config_message;
 
 // ---- SLAVES REGISTREREN ----
 // De slave-MAC's per master staan in include/slave_macs.h (geselecteerd op MASTER_NR).
@@ -399,6 +410,24 @@ static void stuurBuzzerToon(int paal, uint16_t freq) {
            (r == ESP_OK) ? "toon" : "send_err", paal, freq);
 }
 
+// BLE-scan-config: stuur direct een MSG_SCAN_CONFIG (geen FIFO/ACK, fire-and-forget) met de
+// gewenste scan-vensterduur in ms. De slave clamp't de waarde zelf (300..2000 ms).
+static void stuurScanConfig(int paal, uint16_t scan_ms) {
+  int i = paalNaarIndex(paal);
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    return;
+  }
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return;
+  }
+  scan_config_message sc = { MSG_SCAN_CONFIG, (uint8_t)paal, scan_ms };
+  esp_err_t r = esp_now_send(slaveAdressen[i], (uint8_t *)&sc, sizeof(sc));
+  logRegel("{\"status\":\"%s\",\"paal\":%d,\"scan_ms\":%u}\n",
+           (r == ESP_OK) ? "scan" : "send_err", paal, scan_ms);
+}
+
 // Klokslag-LED: stuur direct een MSG_KLOKSLAG (geen FIFO/ACK, fire-and-forget zoals buzzer-tuning).
 // De slave rendert continu (solid/flikker/ademend) tot het volgende bericht binnenkomt.
 static void stuurKlokslag(int paal, uint8_t r, uint8_t g, uint8_t b, uint8_t helderheid, uint8_t modus) {
@@ -454,6 +483,19 @@ void verwerkRegel(const char *regel) {
     uint8_t modus = (mIdx == -1) ? 0 : (uint8_t)lijn.substring(mIdx + 8).toInt();
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
       stuurKlokslag(paal, r, g, b, helderheid, modus);
+    } else {
+      logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    }
+    return;
+  }
+
+  // BLE-scan-config (actie 20): niet via de FIFO, maar direct als MSG_SCAN_CONFIG met de
+  // vensterduur uit het extra veld "scan_ms" (ms). Zo blijft de bridge ongewijzigd.
+  if (actie == ACTIE_SCAN_CONFIG) {
+    int msIdx = lijn.indexOf("\"scan_ms\":");
+    uint16_t ms = (msIdx == -1) ? SCAN_MS_DEFAULT : (uint16_t)lijn.substring(msIdx + 10).toInt();
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+      stuurScanConfig(paal, ms);
     } else {
       logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
     }

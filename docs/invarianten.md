@@ -33,6 +33,7 @@ bundelt alle invarianten van het systeem op één plek.
 | V6 | Niemand verbruikt meer budget dan het event toestaat (`voor ≤ x` bij max-event). |
 | V7 | Scoring: `basis = aantal STAP vooruit`; `verdiend = (eindpaal happy-hour) ? 2×basis : basis`. |
 | V8 | **Tijdreizen** (wereld-event, `global.tijdreizenActief`): zolang actief telt een **achterwaartse** STAP **mee** als geldige beweging — de stappen worden `voor + achter` voor de voorwaarde-check én de score (geen "TERUG IN TIJD"-straf). Uitzondering: een **achterwaartse middernacht-oversteek** (`ontleed().kruistAchter`, de 1→24-wrap) blijft verboden → "TERUG IN TIJD". Tijdreizen opent de poort niet (M3 blijft gelden voor de voorwaartse oversteek). Buiten tijdreizen gelden V2/V4 onveranderd. |
+| V9 | **Settle-grace** (`global.pofSettleGrace`, default 3 s; 0 = uit). In automatische modus draait de controle **niet** meteen bij `reactie`-einde (T) maar na een `grace`-fase (T+grace), zodat traag-settlende paalwissels nog in **dit** event landen. Het pad-opname-venster (`Bereken levensuren`) omvat de fases `reactie`, `wacht_controle` én `grace`; de begin-snapshot van het volgende event wordt pas ná de controle (dus ná de grace) genomen. Manueel-modus gebruikt geen grace (de operator bepaalt zelf het controle-moment). |
 
 ### Scoringtabel (na elke controle)
 
@@ -246,7 +247,8 @@ bundelt alle invarianten van het systeem op één plek.
 | HW4 | Master GPIO2 (ingebouwde LED, active-HIGH) pulst bij elke **ontvangen slave-batch**. |
 | HW5 | Rode LED GPIO6 (slave): **vrij** — oude diagnose-functie (batterij-waarschuwing + knop-puls) verwijderd, gereserveerd voor toekomstig gebruik. |
 | HW6 | Batterijmeting op GPIO4 (slave) — waarde 0.0 = niet gemeten of onbekend. |
-| HW7 | De actie-set is minimaal: enkel acties die direct aan een bestaand event hangen (0 = uit, 1 = portaal/paars, 2 = happy-hour/goud, 3 = buzzer-piep). |
+| HW7 | De actie-set hangt aan bestaande spel-/test-functies; de **volledige, gezaghebbende lijst** staat in `docs/protocol.md §2` (0 = uit, 1 = portaal, 2 = happy hour, … t/m 20 = scan-config). Voeg nooit een actie toe zonder die tabel bij te werken. |
+| HW8 | De **BLE-scan-vensterduur** is runtime instelbaar via `MSG_SCAN_CONFIG` (actie 20): niet-blokkerende scan begrensd door een `millis()`-venster (`scanDuurMs`). Default **1000 ms**, de slave **clamp't 300..2000 ms**. Verloren bij reboot (volatile) → Node-RED **herstelt** de ingestelde waarde automatisch op de eerstvolgende heartbeat (uptime-daling = reboot-detectie). |
 
 ---
 

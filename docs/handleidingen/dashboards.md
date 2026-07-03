@@ -104,6 +104,7 @@ kalibreren.
 | Groep | Widgets | Wat het doet |
 |-------|---------|--------------|
 | Locatie-instellingen | `ui-slider` Venster (ms) · `ui-slider` Hysterese (dB) · `ui-slider` RSSI-vloer (dBm) · `ui-slider` Grace (ms) · `ui-slider` Switch-samples · `ui-slider` Min-samples · `ui-text` Actieve locatie-parameters | Tuning van het locatie-algoritme. |
+| Scan-duur (BLE) | `ui-slider` Scan-duur alle slaves (ms) · `ui-slider` Paal · `ui-slider` Scan-duur deze paal (ms) · `ui-button` Pas toe · `ui-text` Laatste scan-actie | BLE-scan-vensterduur van de slaves instellen (400–1000 ms), voor alle slaves of per paal. Kortere scan = versere detectie. Stuurt actie 20 (`MSG_SCAN_CONFIG`); auto-herstel na reboot via heartbeat. Zie `docs/locatiebepaling.md`. |
 | Beacon-stabiliteit | `ui-table` Beacon-stabiliteit (laagste score bovenaan) | Ranglijst van signaalstabiliteit per beacon. |
 | Beacon-kalibratie (RSSI-offset) | `ui-template` Beacon-kalibratie | Per-beacon RSSI-offset instellen, begrensd op −20…+20 dB. |
 | Ruwe RSSI (diagnose) | `ui-switch` Toon ruwe RSSI · `ui-table` Ruwe RSSI per beacon per paal (laatste 6 s) | Ruwe meetwaarden tonen voor diagnose. |

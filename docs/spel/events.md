@@ -260,7 +260,9 @@ worden daarna één voor één opgesomd.
 2. **Event gekozen** — `getal` gerold (`x` ingevuld), doelwit gekozen, `max` gecheckt.
 3. **Voorlezen** — aantal-prefix + tekst naar `audio/afspelen`; doelwitten één voor één.
 4. **Reactietijd** — `reactietijd_s` countdown waarin spelers bewegen.
-5. **Controle** — als `voorwaarde` gezet is, wordt elke speler gecontroleerd.
+5. **Settle-grace** — korte `grace`-fase (`pofSettleGrace`, default 3 s; 0 = uit) zodat trage
+   paalwissels nog settelen vóór de controle. Zie `docs/spel/event-systeem.md §4`.
+6. **Controle** — als `voorwaarde` gezet is, wordt elke speler gecontroleerd.
 
 ## Voorbeelden
 

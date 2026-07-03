@@ -20,8 +20,9 @@
 
 ```
 loop()
- └── scan-cyclus (elke ~1100-1300ms):
-      ├── BLE scan (1 seconde, blokkerend)
+ └── scan-cyclus (~scanDuurMs + backoff + 200ms venster + 50ms):
+      ├── BLE scan (scanDuurMs, NIET-blokkerend, begrensd met millis(); default 1000 ms, clamp 300..2000)
+      │    └── tijdens het venster: verwerkCommandos()/melodie/animatie draaien door (niet meer bevroren)
       │    └── BeaconZoeker::onResult() per gevonden apparaat
       │         └── OUI == 48:87:2d EN rssi >= RSSI_DREMPEL? →
       │              ├── bestaat al in batch? → sterkste RSSI behouden
@@ -98,7 +99,7 @@ verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 |-----------|--------------|-----------|
 | `PAAL_ID` | ~14 | Uniek ID van deze paal (1–24) — **per slave aanpassen** |
 | `WIFI_KANAAL` | ~15 | Moet overeenkomen met de master (standaard: 1) |
-| `SCAN_DUUR_S` | ~11 | BLE-scanduur in seconden |
+| `SCAN_MS_DEFAULT` / `scanDuurMs` | ~14 | BLE-scan-vensterduur in **ms** (default 1000). Runtime instelbaar via `MSG_SCAN_CONFIG` (dashboard "Scan-duur (BLE)"); de slave clamp't `SCAN_MS_MIN`..`SCAN_MS_MAX` = 300..2000. |
 | `WACHT_TIMEOUT` | ~12 | Max wachttijd (ms) op commando na verzenden |
 | `MAX_BACKOFF_MS` | ~16 | Bovengrens (ms) van de willekeurige zendvertraging |
 | `BUZZER_FREQ` | ~20 | Per-paal piep-frequentie (Hz) — kalibreer voor max. volume |
@@ -118,6 +119,15 @@ verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 > `BUZZER_FREQ` (default 1500 Hz; `setup()` zet die in `MELODIE_PIEP[0]`). Klinkt een paal te
 > stil, meet dan zijn luidste frequentie en zet die in `BUZZER_FREQ` voor dat bordje. Een actieve
 > buzzer (met ingebouwde oscillator) hoort NIET met `tone()` aangestuurd te worden maar met `digitalWrite(HIGH)`.
+
+> **BLE-scan-duur (runtime instelbaar):** de scan is niet meer een vaste `start(1 s)` maar een
+> **niet-blokkerende** scan die met `millis()` begrensd wordt op `scanDuurMs` (NimBLE 1.4.2 blokkeert
+> enkel in hele seconden). Een kortere scan = versere detectie = minder scoring-latentie. Stel hem in via
+> het dashboard **"Scan-duur (BLE)"** (Beacons & Locatie): Node-RED stuurt `{"paal":N,"actie":20,
+> "scan_ms":M}` → de master vertaalt dat naar `MSG_SCAN_CONFIG`. De slave clamp't 300..2000 ms en logt
+> `[SCAN] Venster nu M ms`. De waarde is volatile (weg bij reboot); Node-RED herstelt ze op de eerstvolgende
+> heartbeat. Scan-duty verhoogd naar `setWindow(64)`/`setInterval(80)` (~80 %) zodat korte scans genoeg
+> samples zien. Zie `docs/locatiebepaling.md` en `docs/protocol.md`.
 
 ---
 
@@ -146,7 +156,8 @@ De huidige code gebruikt de volgende volgorde:
 
 | Prefix | Betekenis |
 |--------|-----------|
-| `[SCAN] Start...` | Nieuwe BLE-scan gestart |
+| `[SCAN] Start (600 ms)...` | Nieuwe BLE-scan gestart, met de actieve vensterduur |
+| `[SCAN] Venster nu 600 ms` | Nieuwe scan-duur toegepast (ontvangen via `MSG_SCAN_CONFIG`) |
 | `[BLE] Beacon 48:87:2d:.. RSSI: -67` | Beacon (OUI + sterk genoeg) toegevoegd aan batch |
 | `[SCAN] Klaar, 2 beacons gevonden (batt 3870 mV)` | Scan klaar, 2 spelers in batch, batterij in mV |
 | `[BACKOFF] 87 ms` | Willekeurige zendvertraging vóór verzenden |
@@ -190,6 +201,12 @@ LED-acties (1/2/4/9/10) blijven continu tot Node-RED `ACTIE_NIETS` stuurt. De **
 (8 = nuke, 11 = oogst) worden gerenderd door `updateAnimatie()` (millis-gebaseerd, gebruikt `CHSV` +
 `beatsin8`, aangeroepen in de wacht-loop naast `updateMelodie()`) en blijven animeren tot een nieuwe
 actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
+
+> De acties **12–20** (buzzer-toon, klokslag-LED, knop-arm/uit, regenboog-test, **scan-config**) staan
+> niet in bovenstaande tabel omdat het geen renderbare LED/melodie-acties zijn: 12/16/20 worden door de
+> **master** onderschept en als een eigen ESP-NOW-bericht (`MSG_BUZZER_TOON`/`MSG_KLOKSLAG`/`MSG_SCAN_CONFIG`)
+> verstuurd (fire-and-forget, geen FIFO/ACK). De volledige, gezaghebbende actie-tabel staat in
+> `docs/protocol.md §2`.
 
 ---
 
@@ -235,8 +252,9 @@ of de beacon adverteert niet (batterij leeg?). Check: zet tijdelijk een `Serial.
 vóór het OUI/RSSI-filter, of verlaag tijdelijk `RSSI_DREMPEL`.
 
 **Commando's komen niet aan**
-→ Slave is tijdens scan (1s) — commando wordt wél gebufferd en direct erna verwerkt.
-Als het structureel mislukt: check of master het juiste slave-MAC gebruikt.
+→ Slave is tijdens de scan — commando wordt wél gebufferd en, sinds de gevensterde scan, óók al
+**tijdens** het scan-venster verwerkt (`verwerkCommandos()` draait door). Als het structureel mislukt:
+check of master het juiste slave-MAC gebruikt.
 
 **Batterij lijkt verkeerd / `MSG_FOUT` batterij-kritiek onverwacht**
 → Check `[BATT]` in de Serial Monitor; kritiek wordt gemeld onder `BATT_KRITIEK`.

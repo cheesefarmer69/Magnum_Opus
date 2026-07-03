@@ -11,7 +11,14 @@
 // ====================================================================
 // PARAMETERS
 // ====================================================================
-const int SCAN_DUUR_S    = 1;
+// BLE-scan-vensterduur in MILLISECONDEN (runtime instelbaar via MSG_SCAN_CONFIG). NimBLE 1.4.2
+// kan enkel in hele seconden blokkeren, dus scannen we niet-blokkerend en begrenzen we het venster
+// zelf met millis() (zie loop()). Kortere scans = versere detectie; clamp beschermt tegen onzin.
+#define SCAN_MS_DEFAULT   1000
+#define SCAN_MS_MIN        300   // veiligheidsclamp op de slave (het dashboard staat 400 toe)
+#define SCAN_MS_MAX       2000
+volatile uint16_t scanDuurMs    = SCAN_MS_DEFAULT;   // gewenste scan-venster (OnDataRecv schrijft)
+volatile bool     scanDuurDirty = false;             // true zodra een nieuwe waarde binnenkwam (log)
 const int WACHT_TIMEOUT  = 200;
 const int PAAL_ID        = 1;
 const int WIFI_KANAAL    = 1;
@@ -38,6 +45,7 @@ const uint16_t BUZZER_FREQ_TABEL[25] = {
 #define MSG_KNOP         0x06   // slave -> master, bij druk
 #define MSG_BUZZER_TOON  0x07   // master -> slave, buzzer-tuning (continue toon)
 #define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
+#define MSG_SCAN_CONFIG  0x09   // master -> slave, BLE-scan-vensterduur (ms) instellen
 
 const uint8_t       FW_VERSIE            = 2;
 const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
@@ -324,6 +332,12 @@ typedef struct __attribute__((packed)) klokslag_message {
   uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
 } klokslag_message;
 
+typedef struct __attribute__((packed)) scan_config_message {
+  uint8_t  msg_type;        // = MSG_SCAN_CONFIG
+  uint8_t  paal_id;
+  uint16_t scan_ms;         // gewenste BLE-scan-vensterduur in ms (slave clamp't 300..2000)
+} scan_config_message;
+
 // ====================================================================
 // TOESTANDSVARIABELEN
 // ====================================================================
@@ -392,6 +406,21 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     klokslagR = km.r; klokslagG = km.g; klokslagB = km.b;
     klokslagHelderheid = km.helderheid; klokslagModus = km.modus;
     klokslagDirty = true;
+    return;
+  }
+
+  // Scan-config: nieuwe BLE-scan-vensterduur. Geen FIFO/ACK; zet enkel de volatile doelwaarde
+  // (de loop past ze toe bij de volgende scan). Clamp hier al tegen onzinwaarden.
+  if (incomingData[0] == MSG_SCAN_CONFIG) {
+    if (len < (int)sizeof(scan_config_message)) return;
+    scan_config_message sc;
+    memcpy(&sc, incomingData, sizeof(sc));
+    if (sc.paal_id != PAAL_ID) return;
+    uint16_t v = sc.scan_ms;
+    if (v < SCAN_MS_MIN) v = SCAN_MS_MIN;
+    if (v > SCAN_MS_MAX) v = SCAN_MS_MAX;
+    scanDuurMs    = v;
+    scanDuurDirty = true;
     return;
   }
 
@@ -877,8 +906,9 @@ void setup() {
   pBLEScan = NimBLEDevice::getScan();
   pBLEScan->setAdvertisedDeviceCallbacks(new BeaconZoeker(), true);
   pBLEScan->setActiveScan(false);
-  pBLEScan->setInterval(80);
-  pBLEScan->setWindow(40);
+  pBLEScan->setInterval(80);   // ~50 ms (units 0.625 ms)
+  pBLEScan->setWindow(64);     // ~40 ms -> ~80% duty: korte scans (400-600 ms) zien nog genoeg
+                               // adverts (beacons op 300 ms) i.p.v. de oude 50% (window 40).
   Serial.println("[SETUP] NimBLE OK");
 
   // WiFi
@@ -941,6 +971,9 @@ void setup() {
 // ====================================================================
 // LOOP
 // ====================================================================
+// No-op complete-callback voor de niet-blokkerende scan (we begrenzen zelf met millis()).
+void scanKlaar(NimBLEScanResults) {}
+
 void loop() {
   verwerkTestToon(); // buzzer-tuning: continue toon toepassen indien gewijzigd
   verwerkKlokslag(); // Klokslag-LED toepassen indien gewijzigd
@@ -955,17 +988,30 @@ void loop() {
   // GEEN flag-reset meer: pending commando's blijven in de ringbuffer staan tot ze
   // gedraineerd zijn, ongeacht waar in de cyclus ze binnenkwamen.
 
-  Serial.println("\n[SCAN] Start...");
+  // Log een nieuw ingesteld scan-venster (gezet vanuit OnDataRecv, op de WiFi-task).
+  if (scanDuurDirty) { scanDuurDirty = false; Serial.printf("[SCAN] Venster nu %u ms\n", scanDuurMs); }
 
-  BLEScanResults results = pBLEScan->start(SCAN_DUUR_S, false);
+  uint16_t venster = scanDuurMs;   // snapshot voor deze cyclus
+  Serial.printf("\n[SCAN] Start (%u ms)...\n", venster);
+
+  // Niet-blokkerende, continue scan begrensd door een millis()-venster -> ms-granulariteit
+  // (NimBLE 1.4.2 kan enkel in hele seconden blokkeren). De BeaconZoeker-callback vult batchData
+  // tijdens het venster, net als bij de oude blocking scan. Voordeel: commando's/melodie/animatie
+  // worden nu OOK tijdens de scan geservicet (was ~1 s bevroren).
+  pBLEScan->start(0, scanKlaar, false);   // 0 = continu tot stop()
+  unsigned long tScan = millis();
+  while (millis() - tScan < venster) {
+    verwerkCommandos();
+    verwerkTestToon();
+    verwerkKlokslag();
+    updateMelodie();
+    updateAnimatie();
+    delay(5);
+  }
+  pBLEScan->stop();
   pBLEScan->clearResults();
-  delay(20);
 
-  verwerkTestToon(); // buzzer-tuning: nieuwe toon die tijdens de scan binnenkwam toepassen
-  verwerkKlokslag(); // Klokslag-LED die tijdens de scan binnenkwam toepassen
-  updateMelodie();   // inhaal na BLE-scan (max ~1 s vertraging op nootovergang)
-  updateAnimatie();
-  verwerkCommandos();   // commando's die tijdens de scan binnenkwamen meteen afhandelen
+  verwerkCommandos();   // commando's die net vóór de stop binnenkwamen meteen afhandelen
 
   Serial.printf("[SCAN] Klaar, %d beacons gevonden (batt %u mV)\n",
                 batchData.aantal, batchData.batt_mv);

@@ -29,6 +29,7 @@ Dit voorkomt dat componenten uit sync raken.
 | `0x06` | `MSG_KNOP`      | slave → master (bij druk) | `knop_message` | 4 B |
 | `0x07` | `MSG_BUZZER_TOON` | master → slave (buzzer-tuning) | `buzzer_toon_message` | 4 B |
 | `0x08` | `MSG_KLOKSLAG`  | master → slave (Klokslag-LED) | `klokslag_message` | 7 B |
+| `0x09` | `MSG_SCAN_CONFIG` | master → slave (BLE-scan-duur) | `scan_config_message` | 4 B |
 
 ```cpp
 #define MSG_BATCH        0x01
@@ -39,6 +40,7 @@ Dit voorkomt dat componenten uit sync raken.
 #define MSG_KNOP         0x06
 #define MSG_BUZZER_TOON  0x07
 #define MSG_KLOKSLAG     0x08
+#define MSG_SCAN_CONFIG  0x09
 
 typedef struct __attribute__((packed)) {        // 0x01 — slave → master
   uint8_t  msg_type;        // = MSG_BATCH
@@ -105,6 +107,12 @@ typedef struct __attribute__((packed)) {        // 0x08 — master → slave, Kl
   uint8_t  helderheid;      // 0..255 — de engine schaalt al met de voortgang P/H
   uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
 } klokslag_message;
+
+typedef struct __attribute__((packed)) {        // 0x09 — master → slave, BLE-scan-config
+  uint8_t  msg_type;        // = MSG_SCAN_CONFIG
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint16_t scan_ms;         // gewenste BLE-scan-vensterduur in ms (slave clamp't 300..2000)
+} scan_config_message;
 ```
 
 > **`MSG_KLOKSLAG` (Klokslag-minigame).** De Klokslag-engine kleurt elke paal in de **teamkleur**
@@ -125,15 +133,24 @@ typedef struct __attribute__((packed)) {        // 0x08 — master → slave, Kl
 > volgende `MSG_BUZZER_TOON` binnenkomt). De bestaande `commando_message_v2` heeft
 > geen parameter-veld, daarom een eigen berichttype met `freq_hz`.
 
+> **`MSG_SCAN_CONFIG` (BLE-scan-duur).** De BLE-scan-vensterduur is runtime instelbaar (versere
+> detectie ⇒ minder scoring-latentie). NimBLE 1.4.2 kan enkel in hele seconden blokkeren, dus scant
+> de slave niet-blokkerend en begrenst hij het venster zelf met `millis()`. Dit bericht draagt de
+> gewenste duur in ms; de slave clamp't ze naar **300..2000 ms** en past ze toe bij de volgende scan.
+> Net als `MSG_BUZZER_TOON` loopt het **niet** via de commando-FIFO/ACK (fire-and-forget). JSON van
+> Node-RED: `{"paal":N,"actie":20,"scan_ms":M}` (de master vertaalt actie 20 naar `MSG_SCAN_CONFIG`,
+> zoals actie 12 → `MSG_BUZZER_TOON`).
+
 ### Dispatch + lengte-validatie
 
 - **Master `OnDataRecv`**: check `len ≥ 1`, dan `switch (incomingData[0])`. Valideer per type de **exacte
   lengte** (`len >= sizeof(<struct>)`) vóór `memcpy`. Onbekend `msg_type` of verkeerde lengte → log + drop.
   De sender-MAC-gate (`vindSlaveIndex` tegen `slaveAdressen[]`) blijft als eerste filter staan.
 - **Slave `OnDataRecv`**: accepteert `MSG_COMMANDO` (`incomingData[0] == 0x02` + lengtecheck),
-  `MSG_BUZZER_TOON` (`0x07`, buzzer-tuning) en `MSG_KLOKSLAG` (`0x08`, Klokslag-LED); al het andere
-  wordt genegeerd. Buzzer-toon en Klokslag zetten enkel `volatile` doelwaarden (geen `tone()`/
-  `FastLED.show()` in de WiFi-callback); de loop past ze toe (`verwerkTestToon()`/`verwerkKlokslag()`).
+  `MSG_BUZZER_TOON` (`0x07`, buzzer-tuning), `MSG_KLOKSLAG` (`0x08`, Klokslag-LED) en `MSG_SCAN_CONFIG`
+  (`0x09`, scan-duur); al het andere wordt genegeerd. Buzzer-toon, Klokslag en scan-config zetten enkel
+  `volatile` doelwaarden (geen `tone()`/`FastLED.show()` in de WiFi-callback); de loop past ze toe
+  (`verwerkTestToon()`/`verwerkKlokslag()` / de scan-lus die `scanDuurMs` snapshot).
 
 ### Applicatie-ACK (afronding ná uitvoering)
 
@@ -196,7 +213,12 @@ gedropt maar een teller bijgehouden en een `MSG_FOUT` (foutcode "BLE-overflow") 
 ### Frequentie en timing
 
 - Slave scant BLE met scanInterval/scanWindow afgestemd op antenne-coexistence
-  (single-antenne C3 moet schakelen tussen ESP-NOW en BLE)
+  (single-antenne C3 moet schakelen tussen ESP-NOW en BLE). Window 64 / interval 80
+  (~80% duty, units 0.625 ms) zodat een kort scan-venster bij 300 ms-adverterende beacons
+  toch genoeg samples ziet.
+- **Scan-vensterduur is runtime instelbaar** (`MSG_SCAN_CONFIG`, actie 20): niet-blokkerende
+  scan begrensd door een `millis()`-venster (NimBLE 1.4.2 blokkeert enkel in hele seconden).
+  Kortere scans = versere detectie = minder scoring-latentie. Default 1000 ms, clamp 300..2000 ms.
 - Batch wordt **elke** scan-cyclus verzonden, óók bij 0 gevonden spelers.
   Zo herkent het systeem een leeggelopen vak en blijft de stand niet hangen.
 - **Dedup binnen een batch**: een beacon adverteert meerdere keren per seconde,
@@ -254,6 +276,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 17 | `ACTIE_KNOP_ARM`    | Drukknop-paal **actief** zetten: GPIO6-feedback-LED **aan** (uit zolang de knop ingedrukt is) en de cumulatieve druk-teller op 0. Raakt de WS2812B-strip niet. |
 | 18 | `ACTIE_KNOP_UIT`    | Drukknop-paal **inactief** zetten: GPIO6-LED **uit**, geen tellen meer. |
 | 19 | `ACTIE_REGENBOOG`   | **Test**: roterende regenboog over de 7 LEDs (volledig spectrum, deltaHue 255/7). Puur voor kleur-/LED-controle; via de losse inject `[TEST] Regenboog (paal 1, actie 19)` op de "00 Configuratie"-flow (zelf naar een `commando/masterN` mqtt-out bedraden). Blijft tekenen tot een andere actie binnenkomt (bv. `ACTIE_NIETS`). |
+| 20 | `ACTIE_SCAN_CONFIG` | BLE-scan-vensterduur (ms) instellen. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_SCAN_CONFIG` (zie §0). Vereist het extra JSON-veld `scan_ms` (ms; slave clamp't 300..2000). Fire-and-forget (geen FIFO/ACK). Raakt de LED-strip niet. |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -447,6 +470,12 @@ FIFO/ACK: de master stuurt direct een `MSG_BUZZER_TOON` (zie §0) naar die paal 
 (`toon:0` = stop). Het veld `actie` blijft aanwezig zodat `bridge.py` (eist `paal`+`actie`) ongewijzigd
 blijft; `toon` is het extra frequentie-veld (Hz).
 
+**BLE-scan-config (actie 20).** Bij `{"paal":1,"actie":20,"scan_ms":600}` gaat het commando **niet** door
+de FIFO/ACK: de master stuurt direct een `MSG_SCAN_CONFIG` (zie §0) naar die paal met de gewenste
+scan-vensterduur (`scan_ms` in ms; de slave clamp't 300..2000). Het veld `actie` blijft aanwezig zodat
+`bridge.py` (eist `paal`+`actie`) ongewijzigd blijft. De master antwoordt met status `scan` (verstuurd)
+of `send_err`.
+
 | Status         | Betekenis |
 |----------------|-----------|
 | `queued`       | Commando achteraan de per-slave FIFO gezet, wordt in volgorde async verzonden (geen laatste-wint). |
@@ -454,6 +483,7 @@ blijft; `toon` is het extra frequentie-veld (Hz).
 | `uitgevoerd`   | Slave heeft het commando **uitgevoerd** (`MSG_CMD_ACK status 0`). Bevat `seq`. Vervangt de v1 `ack`. |
 | `geweigerd`    | Slave gaf `MSG_CMD_ACK status 1` (onbekende/geweigerde actie). Bevat `seq`. |
 | `send_err`     | `esp_now_send()` gaf geen ESP_OK (radio). Retry volgt automatisch. |
+| `scan`         | BLE-scan-config (actie 20) direct verstuurd als `MSG_SCAN_CONFIG`. Bevat `scan_ms`. Fire-and-forget (geen ACK). |
 | `opgegeven`    | Na `MAX_POGINGEN` zonder applicatie-ACK — commando verloren. |
 | `geen_slave`   | `paal_id` wijst naar een leeg/placeholder slot (all-zero MAC) — geweigerd. |
 | `buiten_bereik` | `paal_id` valt buiten het paalbereik van deze master (`PAAL_MIN..PAAL_MAX`). Bevat `master`. Hoort nooit te gebeuren (de bridge routeert op `paal_id`) → wijst op een routeringsfout. |
@@ -492,6 +522,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `pof/tijdbom`      | Node-RED → browser | `{"spelers":[{"speler":"Lilou","rondesOver":7,"uur":5}],"ontmantelPalen":[3,7]}` — actieve tijdbommen + de gekozen ontmantel-palen (retained); voedt de 💣-badges + het knoppen-paneel |
 | `pof/knop`         | Node-RED → browser | `{"paal":7,"teller":4}` — een drukknop is ingedrukt (visuele flits in de sim; `teller` = cumulatieve druk-teller voor het drukknop-testdashboard; transient) |
 | `config/drukknoppen` | Node-RED → browser | `[3,4,7,9,11,13,15,16,17,19,21,22]` — palen met een fysieke drukknop (retained); bron = `[CONFIG] Drukknop-palen`. Voedt het sim-knoppen-paneel |
+| `config/scan-duur` | Node-RED ↔ client | `{"1":700,"2":700,…}` (retained) — BLE-scan-vensterduur (ms) per paal; bron = dashboard-group "Scan-duur (BLE)" (Beacons & Locatie). Node-RED herlaadt hem in `global.scanDuurPerPaal` bij (her)start en herstelt gereboote slaves via de heartbeat |
 | `spel/type`        | browser ↔ Node-RED | `{"type":"plates_of_fate"\|"klokslag"}` (retained) — **gekozen spel**, één bron van waarheid. Zowel de simulator als het Bediening-dashboard publiceren én abonneren erop; beide engines lezen `global.spelType` en draaien enkel als het hún spel is |
 | `klokslag/status`  | Node-RED → browser | `{"actief":true,"fase":"lopend"\|"einde"\|"idle","resterend_s":480,"speeltijd_s":600,"winnaar":"team1"\|null}` (retained) — Klokslag-timer + einde/winnaar |
 | `klokslag/palen`   | Node-RED → browser | `{"palen":[{"paal":10,"P":4.2,"H":10,"controller":"team1","eigenaar":null,"modus":"capturing"}]}` (retained) — per-paal inname-staat; voedt de Klokslag-LED-render in de sim. `modus`: `rust`/`capturing`/`owned`/`frozen` |
@@ -511,7 +542,7 @@ reactietijd-aftelling (de sequencer triggert dan "Voer gevolg uit").
 - `doelwit`: volledige array van gekozen doelwitten.
 - `doelwitReveal`: de progressief opgebouwde tekst (`• naam\n• naam`), zodat
   de simulator dezelfde één-voor-één-onthulling toont als het dashboard.
-- `fase`: `idle` / `aanloop` / `bezig` / `reactie` / `regroup` (NUKE-pauze) / `wacht*`.
+- `fase`: `idle` / `aanloop` / `bezig` / `reactie` / `grace` (settle-grace vóór de controle) / `regroup` (NUKE-pauze) / `wacht*`.
 
 Zo tonen het Node-RED dashboard (ui_text "Doelwit") én de browser-simulator
 identieke informatie zonder browser-specifieke scripting.
@@ -666,6 +697,15 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-07-02: **`MSG_SCAN_CONFIG` (0x09) + actie 20 `ACTIE_SCAN_CONFIG`** — runtime-instelbare BLE-scan-
+  vensterduur. De slave scant nu **niet-blokkerend**, begrensd door een `millis()`-venster (`scanDuurMs`,
+  default 1000 ms, clamp 300..2000), i.p.v. de vaste `start(1 s)` (NimBLE 1.4.2 blokkeert enkel in hele
+  seconden). Scan-duty verhoogd naar window 64/interval 80 (~80%). Config via `{"paal":N,"actie":20,
+  "scan_ms":M}` op `commando/masterN`; de master vertaalt actie 20 → `MSG_SCAN_CONFIG` en stuurt direct
+  (geen FIFO/ACK, status `scan`). Node-RED: dashboard-group "Scan-duur (BLE)" + retained `config/scan-duur`
+  + auto-herstel na slave-reboot via de heartbeat. `bridge.py` ongewijzigd (`scan_ms` komt mee als extra
+  veld). Vereist herflash van slave(s) + master(s). Bijkomend (Node-RED-only, geen wire-format): een
+  **settle-grace**-fase in de PoF-engine draait de controle op T+grace i.p.v. T.
 - 2026-06-14: **`MSG_BUZZER_TOON` (0x07) + actie 12 `ACTIE_BUZZER_TOON`** voor buzzer-tuning. Een nieuw
   parameter-dragend ESP-NOW-bericht (`buzzer_toon_message`, 4 B) waarmee de master een **continue** toon
   op een willekeurige frequentie op een slave start/stopt — om per bordje de luidste resonantie te zoeken.

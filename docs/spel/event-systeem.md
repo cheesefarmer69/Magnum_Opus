@@ -164,8 +164,12 @@ reactietijd: een geordende reeks hops `[van,naar]` per speler (`global.pofPad`).
 2. **Event kiezen + tonen** — respecteer de `max`/`getal`-grenzen van het event.
 3. **Doelwitten bekendmaken** — wie is geselecteerd (afroep: aantal + zelfst.nw + tekst).
 4. **Reactietijd** — geselecteerde spelers bewegen; pad wordt opgenomen.
-5. **Controle** — de verplaatsingscontrole draait (sectie 7): pad actie-per-actie + invarianten.
-6. **Toestanden opschonen** — verlopen toestanden (`resterendeRondes ≤ 0`) verdwijnen; portalen/
+5. **Settle-grace** (`global.pofSettleGrace`, default 3 s; 0 = uit) — na de reactietijd wacht de engine
+   kort (fase `grace`) zodat **traag-settlende** paalwissels nog in **dit** event terechtkomen; het pad
+   wordt ondertussen verder opgenomen. Vermijdt onterecht "TE WEINIG" en het doorlekken van een late hop
+   naar het volgende event ("BEWOOG mocht niet"). Enkel in automatische modus; manueel wacht op de knop.
+6. **Controle** — de verplaatsingscontrole draait (sectie 7): pad actie-per-actie + invarianten.
+7. **Toestanden opschonen** — verlopen toestanden (`resterendeRondes ≤ 0`) verdwijnen; portalen/
    happy hour die nog actief zijn blijven.
 
 Portalen en happy hour zijn **toestanden** (open in hun eigen event, blijven actief tot ze

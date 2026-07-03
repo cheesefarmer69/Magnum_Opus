@@ -84,6 +84,37 @@ welke paal die hoort. De aanpak (na de herziening):
 > een veel zwakkere. Met een trage beacon (adv-interval 700 ms) gebeurde dat
 > voortdurend. De grace-periode en sustained-switch maken de schatting stabiel.
 
+## BLE-scan-duur (versere detectie, minder scoring-latentie)
+
+De **settle-latentie** — de tijd tussen een fysieke paalwissel en een "settled" positie — is de som van
+twee schakels:
+
+1. **Slave-scancyclus** (~scan + backoff ≤150 ms + luistervenster 200 ms + 50 ms). De BLE-scan was vast
+   1 s; hij is nu **runtime instelbaar** (zie onder).
+2. **Locatiebepaling** (venster 5–7 s, grace 3–5 s, switch-samples 2–3). Dit domineert de settle-tijd.
+
+Een kortere scan verhoogt de **sample-rate** (versere detectie) én verkleint schakel 1, waardoor je ook
+de locatie-parameters (venster/switch) strakker kunt zetten. Complementair vangt de **settle-grace** in
+de PoF-engine (controle op T+grace i.p.v. T) de resterende traagheid op — zie `docs/spel/event-systeem.md`.
+
+**Instellen (dashboard-group "Scan-duur (BLE)" op deze pagina):**
+
+| Regelaar | Effect |
+|----------|--------|
+| **Scan-duur — alle slaves (ms)** | zet dezelfde scan-vensterduur op **alle** palen (400–1000 ms). |
+| **Paal (individueel)** + **Scan-duur — deze paal (ms)** + **Pas toe** | zet één paal apart. |
+
+Onder water stuurt Node-RED `{"paal":N,"actie":20,"scan_ms":M}` → `MSG_SCAN_CONFIG` naar de slave. De slave
+scant **niet-blokkerend**, begrensd door een `millis()`-venster, en **clamp't 300..2000 ms** (default 1000).
+De waarde is **volatile** (weg bij een slave-reboot); Node-RED **herstelt** hem automatisch op de
+eerstvolgende heartbeat (uptime-daling = reboot-detectie) en bewaart de stand retained op `config/scan-duur`.
+
+**Afweging (belangrijk).** Bij adv-interval **300 ms** en de scan-duty (window 64 / interval 80 = ~80 %)
+vangt een scan van 400 ms gemiddeld ~1,2 beacon, 600 ms ~1,8, 1000 ms ~3. Onder ~500 ms wordt het venster
+kort t.o.v. het adv-interval → controleer in de **ruwe-RSSI-tabel** dat er nog genoeg samples (`n`) per
+venster binnenkomen. **Aanbevolen startpunt: ~700 ms** (versere detectie zonder samples te verliezen);
+ga alleen lager als de ruwe-RSSI-tabel dat toelaat.
+
 ## Live bijregelen (dashboard "Beacons & Locatie")
 
 Open in het dashboard de pagina **Beacons & Locatie**, groep **Locatie-instellingen**.

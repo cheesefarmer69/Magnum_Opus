@@ -78,6 +78,22 @@ signaal op. De flow bepaalt de actieve paal zo:
 > De radar-tabel toont de levensdagen/levensuren die flow 04 in
 > `global.spelerStats` bijhoudt.
 
+## Scan-duur (BLE-scan-vensterduur)
+
+Op de dashboard-pagina **Beacons & Locatie** staat de group **"Scan-duur (BLE)"** waarmee je de
+BLE-scan-vensterduur van de slaves instelt (versere detectie ⇒ minder scoring-latentie). Zie
+`docs/locatiebepaling.md` (sectie "BLE-scan-duur") voor de afweging.
+
+| Node                          | Functie                                                                 |
+|-------------------------------|-------------------------------------------------------------------------|
+| sliders + knop (group)        | "alle slaves (ms)" / "paal" + "deze paal (ms)" + "Pas toe"              |
+| `Scan-duur controller`        | bouwt `{paal,actie:20,scan_ms}` → **Route commando**; feedback → ui-text; retained `config/scan-duur` |
+| `Scan-duur reapply (heartbeat)` | hangt achter `Ontvang Paal/MAC Data`; op elke slave-heartbeat (`hb:1`) herstelt hij de ingestelde scan-duur na een reboot (uptime-daling = reboot) |
+| `config/scan-duur` (mqtt in/uit) | retained persistentie: herlaadt `global.scanDuurPerPaal` bij (her)start van Node-RED |
+
+De firmware clamp't `scan_ms` naar 300..2000 ms (default 1000). Protocol: `MSG_SCAN_CONFIG` / actie 20
+(`docs/protocol.md §0/§2`). De grace-kant (settle-grace) zit in flow 06 — zie `docs/spel/event-systeem.md`.
+
 ## Afhankelijkheid
 
 Flow **00 Configuratie** moet gedraaid hebben: zonder `global.spelersLijst`
