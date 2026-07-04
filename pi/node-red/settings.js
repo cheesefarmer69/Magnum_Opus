@@ -54,7 +54,25 @@ module.exports = {
 
     // --- Function-nodes ---
     functionGlobalContext: {
-        // (leeg: het spel gebruikt uitsluitend global.get/set, geen extra libs nodig)
+        // Gedeelde PARTIJ-reset (single source of truth). Wist ALLE per-partij toestand-registers
+        // op één plek, zodat elk nieuw global-veld nog maar HIER hoeft te worden toegevoegd i.p.v.
+        // in elke reset-knop apart. Raakt NOOIT persistente state aan (globaleStats, spelHistorie,
+        // spelNummer, godPunten, spelerStats-totalen, de pi-klok midnight*, middernachtActief/Aan).
+        // Roep SYNCHROON aan met het global-object:  global.get("resetPartij")(global)
+        // (synchroon = veilig vlak vóór het opzetten van een nieuwe start-state, geen volgorde-val).
+        resetPartij: function (global) {
+            global.set("pofHuidigSpel", null); global.set("pofHuidigEvent", null); global.set("pofWachtrij", []);
+            global.set("pofActief", false); global.set("pofFase", "idle"); global.set("pofTeller", 0);
+            global.set("pofEventenRonde", 0); global.set("pofDoelwitReveal", "");
+            global.set("bordStaat", {}); global.set("spelerEffecten", {}); global.set("wereldEffecten", []);
+            global.set("ziekeSpelers", {}); global.set("pofGenezen", []); global.set("dienaars", {}); global.set("luisterNaam", {});
+            global.set("tijdbomSpelers", {}); global.set("tijdbomOntmantelPalen", []);
+            global.set("tijdreizenActief", false); global.set("etenstijd", null); global.set("tweelingen", []);
+            global.set("infectedActief", false); global.set("infected", null); global.set("infectedLed", {}); global.set("infectedLaatstePalen", []); global.set("infectedStatusSig", "");
+            global.set("nukeActief", false); global.set("middernachtOogst", false); global.set("tornadoActief", []); global.set("spelTempoFactor", 1); global.set("pofSnapshots", []); global.set("paalLedForceRebuild", true);
+            global.set("pofVerificatie", {}); global.set("pofLaatsteControle", []); global.set("pofPad", {});
+            global.set("mnGestraft", {}); global.set("paalLedActie", {});
+        }
     },
 
     // --- Editor thema (cosmetisch) ---

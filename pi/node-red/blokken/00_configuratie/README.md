@@ -46,6 +46,17 @@ elke deploy en bij het herstarten van Node-RED. Je kan ze ook handmatig aanklikk
 
 ## De spelerslijst opmaken en aanpassen
 
+> **Voorkeur: doe dit vanaf het dashboard, niet meer hier.** Sinds H8 beheer je de baken↔speler-koppeling
+> live op de dashboardpagina **Beacons & Locatie → groep "Spelers / bakens beheren"** (wapper een baken bij
+> een paal → kies de speler → **Koppel**). Dat schrijft `global.spelersLijst` én bewaart het **retained op
+> `config/spelers`**, zodat een bakenwissel een deploy/herstart overleeft — geen laptop nodig. Zie
+> `docs/locatiebepaling.md` ("Bakens toewijzen en vervangen").
+>
+> De `[CONFIG] Spelerslijst`-inject hieronder is daardoor nog enkel een **bootstrap-default** (voor een vers
+> systeem zonder retained `config/spelers`). **Let op:** zodra er retained `config/spelers`-data bestaat,
+> **overschrijft** die na een deploy de seed hieronder. Wil je de seed weer laten gelden: wis het retained
+> topic (`mosquitto_pub -h 192.168.1.43 -r -n -t config/spelers`) en deploy opnieuw.
+
 De spelerslijst koppelt het MAC-adres van elke beacon aan een spelersnaam.
 
 1. Open Node-RED in de browser (`http://192.168.1.43:1880`).

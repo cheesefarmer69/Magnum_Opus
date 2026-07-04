@@ -122,8 +122,17 @@ Een verplaatsing is een reeks atomaire acties:
 - **TELEPORT** = via een actief portaal naar de gekoppelde paal → **0 stappen, 0 levensuren**,
   richting-agnostisch (mag dus naar een lager uur), max 1× per portaal per verplaatsing.
 
-Tijdens elk event mag enkel het **doelwit** van een verplaatsing-event bewegen; anderen blijven
-stil. Per speler bij de controle (`voor` = aantal STAP vooruit, `x` = budget):
+**Tussen events mag je vrij en onbeperkt bewegen.** Zolang er géén event loopt — tijdens de
+aanloop-aftelklok en in de tijd tussen de controle en het volgende event — mag **elke** speler
+lopen waarheen hij wil, zonder straf en zonder dat het wordt opgenomen. Dit is bewuste
+**counterplay**: je positioneert je voor het volgende event, en bijvoorbeeld een **zieke** speler
+wandelt zo naar een **medicijn-paal** om er bij de eerstvolgende controle ("OK (stil)") te
+genezen. (De enige uitzondering buiten een event is de **middernacht-poort**: bij een dichte
+poort mag je de 24→1-oversteek niet lopen.)
+
+Zodra een event start (vanaf de doelwit-reveal) geldt de in-event-regel: enkel het **doelwit**
+van een verplaatsing-event mag bewegen; anderen blijven stil. Per speler bij de controle
+(`voor` = aantal STAP vooruit, `x` = budget):
 
 - **Legaal** (doelwit, `voor ≤ x`, geen achterstap): `+voor` levensuren; eindigt hij op een
   **happy-hour**-uur, dan **dubbel**.

@@ -16,6 +16,14 @@ testen als tijdens een echt spel. In deze eerste versie beheert het de
 | `Toon toestand bij opstart` | inject die de weergave vult bij het starten van Node-RED  |
 | Plates of Fate-besturing  | Start/Stop POF + "Huidig event" (flow 06) staan op deze pagina |
 
+> **Gedeelde partij-reset (single source).** `Verwerk bediening` (stop/herstart), `Verwerk
+> noodstop` en de knoppen op flow 06 (Spel aan/uit) + flow 05 (Admin "Reset ALLES") wissen de
+> partij-toestand **niet** meer elk met hun eigen lijstje, maar via één synchrone helper
+> `global.get("resetPartij")(global)` uit `pi/node-red/settings.js` (`functionGlobalContext`).
+> Een nieuw partij-veld voeg je dus op **één** plek toe. De helper raakt persistente state
+> (globale stats, historie, `spelNummer`, `godPunten`, π-klok) nooit aan. Zie invariant **NR9**.
+> ⚠️ `settings.js` wijzigen vereist een **container-herstart** (niet enkel `deploy-flows`).
+
 > De ruwe `[TEST] Commando ...`-injects en de losse `commando/master1` MQTT-out
 > zijn verwijderd; de Plates-of-Fate engine stuurt commando's nu zelf. De
 > POF-besturingsgroep is naar deze Bediening-pagina verplaatst.

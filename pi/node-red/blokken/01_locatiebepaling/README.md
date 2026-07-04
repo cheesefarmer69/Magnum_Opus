@@ -94,6 +94,22 @@ BLE-scan-vensterduur van de slaves instelt (versere detectie ⇒ minder scoring-
 De firmware clamp't `scan_ms` naar 300..2000 ms (default 1000). Protocol: `MSG_SCAN_CONFIG` / actie 20
 (`docs/protocol.md §0/§2`). De grace-kant (settle-grace) zit in flow 06 — zie `docs/spel/event-systeem.md`.
 
+## Spelers / bakens beheren (H8)
+
+Op de pagina **Beacons & Locatie** staat de group **"Spelers / bakens beheren"** waarmee je de baken-MAC ↔
+spelernaam-koppeling (`global.spelersLijst`) **live** aanpast, zonder `flows.json` te editen of te deployen.
+
+| Node                          | Functie                                                                 |
+|-------------------------------|-------------------------------------------------------------------------|
+| dropdown + tekst + 2 knoppen  | Speler kiezen · "Nieuw baken" (laatst-gezien onbekend MAC) · Koppel/Ontkoppel |
+| `Spelers-beheer controller`   | verwerkt koppel/ontkoppel/tick; schrijft `global.spelersLijst`; publiceert retained `config/spelers`; vervangt automatisch een bestaand baken van dezelfde speler |
+| `beheer-tick` (inject, 2 s)   | ververst de "nieuw baken"-weergave, de koppelingen-tabel en de dropdown-opties |
+| `config/spelers` (mqtt in/uit)| retained round-trip: herlaadt `global.spelersLijst` bij (her)start en **wint** van de flows.json-seed |
+
+"Nieuw baken" = de nieuwste MAC uit `status_lastSeenMac` die nog **niet** in `spelersLijst` staat — dus
+wapper een reservebaken bij een paal en het verschijnt. Zie `docs/locatiebepaling.md` ("Bakens toewijzen en
+vervangen") en `pi/node-red/blokken/00_configuratie/README.md` (seed = enkel bootstrap).
+
 ## Afhankelijkheid
 
 Flow **00 Configuratie** moet gedraaid hebben: zonder `global.spelersLijst`

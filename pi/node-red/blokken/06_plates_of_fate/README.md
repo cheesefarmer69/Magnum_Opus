@@ -38,6 +38,14 @@ Spel UIT  → stop + partij-reset (globale stats blijven) + alle paal-LED's uit.
   met die aantal-prefix; `Kies doelwit` **snapshot de beginposities** en bouwt de
   doelwit-reveal-audio; `Voer gevolg uit` voert de gevolgen uit en zet de fase op
   `reactie` (×0.5 bij wereld-effect `events_sneller`).
+- **DOELWIT-DICHTHEID (G3)**: het **aantal** doelwitten voor een string-optie (`laag/midden/hoog`) wordt
+  in `Kies event` niet vast gerold maar **geschaald met N** (= actieve, niet-gepauzeerde spelers):
+  `clamp(round(N × doelwitDichtheid × mult), 1, min(N,10))` met `mult` 0,6/1,0/1,8 en de knob
+  `global.doelwitDichtheid` (default 0,25; dashboard "Spelbalans" op Bediening, of `sim/systeem-config`).
+  `enkel`=1; vaste getallen (`portalen`/`tweeling`), arrays (`tornado`) en `alle` schalen niet. **Groep-
+  events** krijgen bovendien een tier-**boost** `×(1+0,1·max(0,N−15))` — die weging staat in **zowel**
+  `Kies event` als `Bouw pof/status` (de vooruit-geplande `pofWachtrij`), anders wint de wachtrij. Zie
+  `docs/spel/events.md` (Opties) + invariant EV6.
 - **VERIFY = scoren (pad-gebaseerd)**: `Verifieer beweging` kent **hier** de levensuren toe
   (niet live), op basis van het **opgenomen pad** `pofPad[speler]` — een geordende reeks hops die
   `Bereken levensuren` (flow 04) tijdens de reactietijd verzamelt. Elke hop is een **STAP**
@@ -253,7 +261,10 @@ effecten** (`Niveau | Doel | Effect | Rondes resterend`), gevoed door
 
 - **Doel-keuze** (Bediening): `global.pofDoel` (`{type:"verplaats_uur"|"inhalen", x}`),
   `global.pofDoelAantal`, `global.pofAutoEinde`.
-- **`verplaatstSpel`** (per-spel, in `spelerStats`) wordt in "Verifieer beweging" opgehoogd met `r.voor`.
+- **`verplaatstSpel`** (per-spel, in `spelerStats`) wordt in "Verifieer beweging" opgehoogd met `r.voor`,
+  maar **enkel bij een legale zet** (`status === "OK"`, vastgelegd vóór de god-punt/ziekte/happy-decoraties):
+  een foute, god-vergeven of dichte-poort-oversteek-zet telt niet mee, zodat vals spelen doel 1 + de
+  god-punten niet kan farmen (S7).
   **Doel 2 (inhalen)** wordt daar gelatcht in `spelerStats[naam].doelBereikt` (rivaal = volgende in
   alfabet cyclisch; van lager uur komen, ≥1 voorbij eindigen, passeren door STAP; portaal-voorbij telt
   niet, portaal-terug-dan-lopen wel).

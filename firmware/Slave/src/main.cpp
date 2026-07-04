@@ -5,8 +5,10 @@
 #include <WiFi.h>
 #include <FastLED.h>
 #include "esp_random.h"
+#include "esp_mac.h"        // esp_read_mac(): eigen MAC uit eFuse lezen vóór WiFi-init
 #include "driver/gpio.h"   // IRAM-veilige gpio_get_level/gpio_set_level voor de knop-ISR
 #include "esp_timer.h"     // IRAM-veilige esp_timer_get_time() voor knop-debounce
+#include "paal_macs.h"     // gedeelde MAC->PAAL_ID-tabel (firmware/shared) — één bron van waarheid
 
 // ====================================================================
 // PARAMETERS
@@ -20,7 +22,11 @@
 volatile uint16_t scanDuurMs    = SCAN_MS_DEFAULT;   // gewenste scan-venster (OnDataRecv schrijft)
 volatile bool     scanDuurDirty = false;             // true zodra een nieuwe waarde binnenkwam (log)
 const int WACHT_TIMEOUT  = 200;
-const int PAAL_ID        = 1;
+// PAAL_ID is NIET meer compile-time: de slave zoekt bij boot zijn eigen MAC op in de
+// gedeelde tabel PAAL_MACS (paal_macs.h) -> één binary voor alle 24 borden. 0 = onbekend
+// bord (MAC nog niet in de tabel): de slave doet dan niet mee (fout-blink) i.p.v. een
+// verkeerd paalnummer te claimen.
+int PAAL_ID              = 0;
 const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
@@ -834,10 +840,12 @@ void verwerkCommandos() {
     uint16_t seq   = cmdBuf[cmdHead].seq;
     cmdHead = (cmdHead + 1) % CMD_BUF_SLOTS;
 
-    // Bekende commando-acties: 0..15 (LED/anim/buzzer-melodie). 12 (buzzer-toon) en 16 (klokslag)
-    // komen via een eigen msg_type, niet via deze FIFO.
+    // Bekende commando-acties via deze FIFO: 0..15 (LED/anim/buzzer-melodie),
+    // 17/18 (knop arm/uit) en 19 (regenboog-test). 12 (buzzer-toon), 16 (klokslag)
+    // en 20 (scan-config) komen via een eigen msg_type, niet via deze FIFO.
     uint8_t ackStatus = (actie <= ACTIE_TORNADO_RAND ||
-                         actie == ACTIE_KNOP_ARM || actie == ACTIE_KNOP_UIT) ? 0 : 1;   // 1 = onbekende actie
+                         actie == ACTIE_KNOP_ARM || actie == ACTIE_KNOP_UIT ||
+                         actie == ACTIE_REGENBOOG) ? 0 : 1;   // 1 = onbekende actie
     if (seq != laatsteUitgevoerdeSeq) {
       Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
       if (ackStatus == 0) voerActieUit(actie);
@@ -849,12 +857,35 @@ void verwerkCommandos() {
   }
 }
 
+// Zoek het PAAL_ID dat bij dit bordje hoort op basis van zijn eigen MAC (uit paal_macs.h).
+// Geeft 0 als het MAC nog niet in de tabel staat (onbekend/nog niet geprovisioned bord).
+static int zoekPaalId(const uint8_t *mac) {
+  for (int i = 0; i < PAAL_MACS_N; i++) {
+    if (memcmp(mac, PAAL_MACS[i].mac, 6) == 0) return PAAL_MACS[i].paal;
+  }
+  return 0;
+}
+
 // ====================================================================
 // SETUP
 // ====================================================================
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  // === PAAL_ID bepalen uit het eigen MAC (paal_macs.h) ===
+  // esp_read_mac() leest het WiFi-STA-MAC rechtstreeks uit de eFuse — kan al vóór WiFi-init,
+  // dus vóór de buzzer-tabel en de master-keuze die PAAL_ID gebruiken.
+  uint8_t eigenMac[6];
+  esp_read_mac(eigenMac, ESP_MAC_WIFI_STA);
+  PAAL_ID = zoekPaalId(eigenMac);
+  if (PAAL_ID == 0) {
+    Serial.printf("[SETUP] !! ONBEKEND BORD: MAC %02X:%02X:%02X:%02X:%02X:%02X staat niet in "
+                  "paal_macs.h -> deelname GEBLOKKEERD (voeg het toe en herflash).\n",
+                  eigenMac[0], eigenMac[1], eigenMac[2], eigenMac[3], eigenMac[4], eigenMac[5]);
+  } else {
+    Serial.printf("[SETUP] Eigen MAC herkend -> PAAL_ID %d\n", PAAL_ID);
+  }
 
   // ADC configuratie voor ESP32-C3
   analogReadResolution(12);  // 12-bit (0-4095)
@@ -975,6 +1006,14 @@ void setup() {
 void scanKlaar(NimBLEScanResults) {}
 
 void loop() {
+  // Onbekend bord (eigen MAC niet in paal_macs.h): niet meedoen aan het spel. Duidelijke
+  // knipper op de rode LED zodat je het bord fysiek herkent; verder niets zenden zodat de
+  // master het nooit als geldige paal ziet. Voeg het MAC toe aan paal_macs.h en herflash.
+  if (PAAL_ID == 0) {
+    digitalWrite(WARNING_LED_PIN, HIGH); delay(120);
+    digitalWrite(WARNING_LED_PIN, LOW);  delay(120);
+    return;
+  }
   verwerkTestToon(); // buzzer-tuning: continue toon toepassen indien gewijzigd
   verwerkKlokslag(); // Klokslag-LED toepassen indien gewijzigd
   updateMelodie();   // nootovergangen bijhouden voor BLE-scan start

@@ -97,7 +97,7 @@ verwerkCommandos() (consument) draineert hem in volgorde. Idempotent op cmd_seq.
 
 | Constante | Bestand regel | Betekenis |
 |-----------|--------------|-----------|
-| `PAAL_ID` | ~14 | Uniek ID van deze paal (1–24) — **per slave aanpassen** |
+| `PAAL_ID` | runtime | **Niet** meer per bord instellen: bij boot opgezocht uit `firmware/shared/paal_macs.h` op basis van het eigen MAC (0 = onbekend bord → doet niet mee). |
 | `WIFI_KANAAL` | ~15 | Moet overeenkomen met de master (standaard: 1) |
 | `SCAN_MS_DEFAULT` / `scanDuurMs` | ~14 | BLE-scan-vensterduur in **ms** (default 1000). Runtime instelbaar via `MSG_SCAN_CONFIG` (dashboard "Scan-duur (BLE)"); de slave clamp't `SCAN_MS_MIN`..`SCAN_MS_MAX` = 300..2000. |
 | `WACHT_TIMEOUT` | ~12 | Max wachttijd (ms) op commando na verzenden |
@@ -212,10 +212,12 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 
 ## Nieuwe slave in gebruik nemen
 
-1. Stel `PAAL_ID` in op het gewenste paal-nummer. De slave kiest daaruit **automatisch** zijn master-MAC
-   (1–8→master1, 9–16→master2, 17–24→master3, uit `masterMacs[]`) — verder niets per slave in te stellen.
-   Bij opstart logt hij `[SETUP] Paal N -> master M`.
-2. Flash de slave **via PlatformIO** (`Upload`), **niet via de Arduino IDE**.
+> **Eén binary voor alle 24 borden.** Je stelt **niets** meer per bordje in. De slave leest bij boot zijn
+> eigen MAC (`esp_read_mac`) en zoekt zijn `PAAL_ID` op in de gedeelde tabel `firmware/shared/paal_macs.h`.
+> Staat het MAC er nog niet in, dan **doet het bord niet mee** (rode LED knippert, geen batches) i.p.v. een
+> verkeerd paalnummer te claimen.
+
+1. Flash de (enige) slave-binary **via PlatformIO** (`Upload`), **niet via de Arduino IDE**.
    > ⚠️ **Altijd PlatformIO, nooit de Arduino IDE.** De Arduino IDE negeert
    > `platformio.ini` volledig en mist daardoor de build-flag
    > `-DFASTLED_RMT_BUILTIN_DRIVER=1`. Zonder die vlag verhongert WiFi/BLE
@@ -224,19 +226,22 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
    > `build_flag`, forceer dan een schone build (`pio run -e esp32-c3-devkitm-1
    > -t clean` daarna opnieuw uploaden), want een gewijzigde flag hercompileert
    > gecachte library-objecten (zoals FastLED) niet altijd vanzelf.
-3. Open Serial Monitor — bij het opstarten toont de slave eenmalig een
+2. Open Serial Monitor — bij het opstarten toont de slave eenmalig een
    banner met zijn MAC-adres:
    ```
    ============================================
      SLAVE MAC-ADRES : xx:xx:xx:xx:xx:xx
    ============================================
    ```
-4. Vul dit MAC-adres in op rij `paal − PAAL_MIN` in het juiste `MASTER_NR`-blok van
-   `firmware/Master/include/slave_macs.h` (zie master-handleiding)
-5. Herflash de juiste master-environment
+   (Staat het MAC nog niet in `paal_macs.h`, dan logt hij `!! ONBEKEND BORD ...` en knippert de rode LED.)
+3. Voeg één regel `{{0x.., …}, <paal>}` toe aan `firmware/shared/paal_macs.h` met dit MAC + het gewenste
+   paalnummer. Dit is de **enige** plek die je aanpast (bron van waarheid voor slave én master).
+4. Herflash de master die dat paalbereik bedient (die vult `slaveAdressen[]` uit dezelfde tabel). Het
+   slave-bord pakt zijn `PAAL_ID` bij de volgende boot vanzelf op — geen slave-herflash nodig als de binary
+   al draait.
 
-> Staat een master-MAC in `masterMacs[]` nog op `0x00…` (master 2/3 nog niet gebouwd), dan kunnen
-> slaves 8–24 nog niet zenden — vul die MAC's in zodra die masters bestaan.
+> Staat een paal nog niet in `paal_macs.h`, dan wordt hij overgeslagen bij de master (peer/gate) en doet
+> het bord zelf niet mee — vul de MAC's in zodra de borden geflasht en uitgelezen zijn.
 
 ---
 

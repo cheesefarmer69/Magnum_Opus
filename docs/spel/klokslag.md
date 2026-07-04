@@ -17,7 +17,10 @@ Per paal, elke tick, telt de engine de spelers per team:
 - **leider** = team met de meeste spelers; **voorsprong** = `aantal(leider) − aantal(tweede)`.
 - **snelheid** = `1,0 + 0,1 × min(voorsprong − 1, 3)` (×1,0 / 1,1 / 1,2 / 1,3 bij voorsprong 1/2/3/4+).
 - **magnitude + controller** (werkt voor 2 én 3 teams): elke paal heeft `P` (0..H), een
-  `controller` (team dat `P` opbouwt) en een `eigenaar` (zodra `P = H`).
+  `controller` (team dat `P` opbouwt) en een `eigenaar` (zodra `P = H`). De inname-tijd `H` is het
+  **uurnummer met een ondergrens**: `H = max(uur, min_inname_s)` (default 5 s). Zonder ondergrens zou
+  paal 1 in 1 s ingenomen zijn — ruim binnen de positie-settle-latentie (4–8 s) — waardoor lage uren
+  ruis-flippers werden (G8). De **score** blijft het uurnummer, niet `H`.
   - controller == leider → `P` stijgt richting `H`; bij `P = H` is de paal **ingenomen**.
   - leider ≠ controller → `P` daalt richting 0 (een vijandelijk uur overnemen kost dus `2H`).
   - `P = 0` → neutraal; de leider wordt controller en `P` stijgt.
@@ -67,8 +70,19 @@ renderen de flikker/ademing zelf (`docs/protocol.md` §0/§2).
 | `verval_per_sec` | 1,0 | tempo waarmee `P` naar 0 zakt bij gelijkspel/leeg |
 | `score_methode` | `aantal_uren` | `aantal_uren` of `som_uurnummers` |
 | `tick_hz` | 4 | engine-resolutie |
+| `min_inname_s` | 5 | ondergrens inname-tijd: `H = max(uur, min_inname_s)` (G8 — lage uren niet sub-sensing) |
 | `verlaten_paal` | `vergrendeld` | gedrag verlaten ingenomen paal |
 | `geluid_mijlpalen` | `true` | geluid bij inname-voltooid + einde |
 | `rust_led` | `ademend` | neutrale LED-staat |
+
+## Sensing: overdrive-modus (snellere positie)
+
+Klokslag (en Infected) draaien **automatisch in overdrive-sensing**: zodra `spelType` op Klokslag of
+Infected staat, verkort Node-RED (node "Sla spelType op") het locatie-`venster` (→ 2500 ms) en de
+`grace` (→ 1500 ms) en zet de BLE-scan op **400 ms** op alle palen — versere positie in ruil voor iets
+meer ruis. Bij terugkeer naar Plates of Fate worden je normale, gekalibreerde `locParams` en scan-duur
+hersteld (snapshot `locParamsNormaal`/`scanNormaalMs`). Je **RSSI-vloer en hysterese** blijven in
+overdrive behouden. In de **simulator** heeft dit geen effect (sim gebruikt exacte posities, geen BLE).
+Details: `docs/locatiebepaling.md`.
 
 Zie ook: `pi/node-red/blokken/07_klokslag/README.md` (engine), `docs/spel/spel.md` (speltypes).

@@ -58,6 +58,7 @@ spel meldt die of de spelstatus op dat moment OK was.
 | `ST-002` | FOUT / WAARSCHUWING | Paal stuurt geen data (geen contact) of is verouderd.            |
 | `ST-003` | FOUT                | Geen enkele data op `plaatjes/data` — controleer master + bridge. |
 | `ST-004` | INFO                | Onbekende beacon gedetecteerd (niet in `spelersLijst`).          |
+| `ST-005` | WAARSCHUWING        | Batterij bijna leeg (< `BATT_VERVANG_V` = 3,5 V) → **vervang batterij**. Niet-blokkerend. |
 
 > Deze codes worden lokaal in Node-RED afgeleid. Wanneer het error messaging
 > protocol bestaat, kunnen slaves/master eigen foutcodes sturen die hier
@@ -70,6 +71,9 @@ Bovenaan de functie `Evalueer spelstatus`:
 - `SPELER_TIMEOUT_MS` (15 s) — speler geldt als niet-gedetecteerd na deze stilte.
 - `SLAVE_STALE_MS` (60 s) — paal geldt als "verouderd" na deze stilte.
 - `GEEN_DATA_MS` (10 s) — geen enkele data → master/bridge-fout.
+- `BATT_VERVANG_V` (3,5 V) — celspanning waaronder een **ST-005**-batterijwaarschuwing verschijnt. Gebruikt
+  de `batt`-waarde uit `status_batterijPaal` (onafhankelijk van de "Toon batterij"-toggle); `WAARSCHUWING`
+  blokkeert de GO/NO-GO niet. Zie `docs/hardware/hardware-info.md`.
 
 ## NUKE-ontsnapping (nuke-scoped prune van `spelerLocaties`)
 

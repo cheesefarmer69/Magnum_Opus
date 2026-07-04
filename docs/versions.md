@@ -23,7 +23,8 @@ versie hier vermeld vs. de werkelijkheid op je systeem? Zie de verificatie-comma
 | Upload baud | 921600 | idem |
 
 **Geen externe libraries** — master gebruikt alleen Arduino core (`WiFi`, `esp_now`, `esp_wifi`).
-Slave-MAC's per master in `firmware/Master/include/slave_macs.h`.
+Slave-MAC's in de **gedeelde** `firmware/shared/paal_macs.h` (`MAC → PAAL_ID`, ingeladen via `-I ../shared`
+in beide `platformio.ini`); master vult hieruit `slaveAdressen[]`, slave leest zijn eigen `PAAL_ID`.
 
 ### Slave — ESP32-C3 SuperMini
 
@@ -109,6 +110,7 @@ Gepind in `pi/serial-bridge/requirements.txt`:
 - **paho-mqtt 1.x → 2.x:** vereist `mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)`. De huidige `bridge.py` gebruikt deze API; downgraden naar 1.x breekt de code.
 - **ESP32 Arduino core 2.x → 3.x:** veranderingen in WiFi/ESP-NOW API. Niet upgraden zonder code-review.
 - **Mosquitto-config:** `allow_anonymous true` werkt alleen voor lokaal netwerk-gebruik. Bij netwerk-blootstelling: auth toevoegen.
+- **2,4 GHz-kanaal (H6):** ESP-NOW zit hard op **kanaal 1**. Pin het **Pi-accesspoint op kanaal 6 of 11** zodat WiFi (dashboard/simulator/MQTT-WebSocket) niet met de ESP-NOW-airtime concurreert; doe op de speeldag een kanaalscan. Zie `docs/hardware/hardware-info.md`.
 - **Docker network modes:**
   - `serial-bridge` draait in `--network host` → `MQTT_BROKER=127.0.0.1` werkt
   - `magnum-Opus` (Node-RED) draait in default bridge → moet `192.168.1.43` gebruiken om broker te bereiken
@@ -143,6 +145,12 @@ docker exec magnum-Opus node-red --version
 
 ## Wijzigingsgeschiedenis
 
+- **2026-07-03**: **provisioning-refactor (H3)**. Compile-time `PAAL_ID` per slave vervangen door een
+  **gedeelde `firmware/shared/paal_macs.h`** (`MAC → PAAL_ID`): de slave zoekt bij boot zijn eigen MAC op
+  → **één binary voor alle 24 borden**; de master vult `slaveAdressen[]` uit dezelfde tabel (`slave_macs.h`
+  verwijderd). Beide `platformio.ini` via `-I ../shared`. Vereist herflash van master + alle slaves. Geen
+  wire-format-wijziging. Tevens: batterij-dashboard-waarschuwing (ST-005, < 3,5 V, Node-RED-only) + de
+  WiFi-kanaalafspraak (H6) vastgelegd.
 - **2026-06-11**: **multi-master** (Batch 4). Master-firmware: drie PlatformIO-envs (`master1/2/3`) met
   paalbereik via `build_flags`; slave-MAC's per master in `include/slave_macs.h`. Slave kiest master-MAC
   uit `PAAL_ID`. Simulator volgt `commando/master1..3`. Geen wire-format-wijziging.

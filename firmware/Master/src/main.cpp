@@ -9,16 +9,17 @@
 const int WIFI_KANAAL = 1;
 
 // ---- MULTI-MASTER CONFIG (via PlatformIO build_flags, zie platformio.ini) ----
-// Elke master bedient een paalbereik: master1 = 1..7, master2 = 8..16, master3 = 17..24.
-// Defaults (master1) zodat het bestand los compileert in de editor.
+// Elke master bedient een paalbereik: master1 = 1..8, master2 = 9..16, master3 = 17..24.
+// Defaults (master1) zodat het bestand los compileert in de editor (de echte master1/2/3-envs
+// zetten PAAL_MIN/PAAL_MAX/MASTER_NR via build_flags in platformio.ini).
 #ifndef PAAL_MIN
-#define PAAL_MIN 9
+#define PAAL_MIN 1
 #endif
 #ifndef PAAL_MAX
-#define PAAL_MAX 16
+#define PAAL_MAX 8
 #endif
 #ifndef MASTER_NR
-#define MASTER_NR 2
+#define MASTER_NR 1
 #endif
 // Aantal slaves dat deze master bedient (afgeleid uit het bereik).
 #define AANTAL_SLAVES (PAAL_MAX - PAAL_MIN + 1)
@@ -133,9 +134,22 @@ typedef struct __attribute__((packed)) scan_config_message {
 } scan_config_message;
 
 // ---- SLAVES REGISTREREN ----
-// De slave-MAC's per master staan in include/slave_macs.h (geselecteerd op MASTER_NR).
-// Index 0 = paal PAAL_MIN. Definieert: uint8_t slaveAdressen[AANTAL_SLAVES][6].
-#include "slave_macs.h"
+// De MAC->PAAL_ID-tabel staat gedeeld in firmware/shared/paal_macs.h (ÉÉN bron van waarheid
+// voor slave én master). Deze master vult daaruit slaveAdressen[] voor zijn eigen paalbereik
+// (PAAL_MIN..PAAL_MAX); index 0 = paal PAAL_MIN. Palen die (nog) niet in de tabel staan blijven
+// placeholder (all-zero) en worden overgeslagen bij peer-registratie en de ontvangst-gate.
+#include "paal_macs.h"
+uint8_t slaveAdressen[AANTAL_SLAVES][6] = {0};
+
+// Vul slaveAdressen[] uit de gedeelde tabel voor het bereik van deze master (in setup()).
+static void vulSlaveAdressen() {
+  for (int i = 0; i < PAAL_MACS_N; i++) {
+    int paal = PAAL_MACS[i].paal;
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+      memcpy(slaveAdressen[paal - PAAL_MIN], PAAL_MACS[i].mac, 6);
+    }
+  }
+}
 
 // ---- SERIAL-LOG-QUEUE (één schrijver) ----
 // Serial-regels komen uit twee taken: OnDataRecv() draait op de WiFi-task, de
@@ -570,6 +584,8 @@ void setup() {
 
   esp_now_register_recv_cb(OnDataRecv);
   esp_now_register_send_cb(OnDataSent);
+
+  vulSlaveAdressen();   // slaveAdressen[] uit de gedeelde paal_macs.h-tabel vullen
 
   // Alle slaves van deze master toevoegen als peer (index 0 = paal PAAL_MIN)
   for (int i = 0; i < AANTAL_SLAVES; i++) {

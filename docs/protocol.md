@@ -504,7 +504,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `spel/state`       | Node-RED ↔ Node-RED | `{"ts":..,"spelerStats":{..},"globaleStats":{..},"spelHistorie":[..],"spelToestand":..,"spelNummer":..,"midnight":{"midnightIndex":..,"midnightOpen":..,"midnightRemaining":..,"piDigits":".."}}` (retained, qos 1) — **compacte state-snapshot** die Flow 04 elke 30 s dumpt; node `Rehydrate spel-state` leest hem bij (her)start terug, maar enkel als de global nog leeg is. Vangnet naast `contextStorage` (zie invariant NR8) |
 | `sim/modus`        | browser ↔ Node-RED | `{"sim24":true}` (retained) — monitor/simulatie-keuze → Node-RED forceert een 24-uur veld (`palenActief`). Wordt **zowel door de browser-simulator als door de monitor/sim-schakelaar op het Bediening-dashboard** gepubliceerd; de simulator abonneert er ook op zodat zijn radio meeschuift |
 | `sim/locatie`      | browser → Node-RED | `[{"mac":"aa:..","paal":7}]` — exacte paal per speler (sim-modus, deterministisch, geen RSSI) |
-| `sim/systeem-config` | client → Node-RED | `{"toestandExclusief":true,"tempo":1}` (retained) — systeeminstellingen: `toestandExclusief` = tijdbom & ziekte niet samen op één speler; `tempo` = reactietijd-multiplier (`global.tempoFactor`) |
+| `sim/systeem-config` | client → Node-RED | `{"toestandExclusief":true,"tempo":1,"settleGrace":3,"dichtheid":0.25}` (retained) — systeeminstellingen: `toestandExclusief` = tijdbom & ziekte niet samen op één speler; `tempo` = reactietijd-multiplier (`global.tempoFactor`); `settleGrace` = settle-grace in s (`global.pofSettleGrace`); `dichtheid` = doelwit-dichtheid 0–1 (`global.doelwitDichtheid`, ook via het Bediening-dashboard "Spelbalans") |
 | `sim/wachtrij-weg` | client → Node-RED | `{"index":2}` — verwijder het aankomende event op die index uit `global.pofWachtrij` ("Volgende events"-paneel); de rij schuift door en vult zich weer aan |
 | `sim/wachtrij-toevoegen` | client → Node-RED | `{"id":"<event-id>"}` — zet dat event **vooraan** in `global.pofWachtrij` (= volgend event); de rij wordt op 5 gecapt en schuift door. Bron: de "→ wachtrij"-knop per event-kaart in de simulator-events-zijbalk |
 | `sim/spel-config` | client → Node-RED | `{"badAura":true}` (retained) — spelinstelling: **slechte aura** (`global.badAuraAan`); negatieve speler-events (ziekte/tijdbom) treffen 's avonds/'s nachts vaker |
@@ -524,6 +524,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `pof/knop`         | Node-RED → browser | `{"paal":7,"teller":4}` — een drukknop is ingedrukt (visuele flits in de sim; `teller` = cumulatieve druk-teller voor het drukknop-testdashboard; transient) |
 | `config/drukknoppen` | Node-RED → browser | `[3,4,7,9,11,13,15,16,17,19,21,22]` — palen met een fysieke drukknop (retained); bron = `[CONFIG] Drukknop-palen`. Voedt het sim-knoppen-paneel |
 | `config/scan-duur` | Node-RED ↔ client | `{"1":700,"2":700,…}` (retained) — BLE-scan-vensterduur (ms) per paal; bron = dashboard-group "Scan-duur (BLE)" (Beacons & Locatie). Node-RED herlaadt hem in `global.scanDuurPerPaal` bij (her)start en herstelt gereboote slaves via de heartbeat |
+| `config/spelers` | Node-RED ↔ client | `{"48:87:2d:..":"Lilou",…}` (retained) — baken-MAC → spelernaam (`global.spelersLijst`); bron = dashboard-group "Spelers / bakens beheren" (Beacons & Locatie). Retained → **wint** na (her)start van de flows.json-seed `[CONFIG] Spelerslijst` (die enkel nog bootstrap is). Zo wissel/her-toewijs je een baken zonder deploy |
 | `spel/type`        | browser ↔ Node-RED | `{"type":"plates_of_fate"\|"klokslag"}` (retained) — **gekozen spel**, één bron van waarheid. Zowel de simulator als het Bediening-dashboard publiceren én abonneren erop; beide engines lezen `global.spelType` en draaien enkel als het hún spel is |
 | `klokslag/status`  | Node-RED → browser | `{"actief":true,"fase":"lopend"\|"einde"\|"idle","resterend_s":480,"speeltijd_s":600,"winnaar":"team1"\|null}` (retained) — Klokslag-timer + einde/winnaar |
 | `klokslag/palen`   | Node-RED → browser | `{"palen":[{"paal":10,"P":4.2,"H":10,"controller":"team1","eigenaar":null,"modus":"capturing"}]}` (retained) — per-paal inname-staat; voedt de Klokslag-LED-render in de sim. `modus`: `rust`/`capturing`/`owned`/`frozen` |
@@ -635,7 +636,7 @@ audiosegmenten in *welke volgorde*, niet *hoe* ze klinken. De consument is de
 sequentieel via `aplay` over de aux-jack speelt. Zie `docs/handleidingen/audio-player.md`.
 
 ```json
-{"fase":"event","tekst":"3 spelers maximum 3 uur.","segments":["getallen/3.wav","woorden/spelers.wav","events/verplaatsing2_voor.wav","getallen/3.wav","events/verplaatsing2_na.wav"],"prioriteit":"normaal"}
+{"fase":"event","tekst":"3 spelers worden ziek.","segments":["getallen/3.wav","woorden/spelers.wav","events/toestanden/worden_ziek.wav"],"prioriteit":"normaal"}
 ```
 
 - `fase`: `"event"` of `"doelwit"`.

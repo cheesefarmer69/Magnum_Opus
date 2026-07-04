@@ -125,17 +125,33 @@ spelers die een eigenschap delen**:
 
 ### Opties `enkel` / `laag` / `midden` / `hoog`
 
-`doelwit.aantal` en `getal` mogen een optie zijn; de engine rolt er een getal uit:
+Zowel `getal` als `doelwit.aantal` mogen een optie zijn, maar ze worden **verschillend** verwerkt:
 
-| Optie    | Bereik |
-|----------|--------|
-| `enkel`  | 1      |
-| `laag`   | 1 – 3  |
-| `midden` | 4 – 6  |
-| `hoog`   | 7 – 10 |
+**`getal` (het getal in de tekst)** — vast bereik, gerold met `rol()`:
 
-`doelwit.aantal` bepaalt zo het aantal gekozen spelers/uren; `getal` bepaalt het getal dat
-`x` in de tekst vervangt.
+| Optie    | Bereik (`getal`) |
+|----------|------------------|
+| `enkel`  | 1     |
+| `laag`   | 1 – 3 |
+| `midden` | 1 – 6 |
+| `hoog`   | 3 – 10 |
+
+**`doelwit.aantal` (aantal doelwitten)** — **schaalt met het veld** (doelwit-dichtheid, G3). Het aantal is
+een **fractie van N** (= aantal actieve, niet-gepauzeerde spelers), gestuurd door de globale knob
+`global.doelwitDichtheid` (default **0,25** = 25 %, dashboard-instelbaar — Bediening → "Spelbalans"):
+
+| Optie    | ≈ % van het veld | aantal |
+|----------|------------------|--------|
+| `enkel`  | —                | altijd **1** |
+| `laag`   | ~15 % (0,6×)     | `clamp(round(N × dichtheid × 0,6), 1, min(N,10))` |
+| `midden` | ~25 % (1,0×)     | `clamp(round(N × dichtheid × 1,0), 1, min(N,10))` |
+| `hoog`   | ~45 % (1,8×)     | `clamp(round(N × dichtheid × 1,8), 1, min(N,10))` |
+
+Zo betrekt elk event een **consistent aandeel** van het veld, of er nu 6 of 31 spelers zijn (i.p.v. een
+vast bereik dat bij veel spelers 80–90 % toeschouwer maakt). **Uitzonderingen (ongewijzigd):** een **vast
+getal** (`portalen` 2, `tweeling` 2), een `[min,max]`-**array** (`tornado` `[1,2]`, via `rol()`), `vast`
+(`bomaanslag` [9,11]) en `selectie:"alle"` schalen **niet**. **Groep-events** hebben helemaal geen `aantal`
+(de omvang is emergent) en worden bovendien **zwaarder gewogen** bij veel spelers (vanaf N > 15).
 
 ### Getallen in de tekst (`getal` → `x`)
 
@@ -267,33 +283,11 @@ worden daarna één voor één opgesomd.
 
 ## Voorbeelden
 
-### Verplaatsing-event (speler, max + getal + controle) — Event A
+> **Verplaatsing = alleen groepen.** Verplaatsing-events hebben altijd `doelwit.type: "groep"`.
+> De oude individuele speler-doelwit varianten (`verplaatsing2` en `of_verplaatsing`) zijn
+> **verwijderd**; enkel de twee groep-events hieronder blijven.
 
-```js
-{ id:"verplaatsing2", naam:"verplaatsingMax", categorie:"verplaatsing",
-  tekst:"Maximum x uur.", reactietijd_s:20,
-  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"laag" },
-  getal:"midden", voorwaarde:"max", gevolgen:[{ type:"geen" }] }
-```
-Kiest 1–3 spelers, rolt een getal in plaats van `x`, en controleert na de reactietijd of die
-spelers **hoogstens** dat aantal STAPpen vooruit zetten (een portaal-sprong telt 0). Niet-gekozen
-spelers moeten stil blijven. (Het oude `verplaatsingMin`-event is verwijderd.)
-
-### Of-verplaatsing-event (speler, keuze tussen twee getallen) — Event D
-
-```js
-{ id:"of_verplaatsing", naam:"Of-verplaatsing", categorie:"verplaatsing",
-  tekst:"x of y uur vooruit.", reactietijd_s:20,
-  doelwit:{ type:"speler", selectie:"willekeurig", aantal:"midden" },
-  getal:"laag", getal2:[4,6], voorwaarde:"of", gevolgen:[{ type:"geen" }] }
-```
-Rolt twee getallen: `x` uit `getal:"laag"` (1–3) en `y` uit `getal2:[4,6]` (4–6), allebei
-ingevuld in de tekst (bv. "2 of 5 uur vooruit."). De gekozen spelers moeten **exact `x` óf exact
-`y`** STAPpen vooruit zetten. Elk ander aantal (geen achterstap) is **ONGELDIGE KEUZE** → **−voor**.
-Een `[min,max]`-bereik voor `getal2` houdt `y` gegarandeerd boven `x` (de optie `midden` rolt 1–6
-en zou `y ≤ x` kunnen maken). Een portaal-sprong telt 0 STAPpen.
-
-### Groep-verplaatsing-event (speler, doelwit = groep)
+### Groep-verplaatsing-event (doelwit = groep, max + getal + controle)
 
 ```js
 { id:"groep_verplaatsing", naam:"Groep-verplaatsing", categorie:"verplaatsing",
@@ -304,12 +298,13 @@ en zou `y ≤ x` kunnen maken). Een portaal-sprong telt 0 STAPpen.
   gevolgen:[{ type:"geen" }] }
 ```
 Kiest één willekeurige groep onder de actieve spelers en richt zich op **alle** spelers in die
-groep: zij mogen hoogstens `x` STAPpen vooruit (zelfde `max`-controle als `verplaatsing2`).
-Met `veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar**; afroep bv.
+groep: zij mogen **hoogstens** `x` STAPpen vooruit (minder mag, achteruit niet; een portaal-sprong
+telt 0). Elk teveel is **TE VEEL** → **−(voor − x)**; niet-leden moeten stil blijven. Met
+`veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar**; afroep bv.
 "een groep … maximum 3 uur vooruit. kleur: rood" of "… jaar: eerste". Vastzetten kan met
 `veld:"kleur"` of `veld:"jaar"`.
 
-### Groep-of-verplaatsing-event (speler, doelwit = groep, keuze tussen twee getallen)
+### Groep-of-verplaatsing-event (doelwit = groep, keuze tussen twee getallen)
 
 ```js
 { id:"groep_of_verplaatsing", naam:"Groep-of-verplaatsing", categorie:"verplaatsing",
@@ -319,10 +314,11 @@ Met `veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar
   audioVoor:"groep_of_verplaatsing_voor.wav", audioNa:"groep_of_verplaatsing_na.wav",
   gevolgen:[{ type:"geen" }] }
 ```
-Groep-variant van `of_verplaatsing`. Kiest één willekeurige **kleur** en richt zich op **alle**
-spelers met die kleur: zij moeten **exact `x` óf exact `y`** STAPpen vooruit zetten.
-`x` rolt uit `getal:"laag"` (1–3), `y` uit `getal2:[4,6]`. Controle identiek aan `of_verplaatsing`
-maar voor elk groepslid; niet-leden moeten stil blijven.
+Kiest één willekeurige groep (kleur of jaar) en richt zich op **alle** spelers in die groep: zij
+moeten **exact `x` óf exact `y`** STAPpen vooruit zetten. `x` rolt uit `getal:"laag"` (1–3), `y` uit
+`getal2:[4,6]` — het `[min,max]`-bereik houdt `y` gegarandeerd boven `x`. Elk ander aantal (geen
+achterstap) is **ONGELDIGE KEUZE** → **−voor**; niet-leden moeten stil blijven. Een portaal-sprong
+telt 0 STAPpen.
 
 ### Toestand-event (portaal: blijvend effect, max, paar-koppeling)
 
@@ -440,10 +436,10 @@ met **+0,1** (max **1,3**). Die factor vermenigvuldigt de reactietijd van elk vo
 
 ```js
 { id:"nuke", naam:"Nuke", categorie:"wereld", tekst:"Nuke.",
-  reactietijd_s:8, escape_s:4, regroup_s:60, max:1, doelwit:{ type:"geen" },
+  reactietijd_s:16, escape_s:4, regroup_s:60, max:1, doelwit:{ type:"geen" },
   audioVoor:"nuke.wav", gevolgen:[ { type:"nuke" } ] }
 ```
-Speelt "NUKE" af + een **aftelklok** van `reactietijd_s` (8 s, aanpasbaar) om weg te lopen. Bij de
+Speelt "NUKE" af + een **aftelklok** van `reactietijd_s` (16 s, aanpasbaar) om weg te lopen. Bij de
 controle ontploft **elke speler die nog gedetecteerd is** (in `spelerLocaties`): levensuren → 0 **en
 +1 sterfte**. Wie **ontkomen** is, overleeft. Daarna een **regroup**-pauze van `regroup_s` s (60,
 aanpasbaar) vóór het spel verdergaat. `regroup_s` en `escape_s` zijn optionele velden; de fase heet

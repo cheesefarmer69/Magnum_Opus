@@ -10,7 +10,7 @@ sequentieel af over de aux-jack.
 ```
 audio/
 ├── events/        begin- en eind-segment per event, in een submap per CATEGORIE:
-│   ├── verplaatsingen/   speler-events (bv. verplaatsing2_voor.wav)
+│   ├── verplaatsingen/   verplaatsing-events (bv. maximum.wav / uur_vooruit.wav)
 │   ├── toestanden/       toestand-events (bv. portalen_voor.wav, ziekte_voor.wav)
 │   ├── wereld-events/    wereld-events (bv. nuke.wav, bomaanslag.wav)
 │   │   (per event: <eventid>_voor.wav en <eventid>_na.wav)
@@ -86,13 +86,15 @@ Heeft het event een **tweede getal** (`getal2`, bij `voorwaarde: "of"`), dan kom
 eerste getal het connector-woord `woorden/of.wav` en het tweede getal:
 `events/<categorie>/<id>_voor.wav` → `getallen/<x>.wav` → `woorden/of.wav` → `getallen/<y>.wav` → `events/<categorie>/<id>_na.wav`
 
-Voorbeeld event `verplaatsing2` dat 3 spelers raakt, met getal 3:
-> "drie" + "spelers" + "Maximum" + "drie" + "uur."  → *"3 spelers maximum 3 uur."*
+Voorbeeld event `groep_verplaatsing` (groep — kleur: rood), met getal 3:
+> "een groep" + "Maximum" + "drie" + "uur vooruit." + "kleur rood"  → *"een groep maximum 3 uur vooruit. kleur: rood."*
 
-Voorbeeld event `of_verplaatsing` dat 2 spelers raakt, met x=2 en y=5:
-> "twee" + "spelers" + "twee" + "of" + "vijf" + "uur vooruit."  → *"2 spelers 2 of 5 uur vooruit."*
+Voorbeeld event `groep_of_verplaatsing` (groep — jaar: eerste), met x=2 en y=5:
+> "een groep" + "twee" + "of" + "vijf" + "uur vooruit." + "eerste jaars"  → *"een groep 2 of 5 uur vooruit. jaar: eerste."*
 
-Raakt het 1 speler: "één" + "speler" + … (enkelvoud).
+Bij een **speler**-doelwit event (bv. ziekte) is de prefix het aantal + zelfstandig naamwoord:
+"drie" + "spelers" + "worden ziek." (enkelvoud: "één" + "speler" + …). Verplaatsing-events zelf
+zijn **groep-only** (geen individuele speler-doelwitten meer).
 
 Bij de doelwitten (zoals voorheen, één voor één):
 `doelwit/voor.wav` → (`spelers/lilou.wav` voor een speler, of `getallen/7.wav` voor uur/paal 7) → `doelwit/na.wav`
@@ -115,9 +117,9 @@ veld leeg (`""`) als er geen stuk is (bv. bij events die met het getal beginnen)
 
 Huidige mapping (config → bestand, per submap):
 
-- **`events/verplaatsingen/`** (speler-events): `maximum.wav` (voor) + `uur_vooruit.wav` (na),
-  gedeeld door verplaatsing2 / groep_verplaatsing; bij de `of`-events is `audioVoor` leeg en is
-  `uur_vooruit.wav` het na-stuk (de connector "of" zit in `woorden/of.wav`).
+- **`events/verplaatsingen/`** (verplaatsing-events): `maximum.wav` (voor) + `uur_vooruit.wav` (na),
+  gebruikt door `groep_verplaatsing`; bij de `of`-events (`groep_of_verplaatsing`) is `audioVoor`
+  leeg en is `uur_vooruit.wav` het na-stuk (de connector "of" zit in `woorden/of.wav`).
 - **`events/toestanden/`** (toestand-events): `worden_ziek.wav`, `worden_een_tijdbom.wav`,
   `worden_getroffen_door_een_tornado.wav`, `een_portaal_opent_tussen_twee_uren.wav`,
   en (nog op te nemen) `worden_happy_hour.wav`, **`etenstijd.wav`** ("een wolf zal jagen op zijn

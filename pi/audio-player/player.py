@@ -15,7 +15,10 @@ AUDIO_DEV   = os.getenv("AUDIO_DEV", "default")   # ALSA-device, bv. "plughw:0,0
 
 # Wachtrij van af te spelen segment-lijsten. Elke entry is een lijst van
 # bestandsnamen (relatief t.o.v. AUDIO_DIR), die sequentieel worden afgespeeld.
-afspeel_queue: "queue.Queue[list]" = queue.Queue()
+# Begrensd (maxsize) met drop-oldest in on_message: zo blijft de box bij drukte
+# dicht bij real-time i.p.v. structureel achter het spel aan te lopen.
+QUEUE_MAX = int(os.getenv("AUDIO_QUEUE_MAX", "8"))
+afspeel_queue: "queue.Queue[list]" = queue.Queue(maxsize=QUEUE_MAX)
 
 
 def speel_segment(relpad: str) -> None:
@@ -76,7 +79,23 @@ def on_message(client, userdata, msg):
     # Alleen strings doorlaten en pad-traversal weren.
     veilig = [s for s in segmenten if isinstance(s, str) and ".." not in s]
     print(f"[AUDIO] In wachtrij ({data.get('fase','?')}): {veilig}")
-    afspeel_queue.put(veilig)
+
+    # Begrensde wachtrij met drop-oldest: bij een volle queue het OUDSTE (nog niet
+    # gespeelde) item weggooien en het nieuwe erin zetten, i.p.v. blokkeren. Zo loopt
+    # de audio niet structureel achter bij een burst events.
+    try:
+        afspeel_queue.put_nowait(veilig)
+    except queue.Full:
+        try:
+            gedropt = afspeel_queue.get_nowait()
+            afspeel_queue.task_done()
+            print(f"[AUDIO] Wachtrij vol (max {QUEUE_MAX}) - oudste gedropt: {gedropt}")
+        except queue.Empty:
+            pass
+        try:
+            afspeel_queue.put_nowait(veilig)
+        except queue.Full:
+            print("[AUDIO] Wachtrij nog vol na drop - nieuw item overgeslagen")
 
 
 # ---- Start ----

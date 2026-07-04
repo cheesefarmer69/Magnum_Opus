@@ -16,7 +16,11 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
 - **Doelwit**: wie/wat het event raakt. Bepaald door het `doelwit`-object:
   - `type`: `speler`, `uur`, `groep` of `geen`.
   - `selectie`: `willekeurig` (steekproef) of `alle`.
-  - `aantal`: vast getal, of optie `enkel`=1, `laag`=1–3, `midden`=1–6, `hoog`=3–10.
+  - `aantal`: een **vast getal** / `[min,max]`-array (schaalt niet), of een **optie** die met het veld
+    meeschaalt (**doelwit-dichtheid**, G3): `enkel`=1; `laag`≈15 % / `midden`≈25 % / `hoog`≈45 % van N
+    (actieve spelers), × de knob `global.doelwitDichtheid` (default 0,25), clamp `[1, min(N,10)]`. Zo is
+    elk event even "druk" bij 6 als bij 31 spelers. Groep-events negeren `aantal` (emergente omvang) en
+    wegen zwaarder bij veel spelers.
 - **Groep-doelwit** (`type: "groep"`): kiest via `veld` (`kleur`/`jaar`, of `willekeurig` = engine
   kiest per afvuring kleur of jaar) één willekeurige waarde die onder de actieve spelers voorkomt
   (of een vaste `waarde`) en richt het event op **alle** actieve spelers met die waarde.
@@ -41,18 +45,25 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
 # Hoofdstuk 1 — Verplaatsing
 
 ## Hoe een verplaatsing-event in elkaar zit
-Een verplaatsing-event kiest doelwit-**spelers** die binnen de reactietijd aan een
-beweging-**voorwaarde** moeten voldoen. Spelers die géén doelwit zijn, moeten stil
-blijven staan. Het event heeft meestal `gevolgen: [{type:"geen"}]` — de "straf/beloning"
-zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LED-commando.
+Een verplaatsing-event kiest een **groep** spelers (gedeelde eigenschap: kleur of jaar) die
+binnen de reactietijd aan een beweging-**voorwaarde** moeten voldoen. Spelers die géén doelwit
+zijn, moeten stil blijven staan. Het event heeft meestal `gevolgen: [{type:"geen"}]` — de
+"straf/beloning" zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een
+LED-commando.
+
+> **Alleen groep-doelwitten.** Verplaatsing-events richten zich uitsluitend op een **groep**
+> (`doelwit.type: "groep"`). De vroegere varianten met een individueel speler-doelwit
+> (`verplaatsingMax`/`verplaatsing2` en `of_verplaatsing`) zijn **verwijderd** — bij veel spelers
+> is een groep-afroep minder repetitief. De regels/scoring zijn ongewijzigd; enkel het doelwit is
+> nu altijd een groep.
 
 | Veld | Rol |
 |------|-----|
 | `categorie` | `"verplaatsing"` |
-| `voorwaarde` | `"min"` (minstens x vooruit), `"max"` (hoogstens x vooruit) of `"of"` (exact x óf exact y vooruit) |
+| `voorwaarde` | `"max"` (hoogstens x vooruit) of `"of"` (exact x óf exact y vooruit) |
 | `getal` | rolt `x` (bv. `midden` → 1–6) en vult het in de tekst in |
 | `getal2` | rolt `y` (tweede keuze bij `voorwaarde: "of"`); optie of `[min,max]`-bereik |
-| `doelwit` | type `speler` — wie moet bewegen |
+| `doelwit` | type `groep` (`veld: kleur`/`jaar`/`willekeurig`) — welke groep moet bewegen |
 
 > Controle/scoring is **pad-gebaseerd** (STAP/TELEPORT, actie-per-actie) — zie
 > `docs/spel/event-systeem.md`. `voor` = aantal STAP vooruit, `x` = budget. Een TELEPORT (sprong
@@ -60,42 +71,30 @@ zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LE
 
 ## Overzicht (gestructureerd)
 
-### verplaatsingMax — "Maximum x uur vooruit."
-- **Tier:** common
-- **Uitleg:** De gekozen spelers mogen hoogstens `x` STAPpen vooruit; niet-doelwitten blijven stil. Levensuren worden bij de controle toegekend.
-- **Max:** —
-- **Audio (opkomst):** `maximum.wav` + getal + `uur_vooruit.wav`
-- **Audio (weggaan):** —
-
-### Of-verplaatsing — "x of y uur vooruit."
-- **Tier:** common
-- **Uitleg:** De gekozen spelers moeten exact `x` óf exact `y` STAPpen vooruit zetten.
-- **Max:** —
-- **Audio (opkomst):** getal + `uur_vooruit.wav` (geen aparte audioVoor)
-- **Audio (weggaan):** —
-
 ### Groep-verplaatsing — "maximum x uur vooruit."
 - **Tier:** common
-- **Uitleg:** Zoals verplaatsingMax, maar het doelwit is een hele groep (kleur of jaar); alle leden mogen hoogstens `x` vooruit.
+- **Uitleg:** Een hele groep (kleur of jaar) mag hoogstens `x` STAPpen vooruit; niet-leden blijven stil. Levensuren worden bij de controle toegekend.
 - **Max:** —
 - **Audio (opkomst):** `maximum.wav` + getal + `uur_vooruit.wav`
 - **Audio (weggaan):** —
 
 ### Groep-of-verplaatsing — "x of y uur vooruit."
 - **Tier:** common
-- **Uitleg:** Groep-variant van Of-verplaatsing; alle groepsleden moeten exact `x` óf exact `y` vooruit.
+- **Uitleg:** Een hele groep moet exact `x` óf exact `y` STAPpen vooruit zetten.
 - **Max:** —
 - **Audio (opkomst):** getal + `uur_vooruit.wav` (geen aparte audioVoor)
 - **Audio (weggaan):** —
 
 ## Huidige events
 
-### verplaatsingMax — "Maximum x uur." (Event A)
-- **Werking**: de gekozen spelers mogen **hoogstens** `x` STAPpen vooruit (minder mag,
-  achteruit niet). Een portaal-sprong telt 0.
-- **Doelwit**: `type: speler`, `selectie: willekeurig`, `aantal: laag` (1–3 actieve spelers).
-  `x` = `getal: midden`.
-- **Controle** — levensuren-Δ:
+### Groep-verplaatsing — "maximum x uur vooruit." (groep-doelwit)
+- **Werking**: de engine kiest per afvuring een dimensie (`kleur` of `jaar`, want `veld: willekeurig`),
+  dan één willekeurige waarde daarvan (bv. `kleur: rood` of `jaar: eerste`) onder de actieve spelers,
+  en richt zich op **alle** spelers met die waarde; zij mogen **hoogstens** `x` STAPpen vooruit
+  (minder mag, achteruit niet). Een portaal-sprong telt 0.
+- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur of jaar), `selectie: willekeurig`. `x` = `getal: midden`.
+- **Afroep**: "een groep … maximum x uur vooruit. kleur: rood" / "… jaar: eerste" — geen individuele namen.
+- **Controle** — levensuren-Δ (per groepslid; niet-leden moeten stil blijven):
   - `voor ≤ x` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
   - `voor > x` → **TE VEEL**, −(voor − x)
   - achterwaartse STAP → **TERUG IN TIJD**, −achter
@@ -103,37 +102,19 @@ zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een LE
   - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, −(voor+achter)
   - onder 0 → 0 levensuren + **1 sterfte**
 
-> Het oude `verplaatsingMin`-event is verwijderd (de "nooit achteruit"-regel zit nu in de
-> STAP-definitie; een aparte minimum-variant is niet nodig).
-
-### Of-verplaatsing — "x of y uur vooruit." (Event D)
-- **Werking**: de gekozen spelers krijgen **twee** keuzes en moeten **exact `x` óf exact `y`**
-  STAPpen vooruit zetten. `x` rolt uit `getal: "laag"` (1–3), `y` uit `getal2: [4, 6]` (4–6) — het
-  `[min,max]`-bereik houdt `y` gegarandeerd boven `x`. Een portaal-sprong telt 0.
-- **Doelwit**: `type: speler`, `selectie: willekeurig`, `aantal: midden` (1–6 actieve spelers).
-- **Controle** — levensuren-Δ:
+### Groep-of-verplaatsing — "x of y uur vooruit." (groep-doelwit)
+- **Werking**: kiest per afvuring een dimensie (`kleur` of `jaar`, `veld: willekeurig`) en daarvan één
+  willekeurige groep onder de actieve spelers; die spelers moeten **exact `x` óf exact `y`** STAPpen
+  vooruit zetten. `x` rolt uit `getal: laag` (1–3), `y` uit `getal2: [4,6]` — het `[min,max]`-bereik
+  houdt `y` gegarandeerd boven `x`. Een portaal-sprong telt 0.
+- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur of jaar), `selectie: willekeurig`.
+- **Afroep**: "een groep … x of y uur vooruit. kleur: rood" / "… jaar: tweede" — geen individuele namen.
+- **Controle** — levensuren-Δ (per groepslid; niet-leden moeten stil blijven):
   - `voor === x` of `voor === y` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
   - `voor ≠ x` én `voor ≠ y` (geen achterstap) → **ONGELDIGE KEUZE**, −voor
   - achterwaartse STAP → **TERUG IN TIJD**, −achter
   - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, −(voor+achter)
   - onder 0 → 0 levensuren + **1 sterfte**
-
-### Groep-verplaatsing — "maximum x uur vooruit." (groep-doelwit)
-- **Werking**: de engine kiest per afvuring een dimensie (`kleur` of `jaar`, want `veld: willekeurig`),
-  dan één willekeurige waarde daarvan (bv. `kleur: rood` of `jaar: eerste`) onder de actieve spelers,
-  en richt zich op **alle** spelers met die waarde; zij mogen hoogstens `x` STAPpen vooruit
-  (`voorwaarde: max`, zelfde controle als `verplaatsingMax`).
-- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur of jaar), `selectie: willekeurig`. `x` = `getal: midden`.
-- **Afroep**: "een groep … maximum x uur vooruit. kleur: rood" / "… jaar: eerste" — geen individuele namen.
-- **Controle**: identiek aan `verplaatsingMax`, maar voor elk groepslid; niet-leden moeten stil blijven.
-
-### Groep-of-verplaatsing — "x of y uur vooruit." (groep-doelwit, Event D-variant)
-- **Werking**: kiest per afvuring een dimensie (`kleur` of `jaar`, `veld: willekeurig`) en daarvan één
-  willekeurige groep onder de actieve spelers; die spelers moeten **exact `x` óf exact `y`** STAPpen
-  vooruit zetten. `x` rolt uit `getal: laag` (1–3), `y` uit `getal2: [4,6]`. Zelfde controle als `of_verplaatsing`.
-- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur of jaar), `selectie: willekeurig`.
-- **Afroep**: "een groep … x of y uur vooruit. kleur: rood" / "… jaar: tweede" — geen individuele namen.
-- **Controle**: identiek aan `of_verplaatsing`, maar voor elk groepslid; niet-leden moeten stil blijven.
 
 ## Hoe het doelwit bepaald wordt
 De kandidaten zijn de **actieve, niet-gepauzeerde** spelers. Daarna:
@@ -477,7 +458,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 ## Huidige events
 
 ### Nuke — "Nuke." (ontploffing + regroup)
-- **Werking**: speelt "NUKE" af + een **aftelklok** (`reactietijd_s`, standaard 8 s, aanpasbaar) om
+- **Werking**: speelt "NUKE" af + een **aftelklok** (`reactietijd_s`, standaard 16 s, aanpasbaar) om
   weg te lopen. Bij de controle ontploft **elke speler die nog gedetecteerd is** (in `spelerLocaties`):
   **levensuren → 0 en +1 sterfte**. Wie **ontkomen** is, overleeft als "VEILIG (ontkomen)".
 - **Ontsnappen op hardware** (`escape_s`, default 4 s): `spelerLocaties` wordt normaal nooit opgeschoond,

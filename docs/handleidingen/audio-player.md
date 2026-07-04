@@ -17,6 +17,10 @@ doelwitten een opsomming van speler-/uur-clips.
 - **audio-player** (`pi/audio-player/player.py`) speelt elk segment met
   `aplay -q -D <device> <bestand>`, één voor één, via een wachtrij zodat audio
   nooit overlapt. Ontbrekende bestanden worden overgeslagen + gelogd.
+- De wachtrij is **begrensd** (`AUDIO_QUEUE_MAX`, default **8**) met **drop-oldest**:
+  loopt de box achter bij een burst events, dan wordt het **oudste, nog niet gespeelde**
+  item weggegooid (met een logregel `Wachtrij vol - oudste gedropt`) i.p.v. dat de audio
+  steeds verder achterop raakt. De box blijft zo dicht bij real-time.
 
 ### MQTT-payload (`audio/afspelen`)
 
@@ -31,6 +35,8 @@ doelwitten een opsomming van speler-/uur-clips.
 
 - `segments` — lijst bestandsnamen **relatief t.o.v. de audio-map**, in afspeelvolgorde.
 - `tekst` — alleen voor de simulator-log/fallback; de player speelt enkel `segments`.
+- `prioriteit` — meegestuurd door de engine (altijd `"normaal"`), maar de player **negeert
+  dit veld** momenteel; er is geen voorrangsbaan. (Gereserveerd voor later.)
 - Geen `segments`? Dan speelt de player niets (alleen een logregel).
 
 ## Mapstructuur (op de Pi)

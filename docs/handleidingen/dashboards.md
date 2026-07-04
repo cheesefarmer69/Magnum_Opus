@@ -39,7 +39,7 @@ per speler en per paal wanneer ze laatst gezien zijn; de foutcodetabel vat probl
 | Spelers | `ui-table` Tabel Spelers | Alle spelers + detectiestatus + laatst gezien. |
 | Bediening status | `ui-switch` Toon batterij · `ui-switch` Override NO-GO | Batterijkolom tonen; geforceerd starten ondanks NO-GO. |
 | Palen / Slaves | `ui-table` Tabel Palen | Alle palen/slaves: status, laatst gezien, batterijspanning. |
-| Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-004) met ernst + uitleg. |
+| Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-005) met ernst + uitleg. **ST-005** = batterij bijna leeg (< 3,5 V, WAARSCHUWING, niet-blokkerend → "vervang batterij"; drempel `BATT_VERVANG_V`). |
 
 ---
 
@@ -59,6 +59,7 @@ loopt de engine automatisch. De tekstvelden en tabellen tonen de live-toestand.
 | Speltoestand | `ui-text` Spel-teller (`Spel #`) · `ui-switch` Spel (uit/LOOPT) · `ui-switch` Modus monitor/sim (via feedback-node, consistent met de andere) · `ui-switch` Pauze/Hervat + `ui-text` Pauze-status · `ui-switch` Manueel · `ui-button` Volgende event · `ui-button` Controle (manueel) · `ui-template` Speltoestand | Hoofdbesturing; de **monitor/sim-schakelaar** vervangt de aparte Simulatie-pagina (publiceert `sim/modus`). |
 | Doel (Plates of Fate) | `ui-dropdown` Doel · `ui-dropdown` Aantal uur (X) · `ui-dropdown` Aantal spelers · `ui-switch` Auto-einde · `ui-text` Doel-status (a/n geslaagd) | PoF-doelkeuze + voortgang. Een PoF-spel start pas met een gekozen doel + aantal. De groep wordt **verborgen** (`ui-control`) wanneer Klokslag het speltype is. |
 | Plates of Fate besturing | `ui-text` Timer (groot/gekleurd) · `ui-text` Huidig event · `ui-text` Doelwit · `ui-table` Controle laatste event · `ui-text` Events deze ronde | Live-verloop van de events en de laatste controle-uitslag. |
+| Spelbalans | `ui-slider` Doelwit-dichtheid (%) (10–50) · `ui-text` Dichtheid-status | **Doelwit-dichtheid** (G3): hoeveel % van het veld een gemiddeld event betrekt (`global.doelwitDichtheid`, default 25 %). Schaalt de doelwit-aantallen met het aantal spelers; hoger = drukker. Bij kleine testgroepen zet je hem hoger. Zie `docs/spel/events.md` (Opties). |
 | Live Radar | `ui-table` Tabel Locatie Spelers | Per speler: huidige paal, RSSI, levensdagen/-uren, sterftes. |
 | Actieve effecten (bord-staat) | `ui-table` Tabel Actieve effecten · `ui-table` Tabel Speler-toestanden | Blijvende uur-/speler-effecten + 🤒 ziek / 💣 tijdbom met resterende rondes. |
 | Huidig spel | `ui-table` Tabel Huidig spel | Levensdagen/-uren/sterftes van de **lopende** partij (per spel). |
@@ -105,6 +106,8 @@ kalibreren.
 |-------|---------|--------------|
 | Locatie-instellingen | `ui-slider` Venster (ms) · `ui-slider` Hysterese (dB) · `ui-slider` RSSI-vloer (dBm) · `ui-slider` Grace (ms) · `ui-slider` Switch-samples · `ui-slider` Min-samples · `ui-text` Actieve locatie-parameters | Tuning van het locatie-algoritme. |
 | Scan-duur (BLE) | `ui-slider` Scan-duur alle slaves (ms) · `ui-slider` Paal · `ui-slider` Scan-duur deze paal (ms) · `ui-button` Pas toe · `ui-text` Laatste scan-actie | BLE-scan-vensterduur van de slaves instellen (400–1000 ms), voor alle slaves of per paal. Kortere scan = versere detectie. Stuurt actie 20 (`MSG_SCAN_CONFIG`); auto-herstel na reboot via heartbeat. Zie `docs/locatiebepaling.md`. |
+| Profielen (dag/avond) | `ui-button` Laad dag · `ui-button` Laad avond · `ui-button` Bewaar → dag · `ui-button` Bewaar → avond · `ui-text` Profiel | Twee opgeslagen `locParams`-profielen (dag/avond) die met één knop wisselen — de RF-omgeving 's avonds (dauw/jassen) verschilt van 's middags. Tune de sliders en **Bewaar** het profiel; **Laad** zet ze terug. Persistent. Zie `docs/locatiebepaling.md` ("Dag/avond-profielen"). |
+| Spelers / bakens beheren | `ui-dropdown` Speler · `ui-text` Nieuw baken · `ui-button` Koppel · `ui-button` Ontkoppel · `ui-text` Laatste actie · `ui-table` Huidige koppelingen | Baken-MAC ↔ speler koppelen/vervangen/loskoppelen **zonder deploy**: wapper een baken bij een paal → kies de speler → Koppel. Retained op `config/spelers` (overleeft deploy/herstart). Zie `docs/locatiebepaling.md` ("Bakens toewijzen en vervangen"). |
 | Beacon-stabiliteit | `ui-table` Beacon-stabiliteit (laagste score bovenaan) | Ranglijst van signaalstabiliteit per beacon. |
 | Beacon-kalibratie (RSSI-offset) | `ui-template` Beacon-kalibratie | Per-beacon RSSI-offset instellen, begrensd op −20…+20 dB. |
 | Ruwe RSSI (diagnose) | `ui-switch` Toon ruwe RSSI · `ui-table` Ruwe RSSI per beacon per paal (laatste 6 s) | Ruwe meetwaarden tonen voor diagnose. |

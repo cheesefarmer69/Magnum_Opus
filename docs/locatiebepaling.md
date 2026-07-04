@@ -84,6 +84,31 @@ welke paal die hoort. De aanpak (na de herziening):
 > een veel zwakkere. Met een trage beacon (adv-interval 700 ms) gebeurde dat
 > voortdurend. De grace-periode en sustained-switch maken de schatting stabiel.
 
+## Bakens toewijzen en vervangen (dashboard, zonder deploy)
+
+De koppeling **baken-MAC → spelernaam** (`global.spelersLijst`) bepaalt wie een beacon is. Je beheert ze
+**live vanaf het dashboard** — pagina **Beacons & Locatie**, groep **"Spelers / bakens beheren"** — zonder
+`flows.json` te editen of te deployen.
+
+**Een reservebaken toewijzen / een baken vervangen (± 30 s):**
+1. **Wapper het (nieuwe) baken** even vlak bij een willekeurige paal. Het verschijnt in de group als
+   **"Nieuw baken: baken xx:xx:…"** (de nieuwste MAC die nog niet gekoppeld is).
+2. Kies de **speler** in de dropdown.
+3. Druk **Koppel baken → speler**. Koppel je aan een speler die al een baken had, dan vervangt dit dat
+   automatisch (elke speler houdt precies één baken). **Ontkoppel speler** maakt een baken weer vrij.
+
+De wijziging is **meteen** actief (`Locatiebepaling Spelers` leest `spelersLijst` per bericht) en wordt
+**retained** bewaard op `config/spelers` → ze overleeft een herstart én een `deploy-flows`.
+
+> **Een baken her-toewijzen dat al aan iemand anders hangt:** ontkoppel eerst die speler (dan is het baken
+> weer "nieuw"), koppel het daarna aan de nieuwe. (Zo grijp je nooit per ongeluk een baken dat middenin
+> het spel actief is.)
+
+> **Bron van waarheid.** Zodra je het dashboard gebruikt, is de retained `config/spelers` leidend en
+> **overschrijft** ze na een deploy de flows.json-seed `[CONFIG] Spelerslijst` (die enkel nog een
+> **bootstrap**-default is). Wil je terug naar de seed-lijst: wis het retained topic
+> (`mosquitto_pub -h 192.168.1.43 -r -n -t config/spelers`) en deploy opnieuw.
+
 ## BLE-scan-duur (versere detectie, minder scoring-latentie)
 
 De **settle-latentie** — de tijd tussen een fysieke paalwissel en een "settled" positie — is de som van
@@ -238,11 +263,61 @@ RSSI consequent, wat de locatiebepaling misleidt. Met een **offset** corrigeer j
 Een goed gekalibreerde set beacons meet bij gelijke afstand vergelijkbare RSSI, wat
 het wisselgedrag tussen palen eerlijk en stabiel maakt.
 
+## Dag/avond-profielen (presets)
+
+De RF-omgeving van 's middags is niet die van 's avonds: **dauw en nat gras dempen 2,4 GHz** (zwakkere
+RSSI, grotere MaxGap), spelers trekken **jassen** aan (lichaamsdemping) en de **menigte-dichtheid**
+verandert de multipath. De `locParams`-kalibratie van 14 u klopt om 21 u dus niet meer. Daarom zijn er
+**twee opgeslagen profielen** ("dag"/"avond") die je met één knop wisselt.
+
+**Bediening** (dashboardgroep **"Profielen (dag/avond)"** op Beacons & Locatie):
+- **Laad dag** / **Laad avond** — zet `global.locParams` op het opgeslagen profiel; de 6 sliders volgen.
+- **Bewaar → dag** / **Bewaar → avond** — slaat de **huidige** sliderstand op als dat profiel.
+- **Profiel** (tekst) — toont het actieve profiel.
+
+**Zo gebruik je het:**
+1. Kalibreer overdag zoals gewoonlijk (venster/vloer/hysterese/grace/switch/min), druk **Bewaar → dag**.
+2. **Plan een herkalibratie-moment bij schemering** in de dagplanning: lees de ruwe-RSSI-tabel opnieuw
+   (signalen zijn zwakker, vloer vaak 2–4 dB lager, grace iets groter), stel de sliders bij en druk
+   **Bewaar → avond**. Daarna wissel je met één knop.
+
+De profielen (`global.locPresets`) zijn **persistent** (contextStorage, NR7) en overleven een restart.
+Bij de allereerste start zijn beide profielen gelijk aan de huidige defaults — je tunet `avond` zelf.
+
+> **Wisselwerking met overdrive.** De presets werken op de **basis**-tuning. Laad je een profiel terwijl
+> een minigame (overdrive) actief is, dan vervangt het de basis (`locParamsNormaal`) maar blijven de
+> overdrive-verkortingen (venster 2500 / grace 1500) live; **Bewaar** slaat nooit de overdrive-waarden
+> op. Normaal wissel je profielen tússen spellen, niet tijdens een minigame.
+
+## Overdrive-sensing (automatisch bij minigames)
+
+De minigames **Klokslag** en **Infected** hebben snellere positie-updates nodig dan Plates of Fate
+(waar events traag genoeg zijn voor een nauwkeurige, trage tuning). Daarom zet Node-RED (node
+"Sla spelType op") automatisch een **overdrive-preset** zodra `spelType` op `klokslag`/`infected` staat:
+
+| Knob | Normaal (PoF) | Overdrive (minigame) |
+|------|---------------|----------------------|
+| `locParams.vensterMs` | jouw tuning (bv. 6000) | **2500** |
+| `locParams.graceMs` | jouw tuning (bv. 4000) | **1500** |
+| BLE-scan (`scan_ms`, alle palen) | jouw tuning (bv. 700–1000) | **400** |
+| `rssiVloer` / `hystereseDbm` | jouw tuning | **behouden** (kalibratie blijft) |
+
+Kortere venster/grace + scan = **versere detectie**, in ruil voor iets meer ruis. Bij terugkeer naar
+Plates of Fate worden je normale waarden hersteld uit de snapshots `locParamsNormaal` + `scanNormaalMs`.
+Het is een **preset-swap** van bestaande knoppen (geen apart mechanisme) en heeft **geen effect in de
+simulator** (die gebruikt exacte posities via `sim/locatie`, geen BLE). De G8-inname-ondergrens in
+Klokslag (`min_inname_s`, zie `docs/spel/klokslag.md`) is complementair: overdrive verkort de latentie,
+`min_inname_s` maakt lage uren robuust ongeacht de latentie.
+
 ## Globals (overzicht)
 
 | Global | Inhoud |
 |--------|--------|
 | `locParams` | `{vensterMs, hystereseDbm, rssiVloer, graceMs, switchSamples, minSamples}` |
+| `overdriveActief` | `true` tijdens een minigame (Klokslag/Infected) → overdrive-preset actief |
+| `locParamsNormaal` / `scanNormaalMs` | snapshot van je normale tuning, hersteld bij terugkeer naar PoF |
+| `locPresets` | `{ dag:{…6}, avond:{…6} }` — opgeslagen dag/avond-profielen (persistent) |
+| `locProfiel` | `"dag"` / `"avond"` — laatst geladen profiel |
 | `beaconKalibratie` | `{ "<mac>": offsetDb }` |
 | `beaconBuf` | ruwe sample-buffer per MAC (intern; voedt stabiliteit + ruwe-RSSI-tabel) |
 | `rssiDiagAan` | `true/false` — schakelaar voor de ruwe-RSSI diagnose-tabel |

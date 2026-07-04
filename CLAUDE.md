@@ -77,7 +77,7 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 
 - Geen `delay()` in main loops — alles non-blocking met `millis()`
 - Seriële baudrate altijd 115200
-- Slave MAC-adressen staan per master in `firmware/Master/include/slave_macs.h` (`#if MASTER_NR`-blokken), niet meer los in `main.cpp`
+- Slave-MAC's staan in de **gedeelde** tabel `firmware/shared/paal_macs.h` (`MAC → PAAL_ID`, één bron van waarheid voor slave én master). De slave zoekt bij boot zijn eigen MAC op → runtime `PAAL_ID` (**één binary voor alle 24 borden**); de master vult daaruit `slaveAdressen[]` voor zijn bereik. (Was: per-master `slave_macs.h` + compile-time `PAAL_ID`.)
 - Commentaar in het Nederlands waar logisch, code-namen in het Engels
 - C++ structs voor ESP-NOW: altijd `__attribute__((packed))`
 - Python: f-strings, type hints waar logisch, geen overdreven OOP
@@ -88,10 +88,12 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 1. Bewerk in VS Code via PlatformIO
 2. Selecteer de environment onderin de status bar:
    - **Master**: `master1` (palen 1–8), `master2` (9–16) of `master3` (17–24). Eén codebase;
-     het paalbereik + de slave-MAC-set komen uit `build_flags` (`PAAL_MIN/PAAL_MAX/MASTER_NR`) en
-     `firmware/Master/include/slave_macs.h`. Flash de juiste env naar de juiste fysieke master.
-   - **Slave**: één env; zet enkel `PAAL_ID` per bordje — de slave kiest zijn master-MAC automatisch
-     uit `PAAL_ID` (1–8→master1, 9–16→master2, 17–24→master3).
+     het paalbereik komt uit `build_flags` (`PAAL_MIN/PAAL_MAX/MASTER_NR`); de slave-MAC's uit de gedeelde
+     `firmware/shared/paal_macs.h`. Flash de juiste env naar de juiste fysieke master.
+   - **Slave**: **één binary voor alle 24 borden** — je zet **niets** meer per bordje. De slave leest bij
+     boot zijn eigen MAC en zoekt zijn `PAAL_ID` op in `firmware/shared/paal_macs.h` (staat het MAC er niet
+     in → fout-blink + doet niet mee). Nieuw bord: flash de binary, lees het MAC uit de banner, voeg één
+     regel `{mac, paal}` toe aan `paal_macs.h`, herflash de betrokken master.
 3. Build (vinkje) → Upload (pijl) → Serial Monitor (stekker)
 
 ### Pi-code
@@ -117,7 +119,7 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 ## Belangrijke configbestanden
 
 - `firmware/Master/platformio.ini` — versies + de drie master-envs (`master1/2/3`, paalbereik via `build_flags`)
-- `firmware/Master/include/slave_macs.h` — slave-MAC's per master (geselecteerd op `MASTER_NR`)
+- `firmware/shared/paal_macs.h` — **gedeelde** `MAC → PAAL_ID`-tabel (slave zoekt eigen `PAAL_ID`, master vult `slaveAdressen[]`); via `-I ../shared` in beide `platformio.ini`
 - `firmware/Slave/platformio.ini` — versies en build config slave
 - `pi/serial-bridge/bridge.py` — Python bridge code
 - `pi/serial-bridge/Dockerfile` — bridge container definitie
@@ -141,6 +143,12 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 - **BLE-scan-duur is runtime instelbaar** (`MSG_SCAN_CONFIG`/actie 20, dashboard "Scan-duur (BLE)"): de slave scant **niet-blokkerend**, begrensd met `millis()` (`scanDuurMs`, default 1000, clamp 300–2000) — NimBLE 1.4.2 kan enkel in hele seconden blokkeren. Kortere scan = versere detectie = minder scoring-latentie. Volatile → Node-RED herstelt na reboot via de heartbeat. Zie `docs/locatiebepaling.md` + `docs/protocol.md`.
 - **Settle-grace** (`global.pofSettleGrace`, default 3 s) in de PoF-engine: de verplaatsingscontrole draait op **T+grace** i.p.v. T (nieuwe fase `grace` in "Engine tick") zodat trage paalwissels nog in het juiste event landen. Instelbaar via Systeeminstellingen (`sim/systeem-config`). Zie `docs/spel/event-systeem.md §4` + invariant V9.
 - De **volledige actie-tabel** (0–20) staat in `docs/protocol.md §2` — dé bron. Voeg nooit een actie/berichttype toe zonder die tabel + de slave/master-firmware samen bij te werken.
+- **2,4 GHz-kanaal (H6):** ESP-NOW zit **hard op kanaal 1** (slave `WIFI_KANAAL`, master `main.cpp`). Pin het **Pi-accesspoint op kanaal 6 of 11** (weg van kanaal 1), anders concurreert dashboard-/Klokslag-WebSocket-verkeer met de ESP-NOW-airtime op de single-antenne C3 → gemiste detecties/commando's onder belasting. Doe op de speeldag een kanaalscan. Zie `docs/hardware/hardware-info.md`.
+- **Batterij:** de slave meldt firmware-kritiek < **3,2 V** (`MSG_FOUT`); Node-RED toont vanaf < **3,5 V** de niet-blokkerende dashboard-waarschuwing "vervang batterij" (foutcode ST-005, `BATT_VERVANG_V` in "Evalueer spelstatus"). **Hot-swap** kan tijdens het spel — de slave reboot, heartbeat herstelt hem, het spel loopt door. Zie `docs/hardware/hardware-info.md`.
+- **Spelerslijst (H8):** de baken-MAC → naam-koppeling is **dashboard-bewerkbaar** (Beacons & Locatie → "Spelers / bakens beheren") en **retained op `config/spelers`** (overleeft deploy/herstart, wint van de flows.json-seed `[CONFIG] Spelerslijst`, die enkel nog bootstrap is). Baken wisselen zonder deploy: wapper het bij een paal → kies speler → Koppel. Zie `docs/locatiebepaling.md`.
+- **Hub = single point of failure (H10):** Pi 4 + 3 masters + audio + AP + Node-RED + broker op één SD-kaart. Reserve-SD (gekloond) + powerbank-pass-through + runbook `docs/handleidingen/hub-noodherstel.md`. De spelstand overleeft een herstart dankzij `contextStorage` (`settings.js`) + retained `spel/state`.
+- **Doelwit-dichtheid (G3):** het aantal doelwitten voor een string-optie (`laag/midden/hoog`) schaalt met N (actieve spelers) via `global.doelwitDichtheid` (default 0,25; dashboard "Spelbalans" op Bediening) → consistent % van het veld bij weinig én veel spelers. `enkel`/vast getal/array/`alle` schalen niet. Groep-events krijgen een tier-boost bij N>15. **De weging-hook zit in `Kies event` ÉN `Bouw pof/status`** (vooruit-geplande wachtrij) — pas beide samen aan. Zie invariant EV6.
+- **Geheugen op de 1 GB-Pi (L4):** 1 GB volstaat mits de global-caps: `spelHistorie` ≤30 (3 unshift-plekken), `pofSnapshots` diepte 10 zonder `pofHuidigSpel`-kloon, `globaleStats.skills` ≤50. Onbegrensde globals zitten óók in de 30 s-`spel/state`-dump + `contextStorage`-disk (elke 15 s). Houd open dashboard-/simulator-tabs beperkt. Zie `docs/hardware/hardware-info.md` ("Geheugen") + invariant S6.
 
 
 ## Voor Claude Code — werkstijl

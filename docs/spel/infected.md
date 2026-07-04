@@ -11,12 +11,15 @@ Iedereen start op het veld. **Eén** willekeurige speler wordt **besmet** en pro
 Spelers bewegen vrij over de **ring van palen** (niet dwars door het binnenveld — dat is een spelersregel,
 de software dwingt het niet af). De **laatste 3** niet-besmette spelers **winnen**.
 
-## Besmetting (15 s)
+## Besmetting (5 s basis, oplopend)
 
 - Een paal waar een **besmette** speler staat kleurt **constant rood**.
-- Een **niet-besmette** speler die **op datzelfde uur** staat, wordt na **15 seconden** óók besmet.
+- Een **niet-besmette** speler die **op datzelfde uur** staat, wordt na de besmettingstijd óók besmet.
+  Die tijd start op **5 s** (net na het kiezen van patiënt 0) en loopt op met **+1 s per 2 besmetten**:
+  `drempel = 5 s + floor(aantalBesmet / 2)`. Dus 1 besmet → 5 s, 2 → 6 s, 4 → 7 s, … — hoe verder de
+  epidemie, hoe trager de volgende besmetting.
 - De teller loopt per speler en **reset** zodra die speler de paal verlaat of de paal "veilig" wordt
-  (een bestrijder erbij, zie onder). Meerdere spelers op één besmette paal raken elk na hun eigen 15 s besmet.
+  (een bestrijder erbij, zie onder). Meerdere spelers op één besmette paal raken elk na hun eigen tijd besmet.
 
 ## Infectiebestrijders (vanaf 5 besmet, 60 s)
 
@@ -71,7 +74,7 @@ pad als Klokslag. Bij **Stop** worden alle infected-palen netjes uitgezet.
 
 | Mechanisme | Tijd |
 |------------|------|
-| Besmetting op een besmette paal | **15 s** |
+| Besmetting op een besmette paal | **5 s basis + 1 s per 2 besmetten** (`5 + floor(aantalBesmet/2)`) |
 | Bestrijders actief vanaf | **5 besmet** |
 | Bestrijder-immuniteit + rotatie | **60 s** |
 | Winnaars | laatste **3** over |
@@ -80,7 +83,7 @@ pad als Klokslag. Bij **Stop** worden alle infected-palen netjes uitgezet.
 
 - **INF1** — Eén patiënt 0 bij start (willekeurig uit de spelers op het veld). De PoF-/Klokslag-engines
   staan stil zolang `spelType === "infected"`.
-- **INF2** — Besmetting vereist **15 s onafgebroken** op een paal met een besmette; reset bij verlaten of
+- **INF2** — Besmetting vereist **`5 + floor(aantalBesmet/2)` s onafgebroken** (basis 5 s, +1 s per 2 besmetten) op een paal met een besmette; reset bij verlaten of
   een blauwe (bestrijder-)paal. Bestrijders zelf zijn immuun.
 - **INF3** — Bestrijders bestaan enkel bij **≥ 5 besmet**, met een **60 s**-rotatie; hun paal is een
   blauwe veilige zone.

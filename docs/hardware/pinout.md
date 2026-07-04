@@ -16,8 +16,10 @@ wijzigen.
 | GPIO6 | Rode LED | OUT | Via 150Ω. **Drukknop-feedback-LED**: brandt als de paal "actief" staat (`ACTIE_KNOP_ARM`), gaat uit zolang de knop ingedrukt is (via knop-ISR) → speler ziet of zijn druk pakt |
 | GPIO8 | Ingebouwde LED | OUT | Onboard LED, **active-LOW** (LOW = aan). Knippert kort (~40 ms) bij elke succesvolle ESP-NOW-zend |
 
-Batterij-drempel (firmware): kritiek < 3.2 V → `MSG_FOUT` naar de master (geen
-LED-indicatie meer).
+Batterij-drempels: **< 3,5 V → dashboard-waarschuwing "vervang batterij"** (Node-RED, foutcode ST-005,
+niet-blokkerend) en **< 3,2 V → firmware-kritiek** (`BATT_KRITIEK`) → eenmalige `MSG_FOUT` naar de master.
+Voeding, hot-swap-procedure en de aandachtspunten rond **GPIO0 (H7)** en **GPIO1/IRLZ44N (H5)** staan in
+`docs/hardware/hardware-info.md`.
 
 ## Master — ESP32 WROOM-32
 

@@ -145,8 +145,12 @@ Richting **nooit** afleiden uit de netto begin/eind-verplaatsing. `eind < begin`
 **actie per actie**; de "niet achteruit"-regel geldt enkel op STAP, nooit op TELEPORT.
 
 ### Hoe het pad bekend is (implementatie)
-We leiden het pad af uit de **settled paalwissels** (uit de locatiebepaling) tijdens de
-reactietijd: een geordende reeks hops `[van,naar]` per speler (`global.pofPad`). Classificatie:
+We leiden het pad af uit de **settled paalwissels** (uit de locatiebepaling): een geordende
+reeks hops `[van,naar]` per speler (`global.pofPad`). De opname loopt van de **doelwit-reveal**
+(`bezig`) t/m de **settle-grace** — dus vanaf het moment dat het event gekozen is (de
+begin-snapshot + `pofPad`-reset staan al klaar) tot net vóór de controle. Zo is er géén blind
+venster tijdens de reveal waarin bewegingen ongezien blijven (voorheen begon de opname pas in
+`reactie`, wat een gat gaf: zie invariant V5/V9). Classificatie:
 - `{van,naar}` = de twee eindpunten van een **actief portaal** → **TELEPORT** (0 stappen).
 - anders: voorwaartse afstand `fd`, achterwaartse `bd` (ring); `fd ≤ bd` → `fd` STAPpen vooruit,
   anders `bd` STAPpen achteruit (= verboden).
@@ -160,10 +164,14 @@ reactietijd: een geordende reeks hops `[van,naar]` per speler (`global.pofPad`).
 
 ## 4. De evenement-cyclus
 
-1. **Aanloop** — timer telt af.
+1. **Aanloop** — timer telt af. Dit is een **vrij-verplaats-venster**: zolang de aanloop loopt
+   (en algemeen buiten een event) mag **elke** speler vrij en onbeperkt bewegen — niet opgenomen,
+   niet bestraft (behalve de middernacht-poort). Zie invariant **V10**.
 2. **Event kiezen + tonen** — respecteer de `max`/`getal`-grenzen van het event.
-3. **Doelwitten bekendmaken** — wie is geselecteerd (afroep: aantal + zelfst.nw + tekst).
-4. **Reactietijd** — geselecteerde spelers bewegen; pad wordt opgenomen.
+3. **Doelwitten bekendmaken** (fase `bezig`) — wie is geselecteerd (afroep: aantal + zelfst.nw +
+   tekst). **De pad-opname loopt hier al** (begin-snapshot staat vast), zodat bewegen tijdens de
+   reveal niet ongestraft blijft.
+4. **Reactietijd** — geselecteerde spelers bewegen; pad wordt verder opgenomen.
 5. **Settle-grace** (`global.pofSettleGrace`, default 3 s; 0 = uit) — na de reactietijd wacht de engine
    kort (fase `grace`) zodat **traag-settlende** paalwissels nog in **dit** event terechtkomen; het pad
    wordt ondertussen verder opgenomen. Vermijdt onterecht "TE WEINIG" en het doorlekken van een late hop
@@ -192,16 +200,17 @@ willekeurig gerold wordt, of een preset (`kort`/`middel`/`lang`). Dat getal word
 
 ## 6. De events
 
-### Event A — "maximum x vooruit" (`verplaatsing2`)
-Geselecteerde spelers mogen tot `x` palen vooruit; minder mag, meer niet, achteruit niet.
-- **Preconditie**: elke geselecteerde speler staat op een geldige paal.
+### Event A — "maximum x vooruit" (`groep_verplaatsing`)
+De gekozen **groep** (kleur of jaar) mag tot `x` palen vooruit; minder mag, meer niet, achteruit niet.
+- **Preconditie**: elk groepslid staat op een geldige paal.
 - **Effect**: `positie` via geldige verplaatsing met `aantal_STAP ≤ x`; `levensuren += verdiend`.
-- **Invariant**: `aantal_STAP ≤ x`; elke STAP vooruit.
+- **Invariant**: `aantal_STAP ≤ x`; elke STAP vooruit. **Verplaatsing-events zijn groep-only** — de
+  vroegere individuele speler-events (`verplaatsing2`/`of_verplaatsing`) bestaan niet meer.
 
-### Event D — "x of y vooruit" (`of_verplaatsing`)
-Geselecteerde spelers moeten **exact `x` óf exact `y`** palen vooruit; elk ander aantal is fout.
+### Event D — "x of y vooruit" (`groep_of_verplaatsing`)
+De gekozen **groep** moet **exact `x` óf exact `y`** palen vooruit; elk ander aantal is fout.
 `x` rolt uit `getal` (laag, 1–3), `y` uit `getal2` (`[4,6]`); een `[min,max]`-bereik houdt `y > x`.
-- **Preconditie**: elke geselecteerde speler staat op een geldige paal.
+- **Preconditie**: elk groepslid staat op een geldige paal.
 - **Effect**: `positie` via geldige verplaatsing met `aantal_STAP ∈ {x, y}`; `levensuren += verdiend`.
 - **Invariant**: `aantal_STAP === x` of `aantal_STAP === y`; elke STAP vooruit. Anders ONGELDIGE KEUZE (−voor).
 

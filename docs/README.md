@@ -23,10 +23,12 @@ docs/
 │   └── nieuw-event-toevoegen.md ← korte checklist: wat lever je aan voor een nieuw event
 ├── hardware/            ← FYSIEKE HARDWARE
 │   ├── pinout.md            ← GPIO-toewijzing slave/master (single source of truth)
+│   ├── hardware-info.md     ← voeding & batterij (drempels + hot-swap), weersbestendigheid, aandachtspunten/rev-B (H4-H7)
 │   └── playfield.md         ← geometrie van het 24-hoekig speelveld
 └── handleidingen/       ← OPERATIONELE HOW-TO's per component
     ├── master.md · slave.md · serial-bridge.md · audio-player.md
     ├── dashboards.md        ← de Node-RED Dashboard 2.0-pagina's (functie/opbouw)
+    ├── hub-noodherstel.md   ← "hub vervangen in 10 min"-runbook (H10: SPOF, reserve-SD/powerbank)
     └── spel-testen.md       ← autonoom AI-agent testen: pre-flight + scripted + live-agent
 ```
 
