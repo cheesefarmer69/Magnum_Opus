@@ -259,7 +259,9 @@ static bool enqueueCommando(uint8_t paal, uint8_t actie) {
   uint8_t tail = (q.head + q.count) % CMD_FIFO_DIEPTE;
   q.items[tail].actie_id        = actie;
   q.items[tail].cmd_seq         = volgendeCmdSeq++;
-  if (volgendeCmdSeq == 0) volgendeCmdSeq = 1;   // 0 overslaan (sentinel)
+  // 0 en 0xFFFF overslaan: 0 = "geen", 0xFFFF = slave-boot-sentinel (laatsteUitgevoerdeSeq).
+  // Zonder de 0xFFFF-skip kan het eerste commando na een slave-reboot stil geskipt worden (L5).
+  if (volgendeCmdSeq == 0 || volgendeCmdSeq == 0xFFFF) volgendeCmdSeq = 1;
   q.items[tail].pogingen        = 0;
   q.items[tail].laatstVerstuurd = 0;
   q.count++;

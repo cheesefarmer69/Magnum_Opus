@@ -209,7 +209,8 @@ Een **happy hour** maakt een uur tijdelijk extra waardevol, herkenbaar aan een *
 gouden LED**. Eindigt een speler een verplaatsing **op** een happy-hour-uur, dan tellen
 de levensuren die hij met díe verplaatsing verdient **dubbel**. Voorbeeld: een speler die
 3 uur vooruit gaat en op het happy-hour-uur landt, krijgt 6 levensuren in plaats van 3.
-Er kunnen meerdere happy-hour-uren tegelijk zijn (`max: 2`).
+Eén happy-hour-afvuring kan meerdere uren tegelijk goud kleuren; er loopt hooguit één
+happy-hour-episode tegelijk (`max: 1`).
 
 ### Simulatie vs. echt spel
 

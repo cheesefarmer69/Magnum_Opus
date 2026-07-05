@@ -8,6 +8,13 @@ meegeeft aan Claude in een nieuwe chat**.
 ```
 docs/
 ├── README.md            ← dit overzicht
+├── handboek/            ← HET HANDBOEK (start hier voor opbouw/test/uitleg)
+│   ├── README.md            ← inhoudsopgave + rollen (bouwploeg/operator/spelleider/technicus)
+│   ├── 01-veldopzet.md      ← veld opzetten stap-voor-stap + speeldag-checklist + afbouw
+│   ├── 02-testprocedure.md  ← T1–T13: elk onderdeel verifiëren + symptoom→document-tabel
+│   ├── 03-technische-opbouw.md ← de volledige techniek, laag voor laag (synthese + verwijzingen)
+│   ├── 04-spelersuitleg.md  ← voorleesbare briefing + spiekkaarten (PoF/Klokslag/Infected)
+│   └── 05-events-en-dynamieken.md ← alle 15 events als kaart + alle permanente mechanismen
 ├── invarianten.md       ← alle invarianten van het systeem op één plek
 ├── protocol.md          ← communicatieprotocol (ESP-NOW / serial / MQTT)
 ├── locatiebepaling.md   ← RSSI-locatie-algoritme + tuning
@@ -34,6 +41,9 @@ docs/
 
 ## Waarom deze groepering
 
+- **`handboek/`** is de **narratieve/operationele laag** voor mensen (opbouwen, testen, uitleggen,
+  spelen) en verwijst voor exacte waarden naar de normatieve docs hieronder — bij tegenspraak
+  winnen die.
 - **`spel/`** bundelt het spelontwerp. Deze documenten verwijzen voortdurend naar elkaar
   (regels → catalogus → schema → scoring) en moeten **samen consistent** blijven; daarom
   staan ze in één map. `event-systeem.md` is hierbij **leidend** voor de regels.

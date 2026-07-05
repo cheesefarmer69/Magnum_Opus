@@ -18,6 +18,12 @@ wijzigen.
 
 Batterij-drempels: **< 3,5 V → dashboard-waarschuwing "vervang batterij"** (Node-RED, foutcode ST-005,
 niet-blokkerend) en **< 3,2 V → firmware-kritiek** (`BATT_KRITIEK`) → eenmalige `MSG_FOUT` naar de master.
+
+> **Flashen/download-mode (C3 SuperMini).** Lukt Upload niet (bord "niet vindbaar", poort verspringt)
+> of blijft de monitor leeg? De ingebouwde USB Serial/JTAG reset niet altijd vanzelf naar de bootloader
+> zodra er een USB-CDC-sketch draait. Forceer download-mode: **BOOT (GPIO9) vasthouden → RESET tikken →
+> BOOT loslaten**. MAC uitlezen kan firmware-loos met `firmware/tools/lees-mac.ps1`. Zie
+> `docs/handleidingen/slave.md` ("Bord niet vindbaar / lege monitor").
 Voeding, hot-swap-procedure en de aandachtspunten rond **GPIO0 (H7)** en **GPIO1/IRLZ44N (H5)** staan in
 `docs/hardware/hardware-info.md`.
 

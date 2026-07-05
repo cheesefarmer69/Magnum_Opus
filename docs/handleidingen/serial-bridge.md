@@ -143,6 +143,7 @@ De container krijgt toegang via `--device-cgroup-rule 'c 188:* rmw'` + `-v
 | `[DETECTIE] Nieuwe master-poort: /dev/ttyUSB0` | CH340 gevonden, leesthread gestart |
 | `Verbonden met /dev/ttyUSB0` | Serieel verbonden, bridge actief |
 | `[ROUTE] /dev/ttyUSB0 -> commando/master1 (paal 3)` | Routering geleerd uit paal_id |
+| `[ROUTE-CONFLICT] master 2 announcet op /dev/ttyUSB0 EN /dev/ttyUSB1 ...` | **Twee borden met hetzelfde `MASTER_NR` geflasht** — bridge publiceert `{"bridge_fout":"MASTER_CONFLICT",...}` op `plaatjes/data`; dashboard toont ST-006 (pre-flight NO-GO). Herflash het verkeerde bord met de juiste env |
 | `[DATA] /dev/ttyUSB0: {'paal': 2, ...}` | JSON ontvangen en gepubliceerd |
 | `[DEBUG] /dev/ttyUSB0: [RECV] Paal 2...` | Debug-output van master, niet doorgestuurd |
 | `[MQTT] Ontvangen op commando/master1: {...}` | Commando van Node-RED ontvangen |

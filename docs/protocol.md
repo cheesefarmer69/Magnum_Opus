@@ -161,6 +161,9 @@ terugstuurt — niet bij de MAC-laag-ACK van de radio (die zegt enkel "pakket on
 - **Idempotent**: de slave onthoudt het laatst uitgevoerde `cmd_seq`. Komt hetzelfde `cmd_seq` opnieuw binnen
   (master deed een retry omdat de ACK verloren ging), dan voert de slave **niet opnieuw uit** maar stuurt hij
   **wél opnieuw een ACK**.
+- **Sentinels (L5)**: de slave boot met `laatsteUitgevoerdeSeq = 0xFFFF` ("nog niets uitgevoerd"); de
+  master-teller slaat daarom **0 én 0xFFFF** over bij het uitdelen — een vers geboote slave kan zo nooit een
+  echt commando als "al uitgevoerd" wegfilteren.
 - De master koppelt de ACK aan het **head-item** van de per-slave FIFO via `cmd_seq` en popt het dan.
 - **Timing**: de slave verwerkt een commando pas aan het einde van zijn ~1 s blokkerende scan-cyclus. De
   ACK-round-trip is daardoor ~1–1,3 s; de master-retry-timeout (`APP_ACK_TIMEOUT`) staat daarom op **~1500 ms**
@@ -403,6 +406,17 @@ ongeleerd zolang geen slave rapporteerde, waardoor commando's werden genegeerd (
 De bridge gebruikt de aankondiging **enkel intern** om de route te (her)koppelen
 (`[ROUTE] /dev/ttyUSBx -> commando/masterN`) en stuurt ze **niet** door naar MQTT. Een master die naar een
 andere USB-poort verhuist, wordt door de volgende aankondiging automatisch opnieuw correct gerouteerd.
+
+**Master-conflict (R6/C8):** announcet hetzelfde `master`-nummer binnen 10 s op **twee verschillende open
+poorten** (= twee borden met dezelfde `MASTER_NR`-env geflasht → stille route-flip-flop), dan publiceert de
+bridge — max 1×/30 s — een foutbericht op `plaatjes/data`:
+
+```json
+{"bridge_fout":"MASTER_CONFLICT","master":2,"poorten":["/dev/ttyUSB0","/dev/ttyUSB1"]}
+```
+
+Node-RED ("Registreer detectie" → "Evalueer spelstatus") toont dit als **ST-006 (FOUT, blokkerend)** in de
+pre-flight. Oplossing: het verkeerd geflashte bord met de juiste env herflashen.
 
 ### Formaat: fout
 

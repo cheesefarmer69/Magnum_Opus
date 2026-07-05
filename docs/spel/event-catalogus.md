@@ -230,7 +230,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   `happy_hour`-effect op; de centrale LED-node kleurt die uren **goud**. De afroep zegt
   het aantal vooraan ("3 uren worden Happy Hour").
 - **Doelwit**: `type: uur`, `selectie: willekeurig`, `aantal: "laag"`.
-- **Max**: `max: 2` — tot 2 happy-hour-uren tegelijk.
+- **Max**: `max: 1` — hooguit één happy-hour-episode tegelijk; de afvuring zelf kleurt meerdere
+  uren tegelijk goud (`aantal: "laag"`, dichtheid-geschaald).
 - **Scoring (×2)**: eindigt een speler een verplaatsing **op** een happy-hour-uur, dan
   tellen de daarmee verdiende levensuren **dubbel** (flow 04, "Bereken levensuren"). Bv.
   3 uur vooruit eindigend op happy hour → +6. Zie `docs/spel/spel.md`.

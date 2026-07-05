@@ -321,10 +321,21 @@ Klokslag (`min_inname_s`, zie `docs/spel/klokslag.md`) is complementair: overdri
 | `beaconKalibratie` | `{ "<mac>": offsetDb }` |
 | `beaconBuf` | ruwe sample-buffer per MAC (intern; voedt stabiliteit + ruwe-RSSI-tabel) |
 | `rssiDiagAan` | `true/false` — schakelaar voor de ruwe-RSSI diagnose-tabel |
-| `palenActief` | actieve palen-ring voor uur-logica; = `paaltjesLijst`, of `1..24` als de simulator in sim-modus staat (`simVeld24`) |
+| `palenActief` | actieve palen-ring voor uur-logica; = `paaltjesLijst`, of `1..24` als de simulator in sim-modus staat (`simVeld24`). In hardware-modus **heartbeat-gestuurd**: een paal die > 60 s stil is gaat tijdelijk uit de ring (invariant F4) |
 | `simVeld24` | `true` wanneer de simulator een 24-uur veld forceert (sim-modus) |
 | `spelerLocaties` | `{ spelerNaam: paalId }` — centrale waarheid |
+| `spelerPruneMs` | drempel (ms, default **90000**) van de **ghost-prune**: een speler wiens beacon zo lang niet meer gezien is, wordt uit `spelerLocaties` verwijderd (invariant EV3) |
 
 > De uur-logica (doelwit-keuze, verplaatsingscontrole, scoring) leest `palenActief`
 > (met fallback naar `paaltjesLijst`). Zo test de simulator op 24 uren zonder de
 > echte `paaltjesLijst` (gebouwde slaves) te wijzigen.
+
+### Levenscyclus van `spelerLocaties` (ghost-prune, S1)
+
+De locatiebepaling **schrijft** posities, maar verwijderde ze vroeger nooit — een beacon die
+uitvalt (lege knoopcel, kwijt, speler naar huis) bleef dan eeuwig op zijn laatste paal staan en
+spookte in Klokslag/Infected en de doel-telling. Daarom pruned "Evalueer spelstatus" (flow 02,
+elke ~1 s, **alleen hardware-modus**) spelers wier beacon langer dan `global.spelerPruneMs`
+(default 90 s) niet meer gezien is. Tijdens een nuke geldt het kortere `nukeEscapeMs` (ontsnappen).
+Komt de beacon terug, dan zet de eerstvolgende detectie de speler gewoon weer neer. In sim-modus
+is "Sim directe locatie" de enige schrijver en gebeurt er niets.

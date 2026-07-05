@@ -39,7 +39,7 @@ per speler en per paal wanneer ze laatst gezien zijn; de foutcodetabel vat probl
 | Spelers | `ui-table` Tabel Spelers | Alle spelers + detectiestatus + laatst gezien. |
 | Bediening status | `ui-switch` Toon batterij · `ui-switch` Override NO-GO | Batterijkolom tonen; geforceerd starten ondanks NO-GO. |
 | Palen / Slaves | `ui-table` Tabel Palen | Alle palen/slaves: status, laatst gezien, batterijspanning. |
-| Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-005) met ernst + uitleg. **ST-005** = batterij bijna leeg (< 3,5 V, WAARSCHUWING, niet-blokkerend → "vervang batterij"; drempel `BATT_VERVANG_V`). |
+| Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-006) met ernst + uitleg. **ST-005** = batterij bijna leeg (< 3,5 V, WAARSCHUWING, niet-blokkerend → "vervang batterij"; drempel `BATT_VERVANG_V`). **ST-006** = master-conflict (FOUT, blokkerend): twee poorten melden hetzelfde `MASTER_NR` — twee borden met dezelfde env geflasht; herflash het verkeerde bord (invariant C8). |
 
 ---
 

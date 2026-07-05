@@ -59,6 +59,7 @@ spel meldt die of de spelstatus op dat moment OK was.
 | `ST-003` | FOUT                | Geen enkele data op `plaatjes/data` — controleer master + bridge. |
 | `ST-004` | INFO                | Onbekende beacon gedetecteerd (niet in `spelersLijst`).          |
 | `ST-005` | WAARSCHUWING        | Batterij bijna leeg (< `BATT_VERVANG_V` = 3,5 V) → **vervang batterij**. Niet-blokkerend. |
+| `ST-006` | FOUT                | **Master-conflict** (bridge): twee poorten melden hetzelfde `MASTER_NR` — twee borden met dezelfde env geflasht. Herflash het verkeerde bord (invariant C8). |
 
 > Deze codes worden lokaal in Node-RED afgeleid. Wanneer het error messaging
 > protocol bestaat, kunnen slaves/master eigen foutcodes sturen die hier
@@ -69,28 +70,45 @@ spel meldt die of de spelstatus op dat moment OK was.
 Bovenaan de functie `Evalueer spelstatus`:
 
 - `SPELER_TIMEOUT_MS` (15 s) — speler geldt als niet-gedetecteerd na deze stilte.
-- `SLAVE_STALE_MS` (60 s) — paal geldt als "verouderd" na deze stilte.
+- `SLAVE_STALE_MS` (60 s) — paal geldt als "verouderd" na deze stilte (en gaat dan óók uit de ring, zie L3-sectie).
 - `GEEN_DATA_MS` (10 s) — geen enkele data → master/bridge-fout.
+- `global.spelerPruneMs` (90 s, runtime instelbaar) — ghost-prune-drempel van `spelerLocaties` (zie S1-sectie).
 - `BATT_VERVANG_V` (3,5 V) — celspanning waaronder een **ST-005**-batterijwaarschuwing verschijnt. Gebruikt
   de `batt`-waarde uit `status_batterijPaal` (onafhankelijk van de "Toon batterij"-toggle); `WAARSCHUWING`
   blokkeert de GO/NO-GO niet. Zie `docs/hardware/hardware-info.md`.
 
-## NUKE-ontsnapping (nuke-scoped prune van `spelerLocaties`)
+## Ghost-prune van `spelerLocaties` (S1) — algemeen + nuke-venster
 
-`spelerLocaties` wordt buiten een nuke **nooit** opgeschoond (een stilgevallen beacon blijft als ghost
-staan). Dat maakt ontsnappen aan een NUKE op hardware onmogelijk (de nuke-controle checkt `loc[naam] !=
-null`). Daarom bevat `Evalueer spelstatus` een **nuke-scoped** prune, die **alleen** loopt zolang
-`global.nukeActief === true` **én** niet in sim (`simVeld24 !== true`):
+`Evalueer spelstatus` schoont `spelerLocaties` **altijd** op in hardware-modus (niet enkel bij een
+nuke, zoals vroeger): een speler wiens beacon te lang niet meer vers gezien is (`status_lastSeenMac`)
+wordt uit `spelerLocaties` verwijderd, mét `node.warn`-logregel. Zo wordt een dode/weggelegde beacon
+geen eeuwige speler in Klokslag/Infected of de doel-telling (invariant EV3).
 
-- Voor elke geregistreerde speler (`spelersLijst` = `{mac:naam}`) wordt `status_lastSeenMac[mac]`
-  vergeleken met `global.nukeEscapeMs` (= het nuke-event-veld `escape_s` × 1000, default **4000 ms**).
-- Is de beacon > `nukeEscapeMs` niet meer gezien (of nooit), dan wordt de speler uit `spelerLocaties`
-  gehaald → hij geldt bij de nuke-controle als **VEILIG (ontkomen)** en verdwijnt live van de radar.
+- **Normale drempel:** `global.spelerPruneMs` (default **90 000 ms**). Ruim boven de ST-001-waarschuwing
+  (15 s), zodat de operator eerst "VERLOREN" ziet vóór de speler echt verdwijnt.
+- **Tijdens een nuke:** het kortere `global.nukeEscapeMs` (= nuke-event-veld `escape_s` × 1000, default
+  **4000 ms**, gezet in `Voer gevolg uit`) → wie wegloopt geldt bij de nuke-controle als
+  **VEILIG (ontkomen)**.
+- **Sim-modus:** niets — `Sim directe locatie` is daar de enige schrijver.
+- Komt de beacon terug, dan zet de eerstvolgende detectie de speler gewoon weer in het veld.
 
-Buiten de nuke raakt deze node `spelerLocaties` **niet** aan (locatiebepaling blijft ongewijzigd voor
-Klokslag/Infected/overige events). In sim regelt `Sim directe locatie` het ontsnappen al. `nukeEscapeMs`
-wordt gezet in `Voer gevolg uit` bij nuke-start. Zie `docs/spel/event-catalogus.md` (Nuke) en
-`docs/invarianten.md §4c` (N1/N7).
+Het **gepauzeerd-filter** (`gespauzeerdePlayers`) geldt sinds deze fix óók in de **Klokslag-** en
+**Infected-engine** (flow 07): gepauzeerde spelers nemen geen palen in en tellen niet als
+overlever/besmettingsbron. Zie `docs/invarianten.md` (EV3) en `docs/locatiebepaling.md`.
+
+## Heartbeat-gestuurde ring (L3): dode palen uit `palenActief`
+
+Aansluitend op de staleness-detectie haalt `Evalueer spelstatus` (alleen hardware-modus) een paal die
+ooit data stuurde maar > `SLAVE_STALE_MS` stil is **tijdelijk uit `palenActief`** — events, portalen en
+uur-doelwitten kiezen hem dan niet meer, en `paalLedForceRebuild` herbouwt de LED-staat. De paal komt
+**automatisch terug** zodra hij weer data stuurt (heartbeat/batch). Details:
+
+- Status in de palen-tabel wordt dan **"VEROUDERD (uit ring)"**; de ST-002-omschrijving vermeldt het.
+- **Nooit-geziene** palen blijven in de ring (opbouwfase vóór de eerste boot telt niet als uitval).
+- De ring zakt **nooit onder 2 palen** (vangnet; dan blijft de laatste bekende ring staan).
+- In sim-modus beheert `Sim-veld instellen` `palenActief` en doet deze logica niets.
+
+Zie `docs/invarianten.md` (F4).
 
 ## Globale variabelen
 
@@ -104,6 +122,7 @@ wordt gezet in `Voer gevolg uit` bij nuke-start. Zie `docs/spel/event-catalogus.
 | `status_override`        | boolean — toggle "Override NO-GO" op dashboard        |
 | `status_ok`              | boolean GO/NO-GO                                      |
 | `status_fouten`          | array van fouten                                      |
+| `status_bridgeFout`      | `{code, master, poorten, ts}` — laatste `bridge_fout` van de serial-bridge (bv. MASTER_CONFLICT → ST-006, vervalt na 30 s) |
 
 ## Heartbeat via batterij-regels
 

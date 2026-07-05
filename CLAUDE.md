@@ -116,6 +116,13 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
   UI hebt bewerkt (anders raakt de repo achter).
 - MQTT broker-server in Node-RED config: `192.168.1.43` (niet 127.0.0.1 — Node-RED draait in een bridge-netwerk, niet host-netwerk)
 
+## Documentatie-ingang
+
+- **`docs/handboek/`** — het complete handboek (veldopzet, testprocedure, technische opbouw,
+  spelersuitleg, alle events/dynamieken). Dit is de **narratieve** laag; **normatief** blijven
+  `docs/invarianten.md`, `docs/protocol.md` en `docs/spel/*` — houd het handboek daarmee in sync
+  bij regel-/protocolwijzigingen.
+
 ## Belangrijke configbestanden
 
 - `firmware/Master/platformio.ini` — versies + de drie master-envs (`master1/2/3`, paalbereik via `build_flags`)
@@ -149,6 +156,7 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 - **Hub = single point of failure (H10):** Pi 4 + 3 masters + audio + AP + Node-RED + broker op één SD-kaart. Reserve-SD (gekloond) + powerbank-pass-through + runbook `docs/handleidingen/hub-noodherstel.md`. De spelstand overleeft een herstart dankzij `contextStorage` (`settings.js`) + retained `spel/state`.
 - **Doelwit-dichtheid (G3):** het aantal doelwitten voor een string-optie (`laag/midden/hoog`) schaalt met N (actieve spelers) via `global.doelwitDichtheid` (default 0,25; dashboard "Spelbalans" op Bediening) → consistent % van het veld bij weinig én veel spelers. `enkel`/vast getal/array/`alle` schalen niet. Groep-events krijgen een tier-boost bij N>15. **De weging-hook zit in `Kies event` ÉN `Bouw pof/status`** (vooruit-geplande wachtrij) — pas beide samen aan. Zie invariant EV6.
 - **Geheugen op de 1 GB-Pi (L4):** 1 GB volstaat mits de global-caps: `spelHistorie` ≤30 (3 unshift-plekken), `pofSnapshots` diepte 10 zonder `pofHuidigSpel`-kloon, `globaleStats.skills` ≤50. Onbegrensde globals zitten óók in de 30 s-`spel/state`-dump + `contextStorage`-disk (elke 15 s). Houd open dashboard-/simulator-tabs beperkt. Zie `docs/hardware/hardware-info.md` ("Geheugen") + invariant S6.
+- **Veld-waarheid & robuustheid (S1/L3/G1/R4/C8):** "Evalueer spelstatus" pruned in hardware-modus **ghost-spelers** uit `spelerLocaties` (`spelerPruneMs`, default 90 s; tijdens nuke `nukeEscapeMs`) én haalt **stille palen** (> 60 s) tijdelijk uit `palenActief` (terug bij heartbeat; nooit < 2). Gepauzeerden tellen ook in Klokslag/Infected niet mee. De reactietijd heeft een **sensing-vloer** (SP6, ~7 s bij default-tuning) — tempo-stapeling kan fysiek correcte zetten niet meer bestraffen. `resetPartij()` verhoogt `pofGeneration`; geplande reveal-timeouts checken dat token (geen na-vuur op een gestopt spel). De bridge alarmeert **ST-006** bij twee borden met hetzelfde `MASTER_NR`. Zie invarianten EV3/F4/SP6/NR9/C8.
 
 
 ## Voor Claude Code — werkstijl

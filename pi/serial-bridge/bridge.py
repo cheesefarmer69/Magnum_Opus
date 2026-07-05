@@ -37,6 +37,12 @@ serieel_lock = threading.Lock()
 open_poorten = {}
 # commando-topic -> serial.Serial (geleerd uit binnenkomende paal_id)
 topic_naar_serieel = {}
+# R6: master-nr -> (device, tijdstip) van de laatste announce. Announcet hetzelfde
+# master-nr kort na elkaar op TWEE verschillende poorten, dan zijn twee borden met
+# hetzelfde MASTER_NR geflasht -> stille route-flip-flop. We alarmeren dan via een
+# bridge_fout-bericht op plaatjes/data (Node-RED toont ST-006 in de pre-flight).
+laatste_announce = {}
+laatste_conflict_alarm = {}
 
 # Diagnose-teller: hoeveel berichten naar MQTT gepubliceerd
 publicaties = 0
@@ -161,10 +167,24 @@ def lees_poort(device):
                 m = data.get("master")
                 topic = f"commando/master{m}" if m in (1, 2, 3) else None
                 if topic:
+                    nu_s = time.time()
                     with serieel_lock:
+                        vorige = laatste_announce.get(m)
+                        laatste_announce[m] = (device, nu_s)
+                        # R6: conflict = zelfde master-nr announcede < 10 s geleden op een ANDERE
+                        # poort die nog open is (een verhuisde master heeft zijn oude poort dicht).
+                        conflict = (vorige is not None and vorige[0] != device
+                                    and (nu_s - vorige[1]) < 10 and vorige[0] in open_poorten)
                         verandert = topic_naar_serieel.get(topic) is not ser
                         topic_naar_serieel[topic] = ser
                     geleerde_topics.add(topic)
+                    if conflict and nu_s - laatste_conflict_alarm.get(m, 0) > 30:
+                        laatste_conflict_alarm[m] = nu_s
+                        fout = {"bridge_fout": "MASTER_CONFLICT", "master": m,
+                                "poorten": [vorige[0], device]}
+                        client.publish(MQTT_DATA_TOPIC, json.dumps(fout))
+                        print(f"[ROUTE-CONFLICT] master {m} announcet op {vorige[0]} EN {device} "
+                              f"- twee borden met hetzelfde MASTER_NR geflasht?")
                     if verandert:
                         print(f"[ROUTE] {device} -> {topic} (announce master {m})")
                 continue

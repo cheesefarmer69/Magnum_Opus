@@ -226,14 +226,27 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
    > `build_flag`, forceer dan een schone build (`pio run -e esp32-c3-devkitm-1
    > -t clean` daarna opnieuw uploaden), want een gewijzigde flag hercompileert
    > gecachte library-objecten (zoals FastLED) niet altijd vanzelf.
-2. Open Serial Monitor — bij het opstarten toont de slave eenmalig een
-   banner met zijn MAC-adres:
+2. Lees het MAC uit. **Twee manieren:**
+
+   **(a) Aanbevolen — `esptool`, zonder flashen of monitor** (omzeilt de C3-USB-CDC-valkuilen):
+   zet het bord in **download-mode** (BOOT vasthouden → RESET tikken → BOOT loslaten) en draai:
+   ```powershell
+   cd firmware\tools
+   .\lees-mac.ps1 -Port COM7 -Paal 5     # -Port weglaten mag als er 1 poort is
+   ```
+   Het print het MAC + de kant-en-klare `paal_macs.h`-regel (en bewaart die met `-Paal`). Zie ook
+   het werkblad `firmware/tools/mac-tabel.md`. Handig als je 24 borden na elkaar afgaat.
+
+   **(b) Via de Serial Monitor** — bij het opstarten toont de slave eenmalig een banner:
    ```
    ============================================
      SLAVE MAC-ADRES : xx:xx:xx:xx:xx:xx
    ============================================
    ```
    (Staat het MAC nog niet in `paal_macs.h`, dan logt hij `!! ONBEKEND BORD ...` en knippert de rode LED.)
+   > Blijft de monitor **leeg**? Zie "Bord niet vindbaar / lege monitor (C3 SuperMini)" hieronder.
+   > Als los hulpmiddel bestaat er ook `firmware/tools/mac-lezer/` (mini-sketch die enkel het MAC toont
+   > + de onboard-LED laat knipperen als "ik leef"-teken).
 3. Voeg één regel `{{0x.., …}, <paal>}` toe aan `firmware/shared/paal_macs.h` met dit MAC + het gewenste
    paalnummer. Dit is de **enige** plek die je aanpast (bron van waarheid voor slave én master).
 4. Herflash de master die dat paalbereik bedient (die vult `slaveAdressen[]` uit dezelfde tabel). Het
@@ -265,3 +278,17 @@ check of master het juiste slave-MAC gebruikt.
 → Check `[BATT]` in de Serial Monitor; kritiek wordt gemeld onder `BATT_KRITIEK`.
 Mogelijk ook: ADC-kalibratie — meet de spanning met een multimeter en vergelijk.
 (De GPIO6-LED is nu de **drukknop-feedback-LED**, geen batterij-indicatie.)
+
+**Bord niet vindbaar voor upload / lege seriële monitor (C3 SuperMini)**
+De C3 SuperMini gebruikt de **ingebouwde USB Serial/JTAG** (geen CH340). De auto-reset naar de
+bootloader is onbetrouwbaar zodra er al een USB-CDC-sketch draait → de volgende upload komt de
+bootloader niet in en de COM-poort lijkt "weg" (of wisselt van nummer). De monitor kan leeg blijven
+door CDC-timing, of doordat het bord in download-mode hangt.
+
+→ **Forceer download-mode:** **BOOT (GPIO9) vasthouden → RESET tikken → BOOT loslaten** (klonen met
+  maar één knop: BOOT vasthouden terwijl je de USB insteekt). Daarna werkt Upload / `esptool` weer.
+→ **Lege monitor:** gebruik **"Upload and Monitor"** (poort wordt dan correct herpakt), controleer de
+  COM-poort, gebruik een **datakabel** (geen laadkabel), en druk na de upload één keer **RESET**.
+  In `platformio.ini` helpen `monitor_dtr = 0` + `monitor_rts = 0` tegen een monitor die de chip in
+  reset houdt.
+→ **MAC uitlezen lukt ook zonder monitor:** `firmware/tools/lees-mac.ps1` (esptool `read_mac`).

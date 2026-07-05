@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# PlatformIO build-output (regenereert lokaal bij elke build; .pio/libdeps blijft
+# bewust getrackt als vendored libraries).
+**/.pio/build/

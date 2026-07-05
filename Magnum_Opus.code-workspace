@@ -16,6 +16,7 @@
   "settings": {
     "files.exclude": {
       "**/.pio": true
-    }
+    },
+    "powershell.cwd": "── Firmware: Slave"
   }
 }

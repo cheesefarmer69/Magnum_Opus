@@ -61,6 +61,9 @@ module.exports = {
         // Roep SYNCHROON aan met het global-object:  global.get("resetPartij")(global)
         // (synchroon = veilig vlak vóór het opzetten van een nieuwe start-state, geen volgorde-val).
         resetPartij: function (global) {
+            // R4: elke partij-reset verhoogt de generatie; hangende setTimeout-callbacks
+            // (bv. de doelwit-reveal) checken dit token en vuren niet meer na een reset.
+            global.set("pofGeneration", (global.get("pofGeneration") || 0) + 1);
             global.set("pofHuidigSpel", null); global.set("pofHuidigEvent", null); global.set("pofWachtrij", []);
             global.set("pofActief", false); global.set("pofFase", "idle"); global.set("pofTeller", 0);
             global.set("pofEventenRonde", 0); global.set("pofDoelwitReveal", "");

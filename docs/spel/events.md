@@ -338,14 +338,15 @@ het bij één portaal tegelijk. Een sprong tussen de twee portaal-uren geeft **0
 
 ```js
 { id:"happy_hour", naam:"Happy Hour", categorie:"toestand",
-  tekst:"worden Happy Hour.", reactietijd_s:5, max:4, duratie:[3,6],
+  tekst:"worden Happy Hour.", reactietijd_s:5, max:1, duratie:[3,6],
   doelwit:{ type:"uur", selectie:"willekeurig", aantal:"laag" },
   audioVoor:"happy_hour_voor.wav", audioNa:"happy_hour_na.wav",
   gevolgen:[ { type:"effect", niveau:"uur", effect:"happy_hour", data:{} } ] }
 ```
 Kiest 1–3 willekeurige uren (afroep: "3 uren worden Happy Hour"). Die uren worden goud.
 Eindigt een speler een verplaatsing op een happy-hour-uur, dan tellen de verdiende
-levensuren dubbel (zie `docs/spel/spel.md`). `max: 4` laat tot 4 happy-hour-uren tegelijk toe.
+levensuren dubbel (zie `docs/spel/spel.md`). `max: 1` houdt het bij één happy-hour-**episode**
+tegelijk — die ene afvuring kleurt wel meerdere uren tegelijk goud (`aantal`, dichtheid-geschaald).
 
 ### Toestand-event (score)
 

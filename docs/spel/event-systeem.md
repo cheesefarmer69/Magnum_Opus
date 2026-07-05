@@ -226,7 +226,7 @@ van die verplaatsing verdubbeld.
 - **Preconditie**: bestaande paal/palen.
 - **Effect**: `happy_hour_palen += index`; goud (LED actie 2).
 - **Invariant**: beïnvloedt enkel de levensuren-berekening bij verplaatsing, niet budget/positie.
-  `max: 2`.
+  `max: 1` (één episode tegelijk; een afvuring kan meerdere uren omvatten).
 
 ---
 

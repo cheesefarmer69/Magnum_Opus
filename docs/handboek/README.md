@@ -1,0 +1,49 @@
+# Handboek Magnum Opus
+
+Het complete handboek voor het opzetten, testen, begrijpen en spelen van Magnum Opus — het
+interactieve buitenspel op een 24-hoekig speelveld met BLE-bakens, LED-palen en een centrale
+spelcomputer.
+
+> **Versie:** juli 2026 · **Status:** actueel met de repo op moment van schrijven.
+> Dit handboek is de **narratieve en operationele laag**. De **normatieve** bron voor exacte
+> regels, waarden en formaten blijven de diepe documenten: [`docs/invarianten.md`](../invarianten.md),
+> [`docs/protocol.md`](../protocol.md), [`docs/spel/`](../spel/) en de
+> [`docs/handleidingen/`](../handleidingen/). Wijkt dit handboek ooit af, dan winnen die documenten —
+> en is dit handboek aan een update toe.
+
+---
+
+## Hoofdstukken
+
+| # | Hoofdstuk | Voor wie | Wat je ermee kan |
+|---|-----------|----------|------------------|
+| 1 | [Veldopzet](01-veldopzet.md) | bouwploeg / operator | Het spel van nul opzetten in het veld: materiaal, veld uitzetten, palen, hub, bakens, tot en met "GO". Plus de speeldag-checklist en de afbouw. |
+| 2 | [Testprocedure](02-testprocedure.md) | operator / technicus | Elk onderdeel stap voor stap verifiëren (T1–T13), van één losse paal tot een end-to-end mini-spel. Met symptoom→document-tabel. |
+| 3 | [Technische opbouw](03-technische-opbouw.md) | technicus / ontwikkelaar | Hoe het volledige systeem technisch in elkaar zit, laag voor laag: bakens → palen → masters → bridge → MQTT → Node-RED → dashboards/simulator/audio. |
+| 4 | [Spelersuitleg](04-spelersuitleg.md) | spelleider → spelers | Een voorleesbare briefing (~5 min) + spiekkaarten (LED-kleuren, do's & don'ts, straffen) voor Plates of Fate, Klokslag en Infected. |
+| 5 | [Events & dynamieken](05-events-en-dynamieken.md) | spelleider / operator | Elk van de 15 events als vaste kaart (afroep · wie · wat doen · straf · duur/kans · LED · operator-notities) + alle permanente spelmechanismen. |
+
+## Rollen
+
+- **Bouwploeg** — zet het veld en de hardware op (H1) en draait de basistests mee (H2, T1–T5).
+- **Operator** — bedient het dashboard tijdens de speeldag: pre-flight, start/stop, events volgen,
+  batterijen wisselen, bakens her-toewijzen (H1 §7–8, H2, H5).
+- **Spelleider** — brieft de spelers (H4), kiest doelen en speltype, en grijpt in bij vragen over
+  regels (H4 + H5).
+- **Technicus** — lost storingen op en begrijpt het systeem in de diepte (H2, H3, plus de
+  [handleidingen](../handleidingen/) en het [hub-noodherstel-runbook](../handleidingen/hub-noodherstel.md)).
+
+Eén persoon kan meerdere rollen dragen; de hoofdstukken zijn zo geschreven dat elke rol enkel
+"zijn" hoofdstukken nodig heeft.
+
+## Hoe dit handboek te gebruiken
+
+- **Eerste keer opzetten?** Lees H1 volledig, doe daarna H2 (T1–T11) één keer integraal.
+- **Speeldag?** H1 §8 (ochtendchecklist) + H4 (briefing voorlezen) volstaan; H5 als naslag bij
+  regelvragen; H2 §symptoomtabel bij storingen.
+- **Iets stuk of onduidelijk?** H2 wijst per symptoom naar het juiste document; voor de hub is er
+  het aparte runbook ["hub vervangen in 10 min"](../handleidingen/hub-noodherstel.md).
+- **[IN TE VULLEN]-blokken**: een paar fysieke details (paal-constructie, batterijtype/lader,
+  AP-configuratie, baken-merk) staan niet in de repo en zijn gemarkeerd als `[IN TE VULLEN]`. Ze
+  zijn gebundeld in [H1 — Bijlage A](01-veldopzet.md#bijlage-a--in-te-vullen-vragenlijst); vul die
+  één keer in en het handboek is compleet.
