@@ -8,8 +8,9 @@ Zie `docs/spel/events.md` (doelwit-type `groep`). De afroep-audio voor deze dime
 staat gebundeld in `pi/audio-player/audio/groepen/` (zie die map's `README.md`).
 
 Deze tabel is de bron voor `global.spelerEigenschappen` in Node-RED, gevuld door de
-`[CONFIG] Speler-eigenschappen`-inject (`{ naam: { kleur, jaar } }`, gekeyd op voornaam).
-Bij een wijziging hier ook die inject bijwerken en `deploy-flows.ps1` draaien.
+`[CONFIG] Speler-eigenschappen`-inject (`{ naam: { kleur, jaar, maand, seizoen } }`, gekeyd
+op voornaam — dezelfde naam als in de spelerslijst/`config/spelers`, zodat een speler in élke
+groep-dimensie meedoet). Bij een wijziging hier ook die inject bijwerken en `deploy-flows.ps1` draaien.
 
 > Seizoenen volgen de **meteorologische** indeling: lente (mrt–mei), zomer (jun–aug),
 > herfst (sep–nov), winter (dec–feb).
@@ -18,7 +19,7 @@ Bij een wijziging hier ook die inject bijwerken en `deploy-flows.ps1` draaien.
 |----------|-------|------|-------|---------|
 | Aagje | rood | eerste | december | winter |
 | Alix Blond | rood | derde | juni | zomer |
-| Maybel Lampens | rood | eerste | december | winter |
+| Maybel | rood | eerste | december | winter |
 | Emma | rood | eerste | maart | lente |
 | Blanche | rood | derde | juli | zomer |
 | Casper | rood | derde | november | herfst |

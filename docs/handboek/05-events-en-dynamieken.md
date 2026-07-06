@@ -258,7 +258,7 @@ Besmettingsspel ([`infected.md`](../spel/infected.md)):
 | Mechaniek | Regel |
 |---|---|
 | Patiënt 0 | 1 willekeurige speler bij de start |
-| Besmetting | **15 s onafgebroken** op een paal met een besmette → ook besmet; weglopen reset jouw teller |
+| Besmetting | **5 s basis + 1 s per 2 besmetten** onafgebroken op een paal met een besmette → ook besmet; weglopen reset jouw teller |
 | Rood | paal met een besmette speler kleurt **rood** |
 | Bestrijders | vanaf **5 besmet**: 2 bestrijders, **60 s** immuun; hun paal is **blauw** = niemand raakt daar besmet; elke minuut rotatie |
 | Winnen | de **laatste 3** gezonde spelers winnen; daarna staat het spel op "klaar" tot Stop |

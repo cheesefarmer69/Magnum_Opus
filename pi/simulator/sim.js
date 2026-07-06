@@ -85,11 +85,11 @@ const GROEP_KLEUR_CSS = { rood: "#c62828", zwart: "#212121", blauw: "#1565c0" };
 
 // Naam → kleurgroep (polsbandje). Bron: docs/spel/spelers.md — bij wijziging dáár ook hier bijwerken.
 const SPELER_KLEURGROEP = {
-    "Aagje": "rood", "Alix D": "rood", "Attah": "rood", "Emma": "rood", "Blanche": "rood",
+    "Aagje": "rood", "Alix Blond": "rood", "Maybel": "rood", "Emma": "rood", "Blanche": "rood",
     "Casper": "rood", "Elias": "rood", "Tobin": "rood", "Margaux": "rood", "Louisa": "rood",
     "Jinte": "zwart", "Aster": "zwart", "Suzan": "zwart", "Lotta": "zwart", "Elisa": "zwart",
-    "Maud": "zwart", "Anna": "zwart", "Lilou": "zwart", "Marie S": "zwart", "Lore": "zwart",
-    "Marie D": "blauw", "Mauro": "blauw", "Amélie": "blauw", "Mien": "blauw", "Alix R": "blauw",
+    "Maud": "zwart", "Anna": "zwart", "Lilou": "zwart", "Marie Smet": "zwart", "Lore": "zwart",
+    "Marie DM": "blauw", "Mauro": "blauw", "Amélie": "blauw", "Mien": "blauw", "Alix Bruin": "blauw",
     "Mila": "blauw", "Ina": "blauw", "Stelle": "blauw", "Estée": "blauw", "Lola": "blauw", "Zoë": "blauw"
 };
 function groepKleurVoor(naam) { return GROEP_KLEUR_CSS[SPELER_KLEURGROEP[naam]] || "#ccc"; }
