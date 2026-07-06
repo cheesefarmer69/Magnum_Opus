@@ -95,19 +95,28 @@ toevoegt of wijzigt. Aanvullend op `CLAUDE.md` (algemene projectcontext) en de `
 - **Scoren gebeurt PAS bij de controle** (niet live); pas dan zichtbaar in de dashboards.
 - **Beweging is altijd gecontroleerd.** Bij elk event mag enkel het **beweging-doelwit**
   (`voorwaarde` min/max) bewegen; anderen blijven stil, anders straf.
-- **Levensuren-Δ per speler** (`voor` = aantal STAP vooruit, `x` = budget):
+- **Levensuren-Δ per speler — proportioneel model, nooit negatief** (`voor` = aantal STAP vooruit, `x` = budget).
+  Valsspelen **kost geen levensuren**; je **verdient er minder** naarmate je verder afwijkt,
+  met een vloer op **0**: `Δ = max(0, legaalBasis − overtreding)`.
   | Geval | Δ |
   |-------|---|
   | doelwit `max`, `voor ≤ x` (geldig) | **+voor** (×2 op happy hour) |
-  | doelwit `max`, `voor > x` (TE VEEL) | **−(voor − x)** |
-  | doelwit `min`, `voor < x` (TE WEINIG) | **−voor** |
-  | doelwit, achterwaartse STAP (TERUG IN TIJD) | **−achter** |
-  | niet-doelwit dat beweegt (BEWOOG mocht niet) | **−(voor+achter)** |
+  | doelwit `max`, `voor > x` (TE VEEL) | **max(0, x − (voor − x))** |
+  | doelwit `min`, `voor < x` (TE WEINIG) | **max(0, voor − (x − voor))** |
+  | doelwit `of`, `voor ∉ {x,y}` (ONGELDIGE KEUZE) | **max(0, voor − afstand tot dichtste geldige)** |
+  | doelwit, achterwaartse STAP (TERUG IN TIJD) | **max(0, voor − achter)** |
+  | doelwit, >1× zelfde portaal (ONGELDIGE TELEPORT) | **0** |
+  | niet-doelwit dat beweegt (BEWOOG mocht niet) | **0** |
+  | gepauzeerde speler | 0 (niet gescoord) |
   | stil blijven staan | 0 |
-  Voorbeelden van Nic: 5→8 zonder te mogen = −3; 5→4 mag niet = −1.
-- **Geen "achterstand"-deficitmodel meer** (vervangen door directe aftrek).
-- **Sterftes:** zou Δ een speler **onder 0** brengen, dan blijven zijn levensuren op **0** en
-  krijgt hij **+1 sterfte** (hij "sterft" maar speelt verder). Legale winst kan nooit een
+  Voorbeelden: max 5, bewoog 8 → +2; bewoog 12 → +0 (blijft staan); OK-zet → +voor.
+- **Geen "achterstand"-deficitmodel meer** en **geen directe aftrek meer**: het proportionele
+  model verving eerst het achterstand-deficit en daarna (juli 2026) ook de directe aftrek — een
+  foute zet (bv. een baken-fout) mag hooguit winst kosten, geen catastrofaal verlies.
+- **Sterftes:** de **bewegingsscore veroorzaakt géén sterfte meer** (Δ ≥ 0 altijd). Aparte
+  dodelijke mechanismen blijven wél: middernacht-oversteek bij dichte poort, NUKE, tornado,
+  bom en ziekte-dood → levensuren **0** + **+1 sterfte**. Zou zo'n Δ een speler onder 0 brengen,
+  dan blijven zijn levensuren op **0** en krijgt hij +1 sterfte. Legale winst kan nooit een
   sterfte veroorzaken. Eén Δ per speler per controle ⇒ max één sterfte per event per speler.
 - **Happy hour ×2:** eindigt een speler een verplaatsing op een uur met `happy_hour`-effect
   én is Δ > 0 (legaal verdiend), dan verdubbelen die levensuren. Wordt geïnd door een

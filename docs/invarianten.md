@@ -19,6 +19,8 @@ bundelt alle invarianten van het systeem op één plek.
 | S4 | **Sterftes en globale stats** (levensdagen, totaalUren, sterftes) **blijven bewaard** bij `Stop spel`. Enkel `[BEHEER] Wis globale stats` zet ze terug op 0. |
 | S5 | **`Stop spel`** reset enkel de partij (effect-registers, posities, teller) — nooit de globale stats. |
 | S6 | **Geheugen-caps (L4, 1 GB-Pi):** `spelHistorie` houdt **≤ 30** partijen (oudere gedropt; globale stats blijven apart); `pofSnapshots` (tijd-terug) heeft **diepte 10** en klont **niet** de event-log `pofHuidigSpel`; `globaleStats[n].skills` houdt **≤ 50** per speler. Voorkomt onbegrensde global-groei (die ook in de 30 s-`spel/state`-dump + `contextStorage` zit). Zie `docs/hardware/hardware-info.md`. |
+| S8b | **Pauze = volledig uit het spel.** Een speler in `global.gespauzeerdePlayers` (dashboard Admin → "Speler pauze") wordt in "Verifieer beweging" **overgeslagen** (status "GEPAUZEERD", `delta 0`) en telt niet mee in tweeling/etenstijd, Klokslag of Infected (EV3). `gespauzeerdePlayers` zit in de `spel/state`-snapshot + rehydrate, dus de pauze-toestand **overleeft een Node-RED-herstart**. |
+| S9 | **Handmatige speler-correctie (Admin).** Achter `admin_unlocked` kan de operator via Admin → "Handmatig bijstellen" één spelerveld (`totaalUren`/`sterftes`/`valsspeelpunten`/`godPunten`) op een waarde **zetten** of er een delta bij **optellen** (nooit onder 0). Muteert het **huidige-spel** `spelerStats[naam]` (vloeit bij Stop cumulatief door naar `globaleStats`). Bedoeld om een beacon-/detectiefout achteraf recht te zetten. |
 
 ---
 
@@ -30,24 +32,28 @@ bundelt alle invarianten van het systeem op één plek.
 | V2 | Een **STAP** gaat altijd **vooruit** (klok loopt rond: na 24 → 1). Een STAP achteruit is verboden — **behalve** tijdens een **tijdreizen**-wereld-event (zie V8). |
 | V3 | Een **TELEPORT** verbruikt 0 budget, levert 0 levensuren, is **richting-agnostisch** (ook van hoger naar lager uur is legaal), en mag **max 1× per portaal per verplaatsing** (geen ping-pong). |
 | V4 | Een legale portaal-sprong van een hoger naar een lager uur geeft **geen "TERUG IN TIJD"** — de controle is portaal-bewust. |
-| V5 | Bij elk event mag enkel het **beweging-doelwit** bewegen. Elke andere speler die beweegt krijgt straf `−(voor+achter)`. Dit geldt vanaf de **doelwit-reveal** (`bezig`): paalwissels tijdens de reveal worden óók opgenomen en gecontroleerd — er is geen blind venster meer waarin bewegen ongestraft blijft (S3). **Enkel binnen een event** (fases `bezig`/`reactie`/`wacht_controle`/`grace`); **tussen** events is beweging vrij — zie **V10**. |
+| V5 | Bij elk event mag enkel het **beweging-doelwit** bewegen. Elke andere speler die beweegt krijgt status "BEWOOG (mocht niet)" en verdient **0** levensuren (proportioneel model — geen aftrek meer, zie **V11**). Dit geldt vanaf de **doelwit-reveal** (`bezig`): paalwissels tijdens de reveal worden óók opgenomen en gecontroleerd — er is geen blind venster meer waarin bewegen ongestraft blijft (S3). **Enkel binnen een event** (fases `bezig`/`reactie`/`wacht_controle`/`grace`); **tussen** events is beweging vrij — zie **V10**. |
 | V6 | Niemand verbruikt meer budget dan het event toestaat (`voor ≤ x` bij max-event). |
 | V7 | Scoring: `basis = aantal STAP vooruit`; `verdiend = (eindpaal happy-hour) ? 2×basis : basis`. |
 | V8 | **Tijdreizen** (wereld-event, `global.tijdreizenActief`): zolang actief telt een **achterwaartse** STAP **mee** als geldige beweging — de stappen worden `voor + achter` voor de voorwaarde-check én de score (geen "TERUG IN TIJD"-straf). Uitzondering: een **achterwaartse middernacht-oversteek** (`ontleed().kruistAchter`, de 1→24-wrap) blijft verboden → "TERUG IN TIJD". Tijdreizen opent de poort niet (M3 blijft gelden voor de voorwaartse oversteek). Buiten tijdreizen gelden V2/V4 onveranderd. |
 | V9 | **Settle-grace** (`global.pofSettleGrace`, default 3 s; 0 = uit). In automatische modus draait de controle **niet** meteen bij `reactie`-einde (T) maar na een `grace`-fase (T+grace), zodat traag-settlende paalwissels nog in **dit** event landen. Het pad-opname-venster (`Bereken levensuren`) omvat de fases `bezig` (de doelwit-reveal — zie V5), `reactie`, `wacht_controle` én `grace`; de begin-snapshot van het volgende event wordt pas ná de controle (dus ná de grace) genomen. Manueel-modus gebruikt geen grace (de operator bepaalt zelf het controle-moment). |
 | V10 | **Tussen events is beweging vrij.** In de fases **buiten** een event (`idle`/`aanloop`/`wacht`/`regroup`) mag **elke** speler **vrij en onbeperkt** verplaatsen: `Bereken levensuren` neemt daar géén pad op en er volgt géén straf — de **enige** uitzondering is de **middernacht-poort** (M3: bij dichte poort geen 24→1-oversteek). Dit is **bewuste counterplay** (positioneren voor het volgende event; o.a. een zieke die naar een medicijn-paal wandelt om bij de volgende controle als "OK (stil)" te genezen — Z3). De doelwit-beperking V5 geldt dus uitsluitend **binnen** een event (vanaf `bezig`). |
+| V11 | **Proportioneel valsspel-model (nooit negatief).** Een foute doelwit-zet trekt **geen** levensuren meer af; hij levert `delta = max(0, legaalBasis − overtreding)` op (zie de scoringtabel). Omdat `delta ≥ 0` altijd geldt, kan de bewegingsscore `totaalUren` **nooit** doen dalen en dus **nooit** een sterfte veroorzaken (de sterfte-op-negatief-tak in `Verifieer beweging` is een vangnet dat niet meer vuurt). Valsspeelpunten (+1) + aura en de god-punt-consumptie blijven ongewijzigd; god-punt → `delta = 0` + geen valsspeelpunt. Dodelijke straffen zitten in aparte mechanismen (M3/N1/tornado/bom/Z4), niet in de bewegingsscore. Rationale: een gemiste/foute detectie (baken-fout) mag hooguit winst kosten, geen catastrofaal verlies. |
 
 ### Scoringtabel (na elke controle)
 
-| Geval | Status | Δ levensuren |
+**Proportioneel model (V11):** valsspelen kost **nooit** levensuren — je **verdient er minder** naarmate je verder afwijkt, met een vloer op **0** (`delta = max(0, legaalBasis − overtreding)`). Een foute zet levert dus 0 (of minder winst), nooit een negatief saldo, en veroorzaakt **geen sterfte**. Valsspeel-bookkeeping (`valsspeelpunten +1`, aura) en de god-punt-consumptie blijven ongewijzigd. Dodelijke mechanismen zijn losgekoppeld van de bewegingsscore: **MIDDERNACHT DICHT**-oversteek (M3), **NUKE** (N1), **tornado**, **bom** en **ziekte-dood** (Z4) blijven wél uren-verlies + sterfte geven.
+
+| Geval | Status | Δ levensuren (proportioneel, vloer 0) |
 |-------|--------|--------------|
 | doelwit, geldig (`voor ≤ x`, geen achterstap) | OK | **+voor** (×2 op happy-hour-eindpaal) |
-| doelwit, `voor > x` | TE VEEL | **−(voor − x)** |
-| doelwit, `voor < x` (min-event) | TE WEINIG | **−voor** |
-| doelwit, `voor ∉ {x, y}` (of-event) | ONGELDIGE KEUZE | **−voor** |
-| doelwit, achterwaartse STAP | TERUG IN TIJD | **−achter** |
-| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **−voor** |
-| niet-doelwit dat beweegt | BEWOOG (mocht niet) | **−(voor+achter)** |
+| doelwit, `voor > x` (max-event) | TE VEEL | **max(0, x − (voor − x))** — overschot eet de winst |
+| doelwit, `voor < x` (min-event) | TE WEINIG | **max(0, voor − (x − voor))** |
+| doelwit, `voor ∉ {x, y}` (of-event) | ONGELDIGE KEUZE | **max(0, voor − afstand tot dichtste geldige)** |
+| doelwit, achterwaartse STAP | TERUG IN TIJD | **max(0, voor − achter)** |
+| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **0** |
+| niet-doelwit dat beweegt | BEWOOG (mocht niet) | **0** |
+| gepauzeerde speler (Admin) | GEPAUZEERD | 0 (niet gescoord — zie **S8b**) |
 | stil blijven staan | OK (stil) | 0 |
 
 ---
@@ -60,6 +66,7 @@ bundelt alle invarianten van het systeem op één plek.
 | F2 | Elke `speler.positie` is een **bestaande, actieve paal** (`palenActief`). |
 | F3 | De **voorwaartse richting** is vaste klokrichting — er zijn voorlopig geen achteruit-events. |
 | F4 | **Heartbeat-gestuurde ring (L3, alleen hardware)**: een paal die ooit data stuurde maar > `SLAVE_STALE_MS` (60 s) stil is, wordt door "Evalueer spelstatus" **tijdelijk uit `palenActief`** gehaald (events/portalen/doelwitten kiezen hem niet meer; status "VEROUDERD (uit ring)", LED-rebuild) en komt **automatisch terug** zodra hij weer data stuurt. Nooit-geziene palen blijven in de ring (opbouwfase) en de ring zakt nooit onder **2** palen. In sim beheert "Sim-veld instellen" `palenActief`. |
+| F5 | **Handmatige paal-override (Admin).** `global.palenHandmatigUit` (array paal-id's, gezet via Admin → "Palen handmatig uit/in", achter `admin_unlocked`) haalt een paal **onmiddellijk** uit de L3-ring — óók als hij nog data stuurt — zodat een kapot/flapperend bord uit het spel kan terwijl de rest doorloopt. De ≥2-palen-vloer van F4 blijft gelden (zakt de ring eronder, dan wordt de override genegeerd). "Terug in spel" verwijdert de paal weer uit de set; een LED-rebuild volgt automatisch. |
 
 ---
 
@@ -192,6 +199,18 @@ bundelt alle invarianten van het systeem op één plek.
 
 ---
 
+## 4j. Avondspel (omgekeerde scoring + onmiddellijke dood)
+
+| # | Invariant |
+|---|-----------|
+| AV1 | **Avond is een modus** (`global.avondModus`, retained `sim/avond-modus`) op het lopende spel — géén verse start. De middag-`totaalUren` en -stats (`sterftes`, `valsspeelpunten`) blijven behouden (zet avond aan zonder eerst te stoppen). |
+| AV2 | In `avondModus` wordt in "Verifieer beweging" een **positieve** bewegingswinst een **kost** (`delta = -delta`), en `totaalUren` mag **negatief** worden (de 0-clamp-met-sterfte wordt overgeslagen). Legale verplaatsing veroorzaakt in de avond dus **geen** sterfte, enkel verlies. |
+| AV3 | Een **`gestorven`** speler (nieuw `spelerStats`-veld, default `false`) kan door **verplaatsing** niet negatief gaan (beweging floort op 0); enkel **events** duwen hem verder omlaag. `gestorven` reset in `zeroHuidig`/"Wis globale stats". |
+| AV4 | **Onmiddellijke dood** (gevolg `onmiddellijke_dood`, event `fase:"avond"`): het slachtoffer wordt **geloot** onder de niet-`gestorven`, actieve spelers met gewicht = **`sterftes + valsspeelpunten`**; 0 gewicht = immuun, som 0 → uniform. Het slachtoffer → `totaalUren=0`, `+1 sterfte`, `gestorven=true`. De cirkel-animatie (`pof/dood-anim`) is **Stop-veilig** via het `pofGeneration`-token (vuurt niet meer na een reset). |
+| AV5 | **`fase`-veld** op events (`middag` default / `avond` / `beide`): "Kies event" én de simulator filteren hierop volgens `avondModus`. In de avond verschijnen enkel `avond`/`beide`; in de middag verdwijnt `avond`. |
+
+---
+
 ## 5. Events — formaat
 
 | # | Invariant |
@@ -254,8 +273,9 @@ bundelt alle invarianten van het systeem op één plek.
 | HW4 | Master GPIO2 (ingebouwde LED, active-HIGH) pulst bij elke **ontvangen slave-batch**. |
 | HW5 | Rode LED GPIO6 (slave) heeft **twee** functies: (1) **drukknop-feedback** — brandt als de paal gewapend is (`ACTIE_KNOP_ARM`) en dooft zolang de knop ingedrukt is (via de knop-ISR); (2) **provisioning-fout-blink** — ritmisch knipperen wanneer het bord-MAC niet in `paal_macs.h` staat (bord doet niet mee). Zie `docs/hardware/pinout.md`. |
 | HW6 | Batterijmeting op GPIO4 (slave) — waarde 0.0 = niet gemeten of onbekend. |
-| HW7 | De actie-set hangt aan bestaande spel-/test-functies; de **volledige, gezaghebbende lijst** staat in `docs/protocol.md §2` (0 = uit, 1 = portaal, 2 = happy hour, … t/m 20 = scan-config). Voeg nooit een actie toe zonder die tabel bij te werken. |
+| HW7 | De actie-set hangt aan bestaande spel-/test-functies; de **volledige, gezaghebbende lijst** staat in `docs/protocol.md §2` (0 = uit, 1 = portaal, 2 = happy hour, … t/m 21 = led-config). Voeg nooit een actie toe zonder die tabel bij te werken. |
 | HW8 | De **BLE-scan-vensterduur** is runtime instelbaar via `MSG_SCAN_CONFIG` (actie 20): niet-blokkerende scan begrensd door een `millis()`-venster (`scanDuurMs`). Default **1000 ms**, de slave **clamp't 300..2000 ms**. Verloren bij reboot (volatile) → Node-RED **herstelt** de ingestelde waarde automatisch op de eerstvolgende heartbeat (uptime-daling = reboot-detectie). |
+| HW9 | De **LED-helderheid** is runtime instelbaar via `MSG_LED_CONFIG` (actie 21, globale FastLED-brightness): dashboard-slider + Min/Middel/Max op **alle** palen. De slave **clamp't 5..255** (nooit volledig uit) en past het toe met `setBrightness`+`show`; het **componeert** met de per-LED-schaling van Klokslag/animaties (die gebruiken `nscale8`/`CHSV val`, niet `setBrightness`). Volatile → default **150** bij boot; Node-RED **herstelt** de ingestelde waarde op de eerstvolgende heartbeat (zoals HW8) en bewaart hem retained op `config/led-helderheid`. "Max" (255) ~verdubbelt de LED-stroom t.o.v. 150 (batterij-runtime, geen hardwarerisico — de 700 mA-power-cap throttelt bij 7 LED's niet). |
 
 ---
 
@@ -271,4 +291,6 @@ bundelt alle invarianten van het systeem op één plek.
 | NR6 | `ui-switch` gebruikt het **Schakelaar C-patroon** (`passthru: false`, `decouple: "true"`, feedbacklus via function-node) om visuele live-update zonder page-refresh te garanderen. |
 | NR7 | **Persistente global context**: `pi/node-red/settings.js` zet `contextStorage.default = localfilesystem` (`flushInterval` 15 s) → alle `global.*`-state (`spelerStats`, `globaleStats`, `spelHistorie`, π-stand, `godPunten`, …) wordt naar `/data/context/` bewaard en overleeft restart + deploy. `/data` staat via `pi/node-red/docker-compose.yml` op een persistente bind-mount (op deze Pi de SD-kaart / root-fs — er is geen SSD; `NODE_RED_DATA`, default `/home/pi/nodered-data`) en overleeft zo ook een container-recreate. Dit maakt de "persistent"-claims van M1 (π-stand) en D6/D7 (`godPunten`) ook tegen een Node-RED-herstart waar. |
 | NR8 | **`spel/state`-vangnet**: Flow 04 dumpt elke 30 s een compacte snapshot naar het **retained** topic `spel/state` (qos 1); node `Rehydrate spel-state` leest die bij (her)start terug **maar enkel als de betreffende global nog leeg is** (nooit een lopend spel overschrijven). Zo herstelt zelfs een verse container zónder persistente `/data` nog de laatste snapshot. |
-| NR9 | **Gedeelde partij-reset (single source)**: alle reset-knoppen (Spel aan/uit, Verwerk bediening, Verwerk noodstop, Admin "Reset ALLES") wissen de partij-toestand via **één** synchrone helper `global.get("resetPartij")(global)` (gedefinieerd in `pi/node-red/settings.js` → `functionGlobalContext`). De helper wist **alle** per-partij registers (pof-engine, ziekte, tijdbom, tweeling, dienaars, etenstijd, spelTempoFactor, nuke, tornado, infected, `mnGestraft`, LED-caches, …) en raakt **nooit** persistente state aan (`globaleStats`, `spelHistorie`, `spelNummer`, `godPunten`, `spelerStats`-totalen, de π-klok `midnight*`). Een nieuw partij-veld wordt dus **op één plek** toegevoegd. Dit borgt Z8/T8/M6/TO5/ET3/TW4/SP3 voor élke reset-knop (voorheen wiste de noodstop die registers niet). De helper verhoogt ook **`pofGeneration`** (R4): hangende `setTimeout`-callbacks zoals de doelwit-reveal checken dit token en vuren **niet** meer na een reset — geen gevolgen/LED/buzzer op een gestopt spel. Wijzig `settings.js` → **container-herstart** nodig (niet enkel `deploy-flows`). |
+| NR9 | **Gedeelde partij-reset (single source)**: alle reset-knoppen (Spel aan/uit, Verwerk bediening, Admin "Reset ALLES") wissen de partij-toestand via **één** synchrone helper `global.get("resetPartij")(global)` (gedefinieerd in `pi/node-red/settings.js` → `functionGlobalContext`). De helper wist **alle** per-partij registers (pof-engine, ziekte, tijdbom, tweeling, dienaars, etenstijd, spelTempoFactor, nuke, tornado, infected, `mnGestraft`, LED-caches, …) en raakt **nooit** persistente state aan (`globaleStats`, `spelHistorie`, `spelNummer`, `godPunten`, `spelerStats`-totalen, de π-klok `midnight*`). Een nieuw partij-veld wordt dus **op één plek** toegevoegd. Dit borgt Z8/T8/M6/TO5/ET3/TW4/SP3 voor élke reset-knop. De helper verhoogt ook **`pofGeneration`** (R4): hangende `setTimeout`-callbacks zoals de doelwit-reveal checken dit token en vuren **niet** meer na een reset — geen gevolgen/LED/buzzer op een gestopt spel. Wijzig `settings.js` → **container-herstart** nodig (niet enkel `deploy-flows`). De aanroepers gebruiken een **typeof-guard** (`typeof _rp === "function"`): ontbreekt `resetPartij` (bv. flows gedeployed vóór de container-herstart), dan **degradeert** de knop gracieus (`node.warn` i.p.v. crash) zodat het spel bestuurbaar blijft; de volledige clear werkt na de herstart. De dedicated **Noodstop**-groep is verwijderd — spel stoppen loopt nu via de hoofd-**Speltoestand**-schakelaar (die `transferStats()` + `resetSpelStaat()` + historiek al draait). |
+| NR10 | **Master-verbindingsregel (Spelstatus).** Bovenaan de Spelstatus-pagina toont een `ui-template` per master (M1=palen 1-8, M2=9-16, M3=17-24) een naam + groen/rood bolletje. "Bouw master-status" leidt dit **af uit `status_lastSeenPaal`** (geen aparte master-heartbeat): een master is **groen** als minstens één paal in zijn bereik < `SLAVE_STALE_MS` (60 s) geleden data stuurde én er geen `status_bridgeFout` (ST-006) voor hem loopt. Geen firmware-/bridge-wijziging nodig. |
+| NR11 | **Dashboard-indeling**: de cumulatieve globale stats staan op een **eigen Leaderboard-pagina** (gesorteerd op `globaleStats.totaalUren` aflopend), niet meer als groep op Bediening. Sorteer op **`totaalUren`** (totaal), niet op de rest-kolom `totaalUren % 24`. De feeder hangt aan de gedeelde ververs-inject "Ververs globale stats (2s)". |

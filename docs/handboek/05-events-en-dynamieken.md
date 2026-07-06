@@ -24,8 +24,9 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
   dimensie én de waarde willekeurig).
 - **Wat doen:** 0 tot **x** stappen met de klok mee (x uit `midden`, 1–6). Portaal-sprong mag en
   telt 0. Niet-leden: stilstaan.
-- **Bij fout:** te ver = −(extra); achteruit = −(achteruit-stappen); niet-lid dat beweegt =
-  −(alle stappen).
+- **Bij fout (proportioneel, nooit negatief — V11):** te ver → minder winst `max(0, x − (voor − x))`;
+  achteruit → `max(0, voor − achter)`; niet-lid dat beweegt → **0**. Valsspelen kost geen levensuren
+  en geeft geen sterfte.
 - **Duur & kans:** direct afgehandeld; **common** (vaakst voorkomende event).
 - **LED/geluid:** geen paal-LED; audio `maximum.wav` + getal + `uur_vooruit.wav`.
 - **Operator:** reactietijd **20 s**; scoring bij de controle (+stappen, ×2 op happy-hour-eindpaal).
@@ -35,7 +36,7 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 - **Wie:** een hele kleur- of jaar-groep (zoals hierboven).
 - **Wat doen:** **exact x óf exact y** stappen vooruit (x uit 1–3, y uit 4–6). Stilstaan is hier
   **fout** (0 ∉ {x,y}) — kiezen dus.
-- **Bij fout:** verkeerd aantal = −(alle gelopen stappen); verder als bij kaart 1.
+- **Bij fout:** verkeerd aantal → minder winst naar gelang je afwijkt `max(0, voor − afstand tot dichtste geldige)`; verder als bij kaart 1 (proportioneel, nooit negatief).
 - **Duur & kans:** direct; **common**.
 - **LED/geluid:** audio: getallen + "of" + `uur_vooruit.wav`.
 - **Operator:** reactietijd **20 s**; let op de middernacht-uitzondering: wie door de dichte poort

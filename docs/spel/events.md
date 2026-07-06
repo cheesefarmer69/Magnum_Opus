@@ -72,6 +72,7 @@ Eén event is één object in die array.
 | `voorwaarde`    | nee       | `min` / `max` / `of` / `geen` — beweging-controle na de reactietijd. Bij `of`: geldig als `voor` exact `x` óf exact `y` is. |
 | `max`           | nee       | Hoeveel instanties van dít event tegelijk actief mogen zijn (toestand). |
 | `duratie`       | nee       | Hoelang de toestand blijft (events/rondes): vast getal, `[min,max]`-bereik (willekeurig), of preset `kort`/`middel`/`lang`. Overschrijft per-gevolg `duurRondes`. Bij `ziekte`: aantal events dat een zieke heeft. |
+| `fase`          | nee       | `middag` (default) / `avond` / `beide` — in welk spel het event verschijnt. In `avondModus` toont/kiest de engine enkel `avond`/`beide`; anders verdwijnt `avond`. Zie `docs/spel/avondspel.md`. |
 | `regroup_s`     | nee       | Enkel bij het NUKE-event: seconden regroup-pauze ná de ontploffing vóór het spel verdergaat. |
 | `escape_s`      | nee       | Enkel bij het NUKE-event: hoe lang (s) een beacon **niet meer vers gezien** mag zijn om als **ontsnapt** te gelden (default 4). Zorg dat `reactietijd_s ≥ escape_s + 2` — anders kan de ~1 s-prune niet op tijd opschonen. |
 | `audioVoor` / `audioNa` | nee | WAV-bestandsnamen voor de afroep (knip-en-plak rond het getal). |
@@ -172,15 +173,18 @@ het doelwit bewegen; anderen moeten stil blijven. `voor` = aantal STAP vooruit, 
 | Geval | Status | Δ levensuren |
 |-------|--------|--------------|
 | doelwit `max`, `voor ≤ x` (geldig) | OK | **+voor** (×2 op happy-hour-eindpaal) |
-| doelwit `max`, `voor > x` | TE VEEL | **−(voor − x)** |
-| doelwit `min`, `voor < x` | TE WEINIG | **−voor** |
-| doelwit `of`, `voor ≠ x` én `voor ≠ y` | ONGELDIGE KEUZE | **−voor** |
-| doelwit, achterwaartse STAP | TERUG IN TIJD | **−achter** |
-| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **−voor** |
-| niet-doelwit dat beweegt | BEWOOG (mocht niet) | **−(voor+achter)** |
+| doelwit `max`, `voor > x` | TE VEEL | **max(0, x − (voor − x))** |
+| doelwit `min`, `voor < x` | TE WEINIG | **max(0, voor − (x − voor))** |
+| doelwit `of`, `voor ≠ x` én `voor ≠ y` | ONGELDIGE KEUZE | **max(0, voor − afstand tot dichtste geldige)** |
+| doelwit, achterwaartse STAP | TERUG IN TIJD | **max(0, voor − achter)** |
+| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **0** |
+| niet-doelwit dat beweegt | BEWOOG (mocht niet) | **0** |
+| gepauzeerde speler | GEPAUZEERD | 0 (niet gescoord) |
 | stil blijven staan | OK (stil) | 0 |
 
-Zou Δ een speler **onder 0** brengen, dan blijft hij op 0 met **+1 sterfte** (hij speelt door).
+> **Proportioneel model (V11, juli 2026):** valsspelen kost **geen** levensuren meer; je **verdient minder** naarmate je verder afwijkt, met vloer **0** (`Δ = max(0, legaalBasis − overtreding)`). Bv. max 5, bewoog 8 → +2; bewoog 12 → +0. Nooit negatief, dus **geen sterfte door valsspel**. Dodelijke straffen (middernacht/nuke/tornado/bom/ziekte) staan los. Zie `docs/invarianten.md` §2.
+
+Een foute bewegingszet brengt een speler **nooit onder 0** (Δ ≥ 0). De aparte dodelijke mechanismen kunnen dat wél: dan blijft hij op 0 met **+1 sterfte** (hij speelt door).
 Doordat de TELEPORT niet als STAP telt en niet op richting wordt gecontroleerd, geeft een legale
 portaal-sprong (ook naar een lager uur) géén "TERUG IN TIJD". Volledige uitleg: `docs/spel/event-systeem.md`.
 
@@ -207,6 +211,7 @@ Elk gevolg is één object in de array; combineren mag.
 | `tornado`  | —                                         | **Tornado** op de doelwit-uren (1–2 centers, `minAfstand` houdt ze uit elkaar): spelers op de twee **aanliggende** uren worden naar het center gezogen. Wie niet meebeweegt → **alle** levensuren kwijt (geen sterfte). Zie hieronder. |
 | `bom`      | —                                         | **Bomaanslag** op de doelwit-uren: tijdens `reactietijd_s` een waarschuwing (rode tik-LED + zoemer) op die uren; bij de controle ontploft de bom — wie **dan** op een doel-uur staat verliest `uur` levensuren (vluchten mag, geen bewegingsstraf). Witte flikker (OOGST-strobe) + ontploffingsgeluid (`audioVoor`). Gebruik `doelwit:{type:"uur","vast":[9,11]}` voor vaste uren. |
 | `tempo`    | `richting: "sneller"\|"trager"`           | Wereld-event: schaalt het **spel-tempo** (`global.spelTempoFactor`) dat de reactietijd van volgende events vermenigvuldigt. `sneller` −0,1 (min **0,6**), `trager` +0,1 (max **1,3**). Start 1,0; reset naar 1,0 bij Stop. |
+| `onmiddellijke_dood` | —                             | **Avondspel-gimmick.** Loot een slachtoffer (gewicht = `sterftes + valsspeelpunten` per niet-gestorven speler) via een cirkelende paarsrode ring-animatie; zet het op 0 + sterfte + `gestorven`. Enkel zinvol met `fase:"avond"`. Zie `docs/spel/avondspel.md`. |
 | `geen`     | —                                         | Geen neveneffect. Gebruik dit voor pure beweging-opdrachten (met `voorwaarde`). |
 
 `actie`-waarden (commando): `0` uit · `1` portaal (paars) · `2` happy hour (goud) ·
@@ -299,7 +304,7 @@ worden daarna één voor één opgesomd.
 ```
 Kiest één willekeurige groep onder de actieve spelers en richt zich op **alle** spelers in die
 groep: zij mogen **hoogstens** `x` STAPpen vooruit (minder mag, achteruit niet; een portaal-sprong
-telt 0). Elk teveel is **TE VEEL** → **−(voor − x)**; niet-leden moeten stil blijven. Met
+telt 0). Elk teveel is **TE VEEL** → **max(0, x − (voor − x))** (proportioneel, vloer 0); niet-leden moeten stil blijven. Met
 `veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar**; afroep bv.
 "een groep … maximum 3 uur vooruit. kleur: rood" of "… jaar: eerste". Vastzetten kan met
 `veld:"kleur"` of `veld:"jaar"`.

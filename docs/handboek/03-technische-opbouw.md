@@ -184,7 +184,7 @@ en volledig wist. Geheugen is bewust begrensd (historie ≤ 30 partijen, snapsho
   dashboardverkeer de veld-airtime niet opeet.
 - **Zelfherstel**: batterij-hot-swap (paal reboot en meldt zich terug, scan-config wordt
   automatisch hersteld), nuke-scoped ghost-prune, heartbeat-gestuurde actieve ring, en het
-  hub-runbook met reserve-SD/powerbank voor de single-point-of-failure
+  hub-runbook met reserve-SD/power station voor de single-point-of-failure
   ([`hub-noodherstel.md`](../handleidingen/hub-noodherstel.md)).
 - **Bekende rev-B-punten** (niet blokkerend): geen OTA (H4), overbodige LED-power-gate (H5),
   LED-data op strapping-pin GPIO0 (H7) — uitleg en plan in

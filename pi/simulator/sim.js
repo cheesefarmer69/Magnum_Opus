@@ -122,6 +122,8 @@ const state = {
     verbonden: false,
     modus: "monitor",           // "monitor" of "sim"
     spelType: "plates_of_fate", // "plates_of_fate" | "klokslag" | "infected" (gesynct via retained spel/type)
+    avondModus: false,          // avondspel-modus (checkbox in Spelinstellingen; retained sim/avond-modus)
+    doodAnim: null,             // { paal, fase, speler, tot } — cirkelende paarsrode LED van de onmiddellijke dood
     klokslagPalen: {},          // { <paal>: {P,H,controller,eigenaar,modus} } (uit klokslag/palen)
     klokslagTeams: {},          // { <teamId>: {naam,kleur} } (uit klokslag/score)
     klokslagScore: [],          // [{id,naam,kleur,score,somUren}] (uit klokslag/score)
@@ -176,12 +178,13 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "pof/doelstatus", "sim/modus"]);
+        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/dood-anim", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "pof/doelstatus", "sim/modus"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
         publishUitgeslotenEvents();   // synchroniseer de event-checkboxes (retained)
         publishMiddernachtConfig();   // synchroniseer de middernacht-aan/uit-checkbox (retained)
         publishSysteemConfig();   // synchroniseer de systeeminstellingen (exclusiviteit + tempo, retained)
         publishSpelConfig();      // synchroniseer de spelinstellingen (slechte aura, retained)
+        publishAvondModus();      // synchroniseer de avond/middag-modus (retained)
         publishTiersConfig();     // synchroniseer de event-tier-overrides (retained)
     });
     state.client.on("reconnect", () => log("info", "Reconnecting..."));
@@ -439,6 +442,12 @@ function verwerkBericht(topic, raw) {
     } else if (topic === "pof/animatie") {
         // Authoritatieve dramatische animatie (nuke/oogst/tornado) — renderLeds animeert hierop.
         state.animatie = (data && typeof data === "object") ? data : { type: null };
+    } else if (topic === "pof/dood-anim") {
+        // Onmiddellijke dood: cirkelende paarsrode LED; fase 'gekozen' = de slachtoffer-paal.
+        if (data && data.paal != null) {
+            state.doodAnim = { paal: data.paal, fase: data.fase, speler: data.speler || null, tot: Date.now() + (data.fase === "gekozen" ? 4000 : 700) };
+            if (data.fase === "gekozen" && data.speler) log("info", "☠ Onmiddellijke dood: " + data.speler + " (paal " + data.paal + ")");
+        }
     } else if (topic === "pof/herstel-posities") {
         // 'Tijd terug': zet elke speler terug op zijn herstelde paal.
         if (data && typeof data === "object") {
@@ -605,9 +614,10 @@ function renderZiekteIconen() {
 function renderEvents() {
     const el = document.getElementById("events-lijst");
     if (!el) return;
-    const lijst = state.events || [];
+    // Fase-filter: avond toont enkel fase avond/beide; middag verbergt fase avond.
+    const lijst = (state.events || []).filter(e => { const f = e.fase || "middag"; return state.avondModus ? (f === "avond" || f === "beide") : (f !== "avond"); });
     if (!lijst.length) {
-        el.innerHTML = '<div class="events-leeg">Nog geen events ontvangen.</div>';
+        el.innerHTML = '<div class="events-leeg">' + (state.avondModus ? "Geen avond-events." : "Nog geen events ontvangen.") + '</div>';
         return;
     }
 
@@ -751,6 +761,11 @@ function publishSysteemConfig() {
 function publishSpelConfig() {
     if (!state.verbonden) return;
     state.client.publish("sim/spel-config", JSON.stringify({ badAura: state.badAura }), { retain: true });
+}
+
+function publishAvondModus() {
+    if (!state.verbonden) return;
+    state.client.publish("sim/avond-modus", JSON.stringify({ avond: state.avondModus }), { retain: true });
 }
 
 function publishTiersConfig() {
@@ -1035,6 +1050,13 @@ function renderLeds() {
         if (!led) continue;
         led.setAttribute("class", "led");
         led.style.fill = "";
+
+        // Onmiddellijke dood: cirkelende paarsrode cursor (wint van alles); slachtoffer strobet bij 'gekozen'.
+        const dood = state.doodAnim;
+        if (dood && dood.tot > Date.now() && n === dood.paal) {
+            led.style.fill = (dood.fase === "gekozen") ? ((Math.floor(Date.now() / 150) % 2 === 0) ? "#ff2d6a" : "#5a0020") : "#b4003c";
+            continue;
+        }
 
         if (anim.type === "nuke" && n !== anim.gate) {
             const p = Math.sin(Date.now() / 220 + n * 0.5) / 2 + 0.5;
@@ -1510,6 +1532,13 @@ window.addEventListener("DOMContentLoaded", () => {
         state.badAura = e.target.checked;
         log("info", "Slechte aura " + (state.badAura ? "AAN (avond/nacht gevaarlijker)" : "UIT"));
         publishSpelConfig();
+    });
+    const _avondCb = document.getElementById("avond-modus");
+    if (_avondCb) _avondCb.addEventListener("change", (e) => {
+        state.avondModus = e.target.checked;
+        log("info", "Avondspel " + (state.avondModus ? "AAN (verplaatsing kost, negatief mogelijk)" : "uit (middagspel)"));
+        publishAvondModus();
+        renderEvents();
     });
 
     // Systeeminstellingen-paneel openen/sluiten + toggles.

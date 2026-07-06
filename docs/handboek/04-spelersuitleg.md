@@ -30,9 +30,11 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 >
 > Dat is de belangrijkste regel van dit spel: **zodra een event wordt afgeroepen, beweegt alleen
 > wie afgeroepen is.** Alle anderen staan als standbeelden. De klok controleert na elk event wie
-> bewoog: wie te ver ging, achteruit liep of bewoog zonder te mogen, **verliest** levensuren.
-> Zak je daardoor onder nul, dan blijf je op nul en krijg je een **sterfte** achter je naam — je
-> speelt gewoon door, maar de klok vergeet het niet.
+> bewoog: wie te ver ging, achteruit liep of bewoog zonder te mogen, **verdient gewoon minder** —
+> hoe groter de fout, hoe minder levensuren, tot **nul** toe. Vals bewegen **kost** je dus geen
+> levensuren en levert **geen sterfte** op (een baken kan al eens haperen); je mist enkel winst.
+> Levensuren écht kwijtraken + een sterfte kan alleen bij de zware gebeurtenissen (dichte
+> middernachtpoort, nuke, tornado, bom, ziekte) — die staan los van gewoon "te ver lopen".
 >
 > Maar — en dit is jullie vrijheid — **tussen de events door mag je vrij lopen.** Zodra een event
 > is afgehandeld en de stem zwijgt, wandel je waarheen je wil om je voor het volgende event slim
@@ -108,7 +110,7 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 - Baken zichtbaar dragen (niet onder dikke kleding gepropt).
 
 **Niet doen:**
-- Bewegen tijdens een event dat niet voor jou is — de klok ziet het (**straf**).
+- Bewegen tijdens een event dat niet voor jou is — de klok ziet het (je verdient dan **niets**).
 - Achteruit lopen (tenzij "tijdreizen" actief is omgeroepen).
 - Te ver of te weinig lopen bij een opdracht met een getal ("maximum 3" / "2 of 5" = exact).
 - Twee keer door hetzelfde portaal in één beurt (ping-pong = ongeldig).
@@ -117,15 +119,19 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 
 ### 2c. Straffen in spelerstaal
 
+> **Vals bewegen kost geen levensuren** — je **verdient er minder** naarmate je verder afwijkt, tot
+> nul toe (nooit eronder, nooit een sterfte). De zware gebeurtenissen hieronder zijn de enige die
+> je écht levensuren + een sterfte kosten.
+
 | Overtreding | Gevolg |
 |---|---|
-| Te ver gelopen | de extra stappen gaan er weer af |
-| Verkeerd aantal bij "x of y" | alle gelopen stappen gaan eraf |
-| Achteruit gelopen | de achteruit-stappen gaan eraf |
-| Bewogen zonder afgeroepen te zijn | álle gezette stappen gaan eraf |
-| Tweemaal zelfde portaal in één beurt | je gelopen stappen tellen niet |
+| Te ver gelopen | hoe verder over de limiet, hoe minder winst (bv. max 5, jij liep 8 → +2; liep 12 → +0) |
+| Verkeerd aantal bij "x of y" | minder winst naarmate je verder van het juiste getal zit (tot 0) |
+| Achteruit gelopen | de achteruit-stappen eten je winst op (tot 0) |
+| Bewogen zonder afgeroepen te zijn | je verdient **niets** (0) |
+| Tweemaal zelfde portaal in één beurt | je verdient **niets** (0) |
 | Dichte middernachtpoort overgestoken | **alle levensuren weg + 1 sterfte** |
-| Onder nul gezakt | je blijft op 0 en krijgt **+1 sterfte** |
+| Gestorven door nuke / tornado / bom / ziekte | je blijft op 0 en krijgt **+1 sterfte** |
 | *(met god-punt op zak)* | de eerste overtreding wordt **kwijtgescholden** (1 punt op) |
 
 ### 2d. Veelgestelde vragen

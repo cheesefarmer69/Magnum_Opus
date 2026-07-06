@@ -28,10 +28,11 @@ forceren (BOOT vasthouden → RESET tikken → BOOT los), zie [`slave.md`](../ha
 ## T2 — LED + zoemer per paal
 
 **Doel:** de uitgangen van elke paal werken en het commando-pad bereikt hem.
-**Stappen:** Node-RED editor → tab **00 Configuratie** → zet in `[TEST] LED (portaal-kleur)` de
-gewenste `paal` en klik de inject; idem `[TEST] Zoemer (piep)`. (Actie 19 = regenboog is er voor een
-vol kleurenspectrum-check.) Sluit af met actie 0 (LED uit) of laat "Sync" het spel later overnemen.
-**Verwacht:** de gekozen paal kleurt **paars** (alle 7 LEDs) resp. **piept** eenmalig.
+**Stappen:** open op je telefoon het dashboard → pagina **Spelstatus** → groep **Paaltest (LED + zoemer)**.
+Kies met de schuif de **paal (1-24)** en klik **LED-test** (regenboog over alle 7 LEDs) resp.
+**Zoemer-test** (korte piep). Klik **Uit (deze paal)** om de LED weer te doven. Zo loop je snel elke
+paal af. (Onder water: LED-test = actie 19, zoemer = actie 3, uit = actie 0, gerouteerd naar de juiste master.)
+**Verwacht:** de gekozen paal toont een **rollende regenboog** (alle 7 LEDs) resp. **piept** eenmalig.
 **Bij falen:** maar ~3 LEDs branden → verkeerde build-flags (altijd PlatformIO, zie
 [`slave.md`](../handleidingen/slave.md)); niets → check T4/T6 (keten) en de master-status-logs.
 
@@ -69,7 +70,7 @@ paal, ST-003 datastroom, ST-006 master-conflict) — zie
 ## T6 — Commando-keten terug (met aflever-bevestiging)
 
 **Doel:** commando's van Node-RED bereiken de juiste paal én worden bevestigd.
-**Stappen:** stuur via de `[TEST]`-injects een LED-commando naar een paal van **elke master**
+**Stappen:** stuur via de **Paaltest**-groep (Spelstatus) een LED-test naar een paal van **elke master**
 (bv. paal 2, 10 en 20). Kijk mee in `docker logs serial-bridge` of desnoods de master-monitor.
 **Verwacht:** per commando `{"status":"queued"...}` gevolgd door `{"status":"uitgevoerd","paal":N}`
 (de applicatie-ACK). `buiten_bereik` hoort **nooit** te verschijnen (routeringsfout).

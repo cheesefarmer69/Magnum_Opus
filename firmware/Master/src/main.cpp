@@ -49,6 +49,7 @@ const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
 #define MSG_BUZZER_TOON  0x07   // master -> slave, buzzer-tuning (continue toon)
 #define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
 #define MSG_SCAN_CONFIG  0x09   // master -> slave, BLE-scan-vensterduur (ms) instellen
+#define MSG_LED_CONFIG   0x0A   // master -> slave, LED-helderheid (0..255) instellen
 
 // JSON-actie 12 = buzzer-toon (tuning): geen commando_message_v2, maar een directe
 // MSG_BUZZER_TOON met de frequentie uit het extra JSON-veld "toon" (zie docs/protocol.md).
@@ -60,6 +61,10 @@ const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
 // JSON-veld "scan_ms" (ms). Geen FIFO/ACK, fire-and-forget zoals buzzer/klokslag. Zie docs/protocol.md.
 #define ACTIE_SCAN_CONFIG  20
 #define SCAN_MS_DEFAULT  1000   // fallback wanneer "scan_ms" ontbreekt in de JSON
+// JSON-actie 21 = LED-helderheid: directe MSG_LED_CONFIG met de helderheid (0..255) uit het extra
+// JSON-veld "helderheid". Geen FIFO/ACK, fire-and-forget. Zie docs/protocol.md.
+#define ACTIE_LED_CONFIG   21
+#define LED_HELDER_DEFAULT 150  // fallback wanneer "helderheid" ontbreekt in de JSON
 
 #define MAX_SPELERS 30
 
@@ -132,6 +137,12 @@ typedef struct __attribute__((packed)) scan_config_message {
   uint8_t  paal_id;         // doel-slave (1..24)
   uint16_t scan_ms;         // gewenste BLE-scan-vensterduur in ms (slave clamp't 300..2000)
 } scan_config_message;
+
+typedef struct __attribute__((packed)) led_config_message {
+  uint8_t msg_type;         // = MSG_LED_CONFIG
+  uint8_t paal_id;          // doel-slave (1..24)
+  uint8_t helderheid;       // gewenste FastLED-helderheid 0..255 (slave clamp't 5..255)
+} led_config_message;
 
 // ---- SLAVES REGISTREREN ----
 // De MAC->PAAL_ID-tabel staat gedeeld in firmware/shared/paal_macs.h (ÉÉN bron van waarheid
@@ -444,6 +455,24 @@ static void stuurScanConfig(int paal, uint16_t scan_ms) {
            (r == ESP_OK) ? "scan" : "send_err", paal, scan_ms);
 }
 
+// LED-helderheid: stuur direct een MSG_LED_CONFIG (geen FIFO/ACK, fire-and-forget) met de
+// gewenste FastLED-helderheid (0..255). De slave clamp't zelf (min 5).
+static void stuurLedConfig(int paal, uint8_t helderheid) {
+  int i = paalNaarIndex(paal);
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    return;
+  }
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return;
+  }
+  led_config_message lc = { MSG_LED_CONFIG, (uint8_t)paal, helderheid };
+  esp_err_t r = esp_now_send(slaveAdressen[i], (uint8_t *)&lc, sizeof(lc));
+  logRegel("{\"status\":\"%s\",\"paal\":%d,\"helderheid\":%u}\n",
+           (r == ESP_OK) ? "led" : "send_err", paal, helderheid);
+}
+
 // Klokslag-LED: stuur direct een MSG_KLOKSLAG (geen FIFO/ACK, fire-and-forget zoals buzzer-tuning).
 // De slave rendert continu (solid/flikker/ademend) tot het volgende bericht binnenkomt.
 static void stuurKlokslag(int paal, uint8_t r, uint8_t g, uint8_t b, uint8_t helderheid, uint8_t modus) {
@@ -512,6 +541,19 @@ void verwerkRegel(const char *regel) {
     uint16_t ms = (msIdx == -1) ? SCAN_MS_DEFAULT : (uint16_t)lijn.substring(msIdx + 10).toInt();
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
       stuurScanConfig(paal, ms);
+    } else {
+      logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    }
+    return;
+  }
+
+  // LED-helderheid (actie 21): direct als MSG_LED_CONFIG met de helderheid uit het extra veld
+  // "helderheid" (0..255). Zo blijft de bridge ongewijzigd.
+  if (actie == ACTIE_LED_CONFIG) {
+    int hIdx = lijn.indexOf("\"helderheid\":");
+    uint8_t h = (hIdx == -1) ? LED_HELDER_DEFAULT : (uint8_t)lijn.substring(hIdx + 13).toInt();
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+      stuurLedConfig(paal, h);
     } else {
       logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
     }

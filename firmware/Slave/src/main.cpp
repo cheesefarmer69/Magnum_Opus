@@ -52,6 +52,7 @@ const uint16_t BUZZER_FREQ_TABEL[25] = {
 #define MSG_BUZZER_TOON  0x07   // master -> slave, buzzer-tuning (continue toon)
 #define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
 #define MSG_SCAN_CONFIG  0x09   // master -> slave, BLE-scan-vensterduur (ms) instellen
+#define MSG_LED_CONFIG   0x0A   // master -> slave, LED-helderheid (0..255) instellen
 
 const uint8_t       FW_VERSIE            = 2;
 const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
@@ -78,8 +79,15 @@ const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
 // LED STRIP
 // ====================================================================
 #define NUM_LEDS    7        // 7 LEDs op de PCB
-#define BRIGHTNESS  150
+#define BRIGHTNESS  150      // default-helderheid bij boot (dashboard herstelt de ingestelde waarde)
 CRGB leds[NUM_LEDS];
+
+// LED-helderheid is runtime instelbaar via het dashboard (MSG_LED_CONFIG). Componeert met de
+// per-LED-schaling van Klokslag/animaties (die gebruiken nscale8/CHSV val, niet setBrightness).
+#define LED_HELDER_MIN    5   // clamp: 0 zou de LEDs volledig doven
+#define LED_HELDER_MAX  255
+volatile uint8_t ledHelderheid      = BRIGHTNESS;   // OnDataRecv schrijft; loop past toe
+volatile bool    ledHelderheidDirty = false;
 
 // ====================================================================
 // BUZZER
@@ -344,6 +352,12 @@ typedef struct __attribute__((packed)) scan_config_message {
   uint16_t scan_ms;         // gewenste BLE-scan-vensterduur in ms (slave clamp't 300..2000)
 } scan_config_message;
 
+typedef struct __attribute__((packed)) led_config_message {
+  uint8_t msg_type;         // = MSG_LED_CONFIG
+  uint8_t paal_id;
+  uint8_t helderheid;       // gewenste FastLED-helderheid 0..255 (slave clamp't 5..255)
+} led_config_message;
+
 // ====================================================================
 // TOESTANDSVARIABELEN
 // ====================================================================
@@ -427,6 +441,20 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     if (v > SCAN_MS_MAX) v = SCAN_MS_MAX;
     scanDuurMs    = v;
     scanDuurDirty = true;
+    return;
+  }
+
+  // LED-helderheid: nieuwe globale FastLED-helderheid. Geen FIFO/ACK; zet de volatile doelwaarde,
+  // de loop past ze toe (setBrightness + show op de huidige buffer). Clamp tegen 0 (LEDs uit).
+  if (incomingData[0] == MSG_LED_CONFIG) {
+    if (len < (int)sizeof(led_config_message)) return;
+    led_config_message lc;
+    memcpy(&lc, incomingData, sizeof(lc));
+    if (lc.paal_id != PAAL_ID) return;
+    uint8_t v = lc.helderheid;
+    if (v < LED_HELDER_MIN) v = LED_HELDER_MIN;   // max = 255 volgt al uit uint8_t
+    ledHelderheid      = v;
+    ledHelderheidDirty = true;
     return;
   }
 
@@ -898,7 +926,7 @@ void setup() {
 
   // LED strip init
   FastLED.addLeds<WS2812B, LED_DATA_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.setBrightness(ledHelderheid);   // runtime instelbaar (MSG_LED_CONFIG); default = BRIGHTNESS
   // Voeding-vangnet: schaalt de helderheid terug als de totale stroom een marginale 5V-rail
   // zou overschrijden (voorkomt brownout = "deels aan"). Stem 700mA af op je echte voeding.
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 700);
@@ -1029,6 +1057,15 @@ void loop() {
 
   // Log een nieuw ingesteld scan-venster (gezet vanuit OnDataRecv, op de WiFi-task).
   if (scanDuurDirty) { scanDuurDirty = false; Serial.printf("[SCAN] Venster nu %u ms\n", scanDuurMs); }
+  if (ledHelderheidDirty) {
+    ledHelderheidDirty = false;
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
+      FastLED.setBrightness(ledHelderheid);
+      FastLED.show();   // hertekent de huidige buffer op de nieuwe helderheid
+      xSemaphoreGive(xLedMutex);
+    }
+    Serial.printf("[LED] Helderheid nu %u\n", ledHelderheid);
+  }
 
   uint16_t venster = scanDuurMs;   // snapshot voor deze cyclus
   Serial.printf("\n[SCAN] Start (%u ms)...\n", venster);

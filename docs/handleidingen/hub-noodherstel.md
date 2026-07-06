@@ -19,9 +19,10 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
    `dd`). Bewaar ze in de kist. **Her-kloon telkens** nadat je iets structureels wijzigt (containers,
    `.env`, settings). Zo start de reserve met exact dezelfde flows, credentials en context.
    - *Tip:* een tweede, identiek geflashte SD is de snelste "plan B" — kaart wisselen en booten.
-2. **Voeding via powerbank met pass-through (UPS-achtig).** Voed de Pi via een powerbank die tegelijk
-   laadt én ontlaadt (pass-through). Een korte stroomdip reboot de Pi dan **niet** — en mocht hij tóch
-   herstarten, dan herstelt de persistente state de spelstand. Reken op een stevige 5 V/3 A-bron voor Pi +
+2. **Voeding via een 1000 Wh power station (UPS-achtig).** De Pi hangt aan zijn gewone Raspberry Pi-lader,
+   die zelf op een **1000 Wh power station** draait. Dat grote buffervermogen overbrugt een netstroomdip
+   ruim (de Pi reboot dan **niet**) en houdt de hub de hele dag draaiende — en mocht de Pi tóch herstarten,
+   dan herstelt de persistente state de spelstand. Reken op een stevige 5 V/3 A-uitgang voor Pi +
    randapparatuur.
 3. **Optioneel: kant-en-klare reserve-Pi.** Een tweede Pi 4 met de gekloonde SD er al in, zodat je enkel de
    USB's + audio + voeding hoeft over te prikken.

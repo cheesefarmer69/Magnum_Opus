@@ -96,11 +96,11 @@ LED-commando.
 - **Afroep**: "een groep … maximum x uur vooruit. kleur: rood" / "… jaar: eerste" — geen individuele namen.
 - **Controle** — levensuren-Δ (per groepslid; niet-leden moeten stil blijven):
   - `voor ≤ x` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
-  - `voor > x` → **TE VEEL**, −(voor − x)
-  - achterwaartse STAP → **TERUG IN TIJD**, −achter
-  - >1× zelfde portaal → **ONGELDIGE TELEPORT**, −voor
-  - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, −(voor+achter)
-  - onder 0 → 0 levensuren + **1 sterfte**
+  - `voor > x` → **TE VEEL**, max(0, x − (voor − x)) — proportioneel, vloer 0
+  - achterwaartse STAP → **TERUG IN TIJD**, max(0, voor − achter)
+  - >1× zelfde portaal → **ONGELDIGE TELEPORT**, 0
+  - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, 0
+  - valsspelen kost geen levensuren en geeft **geen sterfte** (V11); dodelijke straffen staan los
 
 ### Groep-of-verplaatsing — "x of y uur vooruit." (groep-doelwit)
 - **Werking**: kiest per afvuring een dimensie (`kleur` of `jaar`, `veld: willekeurig`) en daarvan één
@@ -111,10 +111,10 @@ LED-commando.
 - **Afroep**: "een groep … x of y uur vooruit. kleur: rood" / "… jaar: tweede" — geen individuele namen.
 - **Controle** — levensuren-Δ (per groepslid; niet-leden moeten stil blijven):
   - `voor === x` of `voor === y` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
-  - `voor ≠ x` én `voor ≠ y` (geen achterstap) → **ONGELDIGE KEUZE**, −voor
-  - achterwaartse STAP → **TERUG IN TIJD**, −achter
-  - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, −(voor+achter)
-  - onder 0 → 0 levensuren + **1 sterfte**
+  - `voor ≠ x` én `voor ≠ y` (geen achterstap) → **ONGELDIGE KEUZE**, max(0, voor − afstand tot dichtste geldige)
+  - achterwaartse STAP → **TERUG IN TIJD**, max(0, voor − achter)
+  - niet-doelwit dat beweegt → **BEWOOG (mocht niet)**, 0
+  - valsspelen kost geen levensuren en geeft **geen sterfte** (V11); dodelijke straffen staan los
 
 ## Hoe het doelwit bepaald wordt
 De kandidaten zijn de **actieve, niet-gepauzeerde** spelers. Daarna:

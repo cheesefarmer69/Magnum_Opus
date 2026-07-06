@@ -4,8 +4,8 @@ Stap-voor-stap van een lege wei naar een speelklaar veld met **GO** op het dashb
 secties in volgorde; elke sectie bouwt op de vorige. Reken voor een geoefende ploeg van 2–3
 personen op **± 2 uur** totaal (veld uitzetten is het meeste werk).
 
-> Fysieke details die niet in de repo staan zijn gemarkeerd als **[IN TE VULLEN]** en gebundeld in
-> [Bijlage A](#bijlage-a--in-te-vullen-vragenlijst) onderaan.
+> Fysieke details die niet in de repo staan, zijn gebundeld in [Bijlage A](#bijlage-a--veldspecifieke-gegevens)
+> onderaan (ingevuld voor deze opstelling; nog te finaliseren op de testdag: AP-kanaal, audiovolume, opslag).
 
 ---
 
@@ -13,23 +13,24 @@ personen op **± 2 uur** totaal (veld uitzetten is het meeste werk).
 
 **Speelveld**
 - 24 **palen** met elk een slave-bord (ESP32-C3), LED-strip (7 LEDs), zoemer, batterij en op de
-  drukknop-palen een fysieke knop. Constructie/montage per paal: **[IN TE VULLEN — Bijlage A.1]**.
+  drukknop-palen een fysieke knop — **bovenaan de paal met stevig klittenband** (plug-and-play, Bijlage A.1).
 - **Touw**: ± **206 m** totaal — buitenring 72,1 m, binnenring 50,2 m, 24 spaken van 3,5 m
   (zie [`playfield.md`](../hardware/playfield.md)).
 - **Piketten/haringen** voor de touwringen + een **hamer**.
 - **Meetlint of uitzet-touw ≥ 11,5 m** en een **afstandslat/touwtje van 3,0 m** (paalafstand).
-- 24+ **geladen batterijen** (1S Li-ion/LiPo) + reserves; type & lader: **[IN TE VULLEN — A.2]**.
+- **> 40 geladen 18650-cellen** (1S Li-ion) incl. ruime reserve — laden kan tijdens het spel, dus
+  batterijen worden **gewisseld** i.p.v. gespaard (zie A.2).
 
 **Hub-kist** (zie ook het [hub-noodherstel-runbook](../handleidingen/hub-noodherstel.md))
 - Raspberry Pi 4 (met de speel-SD) + **gekloonde reserve-SD**.
 - **3 masters** (ESP32 WROOM) + 3 USB-kabels.
 - **Audio**: versterker/speaker met aux-kabel naar de Pi-jack.
-- **WiFi-accesspoint** (voor dashboard/simulator) — configuratie: **[IN TE VULLEN — A.3]**.
-- **Powerbank met pass-through** (voeding Pi) + laders/verlengkabel naargelang de locatie.
+- **WiFi-accesspoint = de Pi zelf** (wachtwoord `scoutskamp`); zet het **kanaal op 6 of 11** (zie A.3/H6).
+- **Raspberry Pi-lader** voor de Pi, gevoed door een **1000 Wh power station** + verlengkabel naargelang de locatie.
 
 **Spelers**
-- **Bakens** voor alle spelers (~31) + **minstens 2 reservebakens**, opgeladen. Merk/app en
-  instellingen (adv-interval 300 ms, tx-power): **[IN TE VULLEN — A.4]**.
+- **Bakens** voor alle spelers (~31) + **minstens 2 reservebakens**, opgeladen. Instellingen
+  (adv-interval 300 ms, tx-power) zijn aanpasbaar via de **DX-app** (zie A.4).
 - Polsbandjes in de **kleuren** van de spelerslijst (rood/zwart/blauw — zie
   [`spelers.md`](../spel/spelers.md)).
 
@@ -115,8 +116,9 @@ Volgorde maakt weinig uit, behalve: **eerst alles aansluiten, dan de Pi voeden.*
    kanaal 1, want daar zit ESP-NOW en dan stoort het dashboardverkeer de veld-communicatie (zie
    [`hardware-info.md`](../hardware/hardware-info.md), H6). Doe bij twijfel een kanaalscan met een
    telefoon-app en kies het rustigste van 6/11.
-5. **Voed de Pi via de powerbank (pass-through)** die zelf aan een lader/stopcontact hangt — zo
-   overleeft de hub een stroomdip. Wacht ~2 minuten tot alle containers draaien.
+5. **Voed de Pi met de Raspberry Pi-lader op het 1000 Wh power station** — dat grote buffervermogen
+   overbrugt een stroomdip ruim en houdt de hub de hele dag draaiende. Wacht ~2 minuten tot alle
+   containers draaien.
 6. **Controleer** vanaf een laptop/telefoon op het AP-netwerk:
    - dashboard bereikbaar: `http://192.168.1.43:1880/dashboard` (pagina's Spelstatus, Bediening, …);
    - masters gevonden: de masters' ingebouwde LED pulst zodra palen zenden.
@@ -184,7 +186,7 @@ foutcodes ([blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md)):
 
 - [ ] Veld + touwen intact; palen recht en op nummer.
 - [ ] 24 palen: batterij vers erin; ingebouwde LED knippert; geen rode fout-blink.
-- [ ] Hub: masters (3×) + audio + AP aangesloten; Pi gevoed via powerbank; containers up.
+- [ ] Hub: masters (3×) + audio + AP aangesloten; Pi gevoed via Pi-lader op het 1000 Wh power station; containers up.
 - [ ] **AP-kanaal 6/11 bevestigd** + korte kanaalscan van de omgeving.
 - [ ] Dashboard bereikbaar; **Spelstatus = GO**; geen ST-005 batterijwaarschuwingen.
 - [ ] Audio-test: één afroep hoorbaar over het veld (H2/T7); volume goed.
@@ -211,16 +213,16 @@ foutcodes ([blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md)):
 
 ---
 
-## Bijlage A — [IN TE VULLEN] vragenlijst
+## Bijlage A — veldspecifieke gegevens
 
-Vul deze zes punten één keer in (vervang de betreffende `[IN TE VULLEN]`-verwijzingen hierboven),
-dan is dit hoofdstuk compleet:
+Ingevuld voor deze opstelling. Nog te finaliseren op de testdag: **A.3** (AP-kanaal op 6/11 zetten),
+**A.5** (vaste volumestand) en **A.6** (kisten-indeling/opslag).
 
 | # | Vraag | Antwoord |
 |---|-------|----------|
-| A.1 | **Paal-constructie**: hoe wordt een paal fysiek opgebouwd/verankerd (grondpen? statief?), en hoe zit het slave-bord + LED-strip + batterij erin gemonteerd? | … |
-| A.2 | **Batterij**: welk celtype/formaat (bv. 18650), welke lader, en hoeveel reserves neem je mee? | … |
-| A.3 | **Accesspoint**: welk apparaat is het AP (de Pi zelf met hostapd? een losse router?), wat is de SSID/wachtwoord-afspraak, en waar stel je het **kanaal** in? | … |
-| A.4 | **Bakens**: merk/model + app, en de ingestelde parameters (adv-interval 300 ms, tx-power) — hoe wijzig je die als het nodig is? | … |
-| A.5 | **Audio**: welk versterker/speaker-model, en de vaste volume-stand die over het hele veld verstaanbaar is? | … |
-| A.6 | **Vervoer/opslag**: hoe worden palen en hub verpakt (kisten-indeling), en is er een vaste plek voor de reserve-SD en reservebakens? | … |
+| A.1 | **Paal-constructie**: hoe wordt een paal fysiek opgebouwd/verankerd (grondpen? statief?), en hoe zit het slave-bord + LED-strip + batterij erin gemonteerd? | De **drukknop** wordt **bovenaan de paal** bevestigd met een **stevig klittenband-systeem** → **plug-and-play** (geen gereedschap, snel monteren/wisselen). |
+| A.2 | **Batterij**: welk celtype/formaat (bv. 18650), welke lader, en hoeveel reserves neem je mee? | **18650** (1S Li-ion), **> 40 cellen** incl. ruime reserve. Laden kan **tijdens** het spel → we **wisselen batterijen** i.p.v. stroom te sparen. Gevolg: de LED-helderheid mag overdag gerust op **max**. |
+| A.3 | **Accesspoint**: welk apparaat is het AP (de Pi zelf met hostapd? een losse router?), wat is de SSID/wachtwoord-afspraak, en waar stel je het **kanaal** in? | De **Pi zelf** is het accesspoint. Wachtwoord: **`scoutskamp`**. **Kanaal: nog in te stellen** — kies **6 of 11** (nooit 1; H6), in de hostapd-config van de Pi (`/etc/hostapd/hostapd.conf` → regel `channel=`). |
+| A.4 | **Bakens**: merk/model + app, en de ingestelde parameters (adv-interval 300 ms, tx-power) — hoe wijzig je die als het nodig is? | Parameters (adv-interval / tx-power) zijn **eenvoudig aan te passen via de DX-app**. |
+| A.5 | **Audio**: welk versterker/speaker-model, en de vaste volume-stand die over het hele veld verstaanbaar is? | **JBL boombox** (Bluetooth/aux). De vaste **volumestand wordt bepaald bij de test van de volledige opstelling** (H2/T7). |
+| A.6 | **Vervoer/opslag**: hoe worden palen en hub verpakt (kisten-indeling), en is er een vaste plek voor de reserve-SD en reservebakens? | **Nog te bepalen.** |

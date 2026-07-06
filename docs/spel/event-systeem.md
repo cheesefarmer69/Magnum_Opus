@@ -241,12 +241,15 @@ Per speler, op basis van het opgenomen pad (`pofPad[speler]`):
 | Geval | Status | Δ |
 |------|--------|---|
 | doelwit, geldig (`achter=0`, `voor ≤ x`) | OK | **+voor** (×2 als eindpaal happy hour) |
-| doelwit, `voor > x` | TE VEEL | **−(voor − x)** |
-| doelwit `of`, `voor ∉ {x, y}` | ONGELDIGE KEUZE | **−voor** |
-| doelwit, `achter > 0` | TERUG IN TIJD | **−achter** |
-| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **−voor** |
-| niet-(bewegings)doelwit dat bewoog | BEWOOG (mocht niet) | **−(voor+achter)** |
+| doelwit, `voor > x` | TE VEEL | **max(0, x − (voor − x))** |
+| doelwit `of`, `voor ∉ {x, y}` | ONGELDIGE KEUZE | **max(0, voor − afstand tot dichtste geldige)** |
+| doelwit, `achter > 0` | TERUG IN TIJD | **max(0, voor − achter)** |
+| doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **0** |
+| niet-(bewegings)doelwit dat bewoog | BEWOOG (mocht niet) | **0** |
+| gepauzeerde speler | GEPAUZEERD | 0 (niet gescoord) |
 | stil blijven staan | OK (stil) | 0 |
+
+> **Proportioneel model (V11):** valsspelen kost **geen** levensuren — `Δ = max(0, legaalBasis − overtreding)` (vloer 0), nooit negatief, geen sterfte door valsspel. Dodelijke straffen zitten los in middernacht/nuke/tornado/bom/ziekte. Zie `docs/invarianten.md` §2.
 
 3. **Sterfte**: zou Δ de levensuren onder 0 brengen → blijf op 0 en **+1 sterfte** (speler speelt
    door; legale winst geeft nooit een sterfte).

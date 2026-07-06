@@ -35,7 +35,7 @@ docs/
 └── handleidingen/       ← OPERATIONELE HOW-TO's per component
     ├── master.md · slave.md · serial-bridge.md · audio-player.md
     ├── dashboards.md        ← de Node-RED Dashboard 2.0-pagina's (functie/opbouw)
-    ├── hub-noodherstel.md   ← "hub vervangen in 10 min"-runbook (H10: SPOF, reserve-SD/powerbank)
+    ├── hub-noodherstel.md   ← "hub vervangen in 10 min"-runbook (H10: SPOF, reserve-SD/power station)
     └── spel-testen.md       ← autonoom AI-agent testen: pre-flight + scripted + live-agent
 ```
 

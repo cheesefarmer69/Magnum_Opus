@@ -68,6 +68,15 @@ chmod +x deploy-flows.sh      # eenmalig
 
 ## Persistente spelstate (contextStorage + `spel/state`)
 
+> ⚠️ **`settings.js`-wijzigingen vereisen een container-herstart.** `deploy-flows.ps1` pusht
+> enkel `flows.json` via de Admin API en **herlaadt `settings.js` niet** — Node-RED leest die
+> alleen bij het **starten** van de container. Wijzig je iets in `settings.js` (bv. de
+> `resetPartij`-helper in `functionGlobalContext`), draai dan `docker restart magnum-Opus`,
+> anders draait de oude `settings.js` door. Concreet symptoom als je dit vergeet: de
+> reset-/start-/stop-knoppen op Bediening + Admin lijken **dood** omdat `global.get("resetPartij")`
+> `undefined` teruggeeft. De flows vangen dit nu **gracieus** af (typeof-guard → `node.warn`
+> i.p.v. crash, zie NR9), maar de volledige partij-reset werkt pas ná de herstart.
+
 Zonder configuratie draait Node-RED met een **in-memory** context-store: één stroomdip,
 reboot of deploy wist de hele speeldag. Twee complementaire lagen lossen dat op:
 

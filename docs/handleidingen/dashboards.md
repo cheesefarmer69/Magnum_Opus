@@ -34,12 +34,14 @@ per speler en per paal wanneer ze laatst gezien zijn; de foutcodetabel vat probl
 
 | Groep | Widgets | Wat het doet |
 |-------|---------|--------------|
+| Masters verbonden | `ui-template` Master-status | Bovenaan: per master (M1 = palen 1-8, M2 = 9-16, M3 = 17-24) een naam + **groen/rood bolletje**. Groen = minstens één paal in dat bereik stuurde < 60 s geleden data én geen master-conflict; rood = geen recente data of ST-006. Afgeleid uit de paal-heartbeats (geen aparte master-heartbeat). Zie invariant NR10. |
 | MQTT | `ui-template` MQTT indicator | Groen/rood: staat de MQTT-broker-verbinding aan. |
 | Spelstatus | `ui-template` Status | Kleur-gecodeerde GO/NO-GO-status (groen = GO, rood = NO-GO). |
 | Spelers | `ui-table` Tabel Spelers | Alle spelers + detectiestatus + laatst gezien. |
 | Bediening status | `ui-switch` Toon batterij · `ui-switch` Override NO-GO | Batterijkolom tonen; geforceerd starten ondanks NO-GO. |
 | Palen / Slaves | `ui-table` Tabel Palen | Alle palen/slaves: status, laatst gezien, batterijspanning. |
 | Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-006) met ernst + uitleg. **ST-005** = batterij bijna leeg (< 3,5 V, WAARSCHUWING, niet-blokkerend → "vervang batterij"; drempel `BATT_VERVANG_V`). **ST-006** = master-conflict (FOUT, blokkerend): twee poorten melden hetzelfde `MASTER_NR` — twee borden met dezelfde env geflasht; herflash het verkeerde bord (invariant C8). |
+| Paaltest (LED + zoemer) | `ui-slider` Kies paal (1-24) · `ui-button` LED-test · `ui-button` Zoemer-test · `ui-button` Uit · `ui-text` Laatste paaltest | Snel elke paal fysiek testen tijdens de opbouw. Kies de paal, klik **LED-test** (regenboog, actie 19) of **Zoemer-test** (piep, actie 3); **Uit** dooft die paal (actie 0). Alles via Route commando naar de juiste master. Vervangt de oude `[TEST]`-injects op de Configuratie-tab. |
 
 ---
 
@@ -58,18 +60,31 @@ loopt de engine automatisch. De tekstvelden en tabellen tonen de live-toestand.
 |-------|---------|--------------|
 | Speltoestand | `ui-text` Spel-teller (`Spel #`) · `ui-switch` Spel (uit/LOOPT) · `ui-switch` Modus monitor/sim (via feedback-node, consistent met de andere) · `ui-switch` Pauze/Hervat + `ui-text` Pauze-status · `ui-switch` Manueel · `ui-button` Volgende event · `ui-button` Controle (manueel) · `ui-template` Speltoestand | Hoofdbesturing; de **monitor/sim-schakelaar** vervangt de aparte Simulatie-pagina (publiceert `sim/modus`). |
 | Doel (Plates of Fate) | `ui-dropdown` Doel · `ui-dropdown` Aantal uur (X) · `ui-dropdown` Aantal spelers · `ui-switch` Auto-einde · `ui-text` Doel-status (a/n geslaagd) | PoF-doelkeuze + voortgang. Een PoF-spel start pas met een gekozen doel + aantal. De groep wordt **verborgen** (`ui-control`) wanneer Klokslag het speltype is. |
-| Plates of Fate besturing | `ui-text` Timer (groot/gekleurd) · `ui-text` Huidig event · `ui-text` Doelwit · `ui-table` Controle laatste event · `ui-text` Events deze ronde | Live-verloop van de events en de laatste controle-uitslag. |
+| Plates of Fate besturing | `ui-text` Timer (groot/gekleurd) · `ui-text` Huidig event · `ui-text` Doelwit · `ui-table` Controle laatste event · `ui-text` Events deze ronde · `ui-button` Tijd terug (laatste ronde ongedaan) | Live-verloop van de events en de laatste controle-uitslag. **Tijd terug** herstelt de vorige ronde-state uit de snapshot-stack (`pofSnapshots`, diepte 10) — handig na een verkeerde controle of beacon-fout. |
 | Spelbalans | `ui-slider` Doelwit-dichtheid (%) (10–50) · `ui-text` Dichtheid-status | **Doelwit-dichtheid** (G3): hoeveel % van het veld een gemiddeld event betrekt (`global.doelwitDichtheid`, default 25 %). Schaalt de doelwit-aantallen met het aantal spelers; hoger = drukker. Bij kleine testgroepen zet je hem hoger. Zie `docs/spel/events.md` (Opties). |
 | Live Radar | `ui-table` Tabel Locatie Spelers | Per speler: huidige paal, RSSI, levensdagen/-uren, sterftes. |
 | Actieve effecten (bord-staat) | `ui-table` Tabel Actieve effecten · `ui-table` Tabel Speler-toestanden | Blijvende uur-/speler-effecten + 🤒 ziek / 💣 tijdbom met resterende rondes. |
 | Huidig spel | `ui-table` Tabel Huidig spel | Levensdagen/-uren/sterftes van de **lopende** partij (per spel). |
-| Globaal (cumulatief) | `ui-table` Tabel Globaal | Som over alle gestopte partijen; bij Stop telt Huidig spel hierbij op. |
 | Wereld-effecten | `ui-table` Tabel Wereld-effecten | Actieve wereld-effecten (bv. events sneller). |
-| Noodstop | `ui-switch` Bevestig stop (stap 1) · `ui-button` STOP SPEL (stap 2) | 2-staps harde stop van de partij. |
 
-> **De aparte Simulatie-pagina is verwijderd.** Monitor vs. simulatie kies je nu met de
-> **Modus**-schakelaar op deze Bediening-pagina (synct via retained `sim/modus` met de
-> browser-simulator). Sim en echt spel draaien nooit tegelijk (zie `docs/invarianten.md`, SIM1–SIM4).
+> **De cumulatieve globale stats staan nu op een eigen [Leaderboard-pagina](#3-leaderboard-leaderboard)**
+> (niet meer als groep op Bediening). **De Noodstop-groep is verwijderd** — een spel stop je met de
+> **Spel**-schakelaar in de Speltoestand-groep (die transfereert stats + schrijft historiek). De aparte
+> **Simulatie-pagina** is eveneens weg: monitor vs. simulatie kies je met de **Modus**-schakelaar op deze
+> Bediening-pagina (synct via retained `sim/modus`). Sim en echt spel draaien nooit tegelijk (SIM1–SIM4).
+
+---
+
+## 3. Leaderboard (`/leaderboard`)
+
+**Functie:** de **ranglijst** — alle spelers cumulatief gerangschikt op levensuren, over alle
+gestopte partijen heen.
+
+**Opbouw:**
+
+| Groep | Widgets | Wat het doet |
+|-------|---------|--------------|
+| Ranglijst levensuren | `ui-table` Ranglijst | Alle spelers gesorteerd op **`globaleStats.totaalUren`** (aflopend) met rang, levensuren, levensdagen, sterftes, skills, valsspeelpunten en god-punten. Ververst elke 2 s. Bij **Stop** telt het huidige spel bij het cumulatief op. Zie invariant NR11. |
 
 ---
 
@@ -87,7 +102,9 @@ gerichte reset uit. Globale stats blijven anders bewaard bij een gewone *Stop sp
 | Groep | Widgets | Wat het doet |
 |-------|---------|--------------|
 | Levensjaren beheer | `ui-switch` Admin ontgrendelen (stap 1) · `ui-button` Levensdagen → 0 · `ui-button` Levensuren → 0 · `ui-button` Sterftes → 0 · `ui-button` Paal-effecten → 0 · `ui-button` Speler-effecten → 0 · `ui-button` Speler-toestanden → 0 · `ui-button` Middernacht-klok → start · `ui-button` ALLES → 0 · `ui-dropdown` Paal om te resetten + `ui-button` Reset paal → rust | Gerichte resets (stap 2) na ontgrendelen. "Middernacht-klok → start" zet de π-sequentie terug; "ALLES → 0" doet alle resets in één klik; "Reset paal → rust" zet één gekozen paal (effecten weg, LED uit) terug. |
-| Speler pauze | `ui-template` Speler pauze knoppen | Per speler pauzeren/hervatten (custom HTML). |
+| Speler pauze | `ui-template` Speler pauze knoppen | Per speler **pauzeren/hervatten**. Een gepauzeerde speler wordt **volledig uit het spel** gehouden: niet gescoord bij een controle (status GEPAUZEERD) en genegeerd in Klokslag/Infected/tweeling/etenstijd (S8b/EV3). De pauze-toestand **overleeft een herstart** (in `spel/state`). |
+| Handmatig bijstellen | `ui-template` Handmatig bijstellen UI · `ui-text` Aanpassing-feedback | **Eén spelerveld met de hand corrigeren** (achter *Admin ontgrendelen*): kies speler + parameter (Levensuren / Sterftes / Valsspeelpunten / God-punten), geef een waarde en **Zet op waarde** of **+ optellen**. Muteert het huidige-spel `spelerStats` (nooit onder 0). Bedoeld om een beacon-/detectiefout recht te zetten (invariant S9). |
+| Palen handmatig uit/in | `ui-template` Paal-override UI | **Een kapotte paal uit het spel halen** terwijl de rest doorloopt (achter *Admin ontgrendelen*): kies de paal + **Uit spel** / **Terug in spel**. Zet `palenHandmatigUit`; de L3-ring in "Evalueer spelstatus" slaat die palen over (≥2-palen-vloer blijft gelden). Statusregel toont welke palen uit staan (invariant F5). |
 
 ---
 
@@ -106,6 +123,7 @@ kalibreren.
 |-------|---------|--------------|
 | Locatie-instellingen | `ui-slider` Venster (ms) · `ui-slider` Hysterese (dB) · `ui-slider` RSSI-vloer (dBm) · `ui-slider` Grace (ms) · `ui-slider` Switch-samples · `ui-slider` Min-samples · `ui-text` Actieve locatie-parameters | Tuning van het locatie-algoritme. |
 | Scan-duur (BLE) | `ui-slider` Scan-duur alle slaves (ms) · `ui-slider` Paal · `ui-slider` Scan-duur deze paal (ms) · `ui-button` Pas toe · `ui-text` Laatste scan-actie | BLE-scan-vensterduur van de slaves instellen (400–1000 ms), voor alle slaves of per paal. Kortere scan = versere detectie. Stuurt actie 20 (`MSG_SCAN_CONFIG`); auto-herstel na reboot via heartbeat. Zie `docs/locatiebepaling.md`. |
+| LED-helderheid | `ui-slider` Helderheid (10–255) · `ui-button` Min · `ui-button` Middel · `ui-button` Max · `ui-text` Laatste LED-actie | Globale LED-helderheid van **alle** palen instellen voor daglicht-zichtbaarheid. Slider of preset (Min 40 / Middel 140 / Max 255). Stuurt actie 21 (`MSG_LED_CONFIG`); slave clamp't 5–255; auto-herstel na reboot via heartbeat + retained `config/led-helderheid`. "Max" ~verdubbelt de LED-stroom (batterij). Zie invariant HW9. |
 | Profielen (dag/avond) | `ui-button` Laad dag · `ui-button` Laad avond · `ui-button` Bewaar → dag · `ui-button` Bewaar → avond · `ui-text` Profiel | Twee opgeslagen `locParams`-profielen (dag/avond) die met één knop wisselen — de RF-omgeving 's avonds (dauw/jassen) verschilt van 's middags. Tune de sliders en **Bewaar** het profiel; **Laad** zet ze terug. Persistent. Zie `docs/locatiebepaling.md` ("Dag/avond-profielen"). |
 | Spelers / bakens beheren | `ui-dropdown` Speler · `ui-text` Nieuw baken · `ui-button` Koppel · `ui-button` Ontkoppel · `ui-text` Laatste actie · `ui-table` Huidige koppelingen | Baken-MAC ↔ speler koppelen/vervangen/loskoppelen **zonder deploy**: wapper een baken bij een paal → kies de speler → Koppel. Retained op `config/spelers` (overleeft deploy/herstart). Zie `docs/locatiebepaling.md` ("Bakens toewijzen en vervangen"). |
 | Beacon-stabiliteit | `ui-table` Beacon-stabiliteit (laagste score bovenaan) | Ranglijst van signaalstabiliteit per beacon. |

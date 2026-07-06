@@ -14,6 +14,12 @@ met `analogReadMilliVolts()` (eFuse-fabriekskalibratie, 8× gemiddeld — zie `l
 in `firmware/Slave/src/main.cpp`). De WS2812B-LEDs draaien op een **5 V-rail** (FastLED begrenst op
 5 V / 700 mA als voeding-vangnet tegen brownout).
 
+> **LED-helderheid ↔ batterij-runtime (HW9).** De helderheid is runtime instelbaar vanaf het dashboard
+> ("LED-helderheid", actie 21). Meer helderheid = meer LED-stroom: bij 7 LED's trekt vol wit ~420 mA op
+> **max (255)** tegenover ~250 mA op de default **150**. De 700 mA-power-cap throttelt daarbij niet (geen
+> hardwarerisico), maar "max" ~verdubbelt de LED-bijdrage aan het verbruik → kortere runtime. Zet 'm
+> overdag hoog voor zichtbaarheid en 's avonds op **Middel** om batterij te sparen.
+
 ### Bij welke spanning is de batterij "te laag"?
 
 | Spanning (cel) | Betekenis | Waar |
@@ -129,7 +135,7 @@ vrijhouden of met een pull-up borgen. Zie `pinout.md` (GPIO0).
 Aan de ene Raspberry Pi 4 (1 GB) hangen **3 masters, audio, het WiFi-AP, Node-RED én de MQTT-broker**, op
 **één SD-kaart** (klassieke Pi-faalmodus). Zonder plan-B ligt bij een SD-corruptie of stroom-uitval **het
 hele spel** stil. **Strategie (fysiek voor te bereiden):** (1) een **gekloonde reserve-SD** in de kist
-(periodiek her-klonen), (2) voeding via een **powerbank met pass-through** (dip reboot de Pi niet), (3)
+(periodiek her-klonen), (2) voeding via de Pi-lader op een **1000 Wh power station** (dip reboot de Pi niet), (3)
 optioneel een **kant-en-klare reserve-Pi**. De spelstand zelf overleeft een herstart dankzij
 `contextStorage` + retained `spel/state`. Volledig stappenplan: **`docs/handleidingen/hub-noodherstel.md`**
 ("hub vervangen in 10 min").

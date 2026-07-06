@@ -43,7 +43,6 @@ Eén persoon kan meerdere rollen dragen; de hoofdstukken zijn zo geschreven dat 
   regelvragen; H2 §symptoomtabel bij storingen.
 - **Iets stuk of onduidelijk?** H2 wijst per symptoom naar het juiste document; voor de hub is er
   het aparte runbook ["hub vervangen in 10 min"](../handleidingen/hub-noodherstel.md).
-- **[IN TE VULLEN]-blokken**: een paar fysieke details (paal-constructie, batterijtype/lader,
-  AP-configuratie, baken-merk) staan niet in de repo en zijn gemarkeerd als `[IN TE VULLEN]`. Ze
-  zijn gebundeld in [H1 — Bijlage A](01-veldopzet.md#bijlage-a--in-te-vullen-vragenlijst); vul die
-  één keer in en het handboek is compleet.
+- **Veldspecifieke gegevens**: de fysieke details (paal-constructie, batterijtype/lader, AP-configuratie,
+  baken-app, audio, opslag) staan gebundeld in [H1 — Bijlage A](01-veldopzet.md#bijlage-a--veldspecifieke-gegevens).
+  Ingevuld voor deze opstelling; nog te finaliseren op de testdag: **AP-kanaal (6/11)**, **audiovolume** en **opslag/kisten**.

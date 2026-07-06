@@ -8,6 +8,14 @@ speler-specifieke spelinformatie.
 
 ## De regels (uit `docs/spel/spel.md`)
 
+> ⚠️ **Actueel scoringmodel (juli 2026) — proportioneel, nooit negatief.**
+> De normatieve scoring staat in [`docs/invarianten.md`](../../../../docs/invarianten.md) §2 (V11)
+> en draait in de node **`Verifieer beweging`** (niet meer `Bereken levensuren`). Een foute zet
+> **kost geen levensuren**; hij levert `Δ = max(0, legaalBasis − overtreding)` op (vloer 0) en
+> veroorzaakt **geen sterfte**. Het **`achterstand`-deficitmodel hieronder is historisch** — het
+> `achterstand`-veld wordt nergens meer opgehoogd (enkel op 0 gezet bij reset). Onderstaande tekst
+> blijft staan als ontwerp-context.
+
 Het speelveld is een **cirkel** van palen. De beweging wordt gemeten op de ring
 van **aanwezige** palen (`global.paaltjesLijst`, gesorteerd): van de hoogste naar
 de laagste aanwezige paal is daardoor **1 stap vooruit** (de cirkel sluit), niet

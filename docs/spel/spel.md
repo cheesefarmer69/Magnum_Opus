@@ -136,15 +136,19 @@ van een verplaatsing-event mag bewegen; anderen blijven stil. Per speler bij de 
 
 - **Legaal** (doelwit, `voor ≤ x`, geen achterstap): `+voor` levensuren; eindigt hij op een
   **happy-hour**-uur, dan **dubbel**.
-- **Straf** (aftrek): te veel `−(voor − x)`; te weinig `−voor`; achteruit `−achter`; niet-doelwit
-  dat beweegt `−(voor+achter)` (5→8 = −3, 5→4 = −1).
+- **Straf** (proportioneel, nooit negatief — V11): valsspelen kost géén levensuren, je
+  **verdient er minder** met vloer **0** — `Δ = max(0, legaalBasis − overtreding)`. Te veel
+  `max(0, x − (voor − x))`; te weinig `max(0, voor − (x − voor))`; achteruit `max(0, voor − achter)`;
+  niet-doelwit dat beweegt `0`. Voorbeeld: max 5, bewoog 8 → **+2**; bewoog 12 → **+0**.
 - Een portaal-sprong telt als 0 stappen → geen straf en geen "terug in de tijd".
 
 ### Sterftes
 
-Zou een speler door een straf **onder 0 levensuren** zakken, dan blijven zijn levensuren
-op **0** staan en krijgt hij **+1 sterfte** (hij is als het ware gestorven), maar hij
-speelt gewoon verder. Legale vooruitgang kan nooit een sterfte veroorzaken. Het aantal
+Een foute **bewegingszet** brengt een speler **nooit onder 0** (Δ ≥ 0) en veroorzaakt dus
+**geen** sterfte. De aparte dodelijke mechanismen (middernacht-oversteek, nuke, tornado, bom,
+ziekte-dood) kunnen dat wél: dan blijven zijn levensuren op **0** staan en krijgt hij **+1 sterfte**
+(hij is als het ware gestorven), maar hij speelt gewoon verder. Legale vooruitgang kan nooit een
+sterfte veroorzaken. Het aantal
 sterftes is een **globale stat** die blijft bestaan over partijen heen.
 
 ### Globale stats
@@ -226,9 +230,15 @@ nooit vervuilt. Elke nieuwe partij begint dus met een schone lei.
 Het avondspel heeft een andere dynamiek. In de avond komen de LED-lampen pas
 echt tot hun recht; daar wordt gebruik van gemaakt met actievere spellen.
 
-De spelers gaan de avond in met de levensjaren die ze in de middag opgespaard
-hebben. Het spel dat volgt is **"de dood"**: die probeert hen in te halen.
-Zijn al hun levensjaren op, dan zijn ze door de dood ingehaald.
+De spelers gaan de avond in met de levensuren die ze in de middag opgespaard
+hebben. Nu kan je ze enkel nog **verliezen**: **elke verplaatsing kost 1 levensuur per uur**, en je
+mag **negatief** gaan — het doel is om zo min mogelijk negatief te eindigen. Bij de start valt de
+**onmiddellijke dood** (een geloot slachtoffer, karma-gewogen op sterftes + valsspeelpunten). De avond
+is een **modus** op het lopende spel (behoudt de middag-stats), aan te zetten met de checkbox
+"Avondspel" in de simulator.
+
+> **Volledige spec: `docs/spel/avondspel.md`** — omgekeerde scoring, `gestorven`, de onmiddellijke-dood
+> + loterij, het `fase`-veld op events, en de hardware-LED-kanttekening.
 
 ## Open vragen / nog uit te werken
 

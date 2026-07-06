@@ -30,6 +30,7 @@ Dit voorkomt dat componenten uit sync raken.
 | `0x07` | `MSG_BUZZER_TOON` | master → slave (buzzer-tuning) | `buzzer_toon_message` | 4 B |
 | `0x08` | `MSG_KLOKSLAG`  | master → slave (Klokslag-LED) | `klokslag_message` | 7 B |
 | `0x09` | `MSG_SCAN_CONFIG` | master → slave (BLE-scan-duur) | `scan_config_message` | 4 B |
+| `0x0A` | `MSG_LED_CONFIG` | master → slave (LED-helderheid) | `led_config_message` | 3 B |
 
 ```cpp
 #define MSG_BATCH        0x01
@@ -41,6 +42,7 @@ Dit voorkomt dat componenten uit sync raken.
 #define MSG_BUZZER_TOON  0x07
 #define MSG_KLOKSLAG     0x08
 #define MSG_SCAN_CONFIG  0x09
+#define MSG_LED_CONFIG   0x0A
 
 typedef struct __attribute__((packed)) {        // 0x01 — slave → master
   uint8_t  msg_type;        // = MSG_BATCH
@@ -113,6 +115,12 @@ typedef struct __attribute__((packed)) {        // 0x09 — master → slave, BL
   uint8_t  paal_id;         // doel-slave (1..24)
   uint16_t scan_ms;         // gewenste BLE-scan-vensterduur in ms (slave clamp't 300..2000)
 } scan_config_message;
+
+typedef struct __attribute__((packed)) {        // 0x0A — master → slave, LED-helderheid
+  uint8_t  msg_type;        // = MSG_LED_CONFIG
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint8_t  helderheid;      // gewenste FastLED-helderheid 0..255 (slave clamp't 5..255)
+} led_config_message;
 ```
 
 > **`MSG_KLOKSLAG` (Klokslag-minigame).** De Klokslag-engine kleurt elke paal in de **teamkleur**
@@ -280,6 +288,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 18 | `ACTIE_KNOP_UIT`    | Drukknop-paal **inactief** zetten: GPIO6-LED **uit**, geen tellen meer. |
 | 19 | `ACTIE_REGENBOOG`   | **Test**: roterende regenboog over de 7 LEDs (volledig spectrum, deltaHue 255/7). Puur voor kleur-/LED-controle; via de losse inject `[TEST] Regenboog (paal 1, actie 19)` op de "00 Configuratie"-flow (zelf naar een `commando/masterN` mqtt-out bedraden). Blijft tekenen tot een andere actie binnenkomt (bv. `ACTIE_NIETS`). |
 | 20 | `ACTIE_SCAN_CONFIG` | BLE-scan-vensterduur (ms) instellen. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_SCAN_CONFIG` (zie §0). Vereist het extra JSON-veld `scan_ms` (ms; slave clamp't 300..2000). Fire-and-forget (geen FIFO/ACK). Raakt de LED-strip niet. |
+| 21 | `ACTIE_LED_CONFIG` | LED-helderheid (globale FastLED-brightness) instellen. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_LED_CONFIG`. Vereist het extra JSON-veld `helderheid` (0..255; slave clamp't 5..255). Fire-and-forget (geen FIFO/ACK). Componeert met Klokslag/animatie-kleuren (die schalen per-LED). |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -490,6 +499,12 @@ scan-vensterduur (`scan_ms` in ms; de slave clamp't 300..2000). Het veld `actie`
 `bridge.py` (eist `paal`+`actie`) ongewijzigd blijft. De master antwoordt met status `scan` (verstuurd)
 of `send_err`.
 
+**LED-helderheid (actie 21).** Bij `{"paal":1,"actie":21,"helderheid":255}` vertaalt de master dit —
+net als scan-config, buiten de FIFO om — naar een `MSG_LED_CONFIG` met de gewenste globale
+FastLED-helderheid (`helderheid` 0..255; de slave clamp't 5..255 zodat de LEDs nooit volledig doven).
+Dit schaalt de **hele** LED-strip; Klokslag/animatie-effecten (die per-LED kleuren schalen) blijven er
+bovenop werken. `bridge.py` ongewijzigd (`helderheid` komt mee als extra veld). Status `led`/`send_err`.
+
 | Status         | Betekenis |
 |----------------|-----------|
 | `queued`       | Commando achteraan de per-slave FIFO gezet, wordt in volgorde async verzonden (geen laatste-wint). |
@@ -498,6 +513,7 @@ of `send_err`.
 | `geweigerd`    | Slave gaf `MSG_CMD_ACK status 1` (onbekende/geweigerde actie). Bevat `seq`. |
 | `send_err`     | `esp_now_send()` gaf geen ESP_OK (radio). Retry volgt automatisch. |
 | `scan`         | BLE-scan-config (actie 20) direct verstuurd als `MSG_SCAN_CONFIG`. Bevat `scan_ms`. Fire-and-forget (geen ACK). |
+| `led`          | LED-helderheid (actie 21) direct verstuurd als `MSG_LED_CONFIG`. Bevat `helderheid`. Fire-and-forget (geen ACK). |
 | `opgegeven`    | Na `MAX_POGINGEN` zonder applicatie-ACK — commando verloren. |
 | `geen_slave`   | `paal_id` wijst naar een leeg/placeholder slot (all-zero MAC) — geweigerd. |
 | `buiten_bereik` | `paal_id` valt buiten het paalbereik van deze master (`PAAL_MIN..PAAL_MAX`). Bevat `master`. Hoort nooit te gebeuren (de bridge routeert op `paal_id`) → wijst op een routeringsfout. |
@@ -522,9 +538,11 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `sim/wachtrij-weg` | client → Node-RED | `{"index":2}` — verwijder het aankomende event op die index uit `global.pofWachtrij` ("Volgende events"-paneel); de rij schuift door en vult zich weer aan |
 | `sim/wachtrij-toevoegen` | client → Node-RED | `{"id":"<event-id>"}` — zet dat event **vooraan** in `global.pofWachtrij` (= volgend event); de rij wordt op 5 gecapt en schuift door. Bron: de "→ wachtrij"-knop per event-kaart in de simulator-events-zijbalk |
 | `sim/spel-config` | client → Node-RED | `{"badAura":true}` (retained) — spelinstelling: **slechte aura** (`global.badAuraAan`); negatieve speler-events (ziekte/tijdbom) treffen 's avonds/'s nachts vaker |
+| `sim/avond-modus` | client → Node-RED | `{"avond":true}` (retained) — **avondspel-modus** (`global.avondModus`): verplaatsing **kost** levensuren (mag negatief) i.p.v. verdient, en de events-tab toont enkel `fase:"avond"`-events. Zie `docs/spel/avondspel.md` |
 | `sim/tiers-config` | client → Node-RED | `{"<event-id>":"rare",...}` (retained) — per-event **tier-override** (`global.eventTiers`); bepaalt de kans dat een event gekozen wordt |
 | `sim/tijd-terug` | client → Node-RED | trigger om **één ronde terug** te gaan: herstelt de laatste snapshot (`global.pofSnapshots`) |
 | `pof/animatie` | Node-RED → browser | `{"type":"nuke"\|"oogst"\|"tornado"\|null,"gate":24,"centers":[...]}` (retained) — **dramatische animatie** als één bericht; de sim animeert hierop (robuust tegen verloren per-paal commando's). De firmware blijft op de per-paal acties 8/11/14/15 |
+| `pof/dood-anim` | Node-RED → browser | `{"fase":"loopt"\|"gekozen","paal":7,"speler":"Lilou"}` (transient) — **onmiddellijke dood** (avondspel): de cirkelende paarsrode LED per stap; `gekozen` = de slachtoffer-paal + naam. De simulator rendert de bewegende LED. Zie `docs/spel/avondspel.md` |
 | `pof/herstel-posities` | Node-RED → browser | `{"Lilou":5,...}` — bij 'tijd terug' de herstelde paal per speler (de sim zet de bolletjes terug) |
 | `sim/bediening`    | client → Node-RED | UTF-8 string-commando om de engine programmatisch te besturen (AI-testharnas, zie `tools/speltest/`). Geldige waarden: `start`/`aan`, `stop`/`uit`, `manueel-aan`, `manueel-uit`, `volgende`, `controle`, `wis-stats`. **Werkt enkel in sim-modus** (`simVeld24 === true`) — buiten sim-modus wordt het genegeerd zodat een echt spel nooit geraakt wordt. |
 | `pof/status`       | Node-RED → browser | `{"actief":true,"fase":"reactie","eventNaam":"...","eventTekst":"...","doelwit":[],"doelwitType":"uur","doelwitReveal":"• Lilou","getalWaarde":2,"getalWaarde2":null,"groepLabel":null,"eventenRonde":3,"teller":7,"maxTeller":10}` — `doelwitType`+`doelwit.length` voor de afroep-tekst, `eventenRonde` voor de events-teller; `getalWaarde2` is het tweede getal `y` (bij `voorwaarde: "of"`, anders `null`); `doelwitType` kan `"groep"` zijn met `groepLabel` (`"kleur: rood"`) en afroep-prefix "een groep"; `wachtrij` = `[{id,naam}]` (preview volgende events); `spelTempo` = huidige spel-tempo-factor (0,6–1,3) |
@@ -538,6 +556,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `pof/knop`         | Node-RED → browser | `{"paal":7,"teller":4}` — een drukknop is ingedrukt (visuele flits in de sim; `teller` = cumulatieve druk-teller voor het drukknop-testdashboard; transient) |
 | `config/drukknoppen` | Node-RED → browser | `[3,4,7,9,11,13,15,16,17,19,21,22]` — palen met een fysieke drukknop (retained); bron = `[CONFIG] Drukknop-palen`. Voedt het sim-knoppen-paneel |
 | `config/scan-duur` | Node-RED ↔ client | `{"1":700,"2":700,…}` (retained) — BLE-scan-vensterduur (ms) per paal; bron = dashboard-group "Scan-duur (BLE)" (Beacons & Locatie). Node-RED herlaadt hem in `global.scanDuurPerPaal` bij (her)start en herstelt gereboote slaves via de heartbeat |
+| `config/led-helderheid` | Node-RED ↔ client | `200` (retained getal) — globale LED-helderheid (0..255); bron = dashboard-group "LED-helderheid" (Beacons & Locatie). Node-RED herlaadt hem in `global.ledHelderheid` bij (her)start en herstelt gereboote slaves via de heartbeat (actie 21). Overdag hoog voor zichtbaarheid; 's avonds lager spaart batterij |
 | `config/spelers` | Node-RED ↔ client | `{"48:87:2d:..":"Lilou",…}` (retained) — baken-MAC → spelernaam (`global.spelersLijst`); bron = dashboard-group "Spelers / bakens beheren" (Beacons & Locatie). Retained → **wint** na (her)start van de flows.json-seed `[CONFIG] Spelerslijst` (die enkel nog bootstrap is). Zo wissel/her-toewijs je een baken zonder deploy |
 | `spel/type`        | browser ↔ Node-RED | `{"type":"plates_of_fate"\|"klokslag"}` (retained) — **gekozen spel**, één bron van waarheid. Zowel de simulator als het Bediening-dashboard publiceren én abonneren erop; beide engines lezen `global.spelType` en draaien enkel als het hún spel is |
 | `klokslag/status`  | Node-RED → browser | `{"actief":true,"fase":"lopend"\|"einde"\|"idle","resterend_s":480,"speeltijd_s":600,"winnaar":"team1"\|null}` (retained) — Klokslag-timer + einde/winnaar |
@@ -713,6 +732,14 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-07-05: **`MSG_LED_CONFIG` (0x0A) + actie 21 `ACTIE_LED_CONFIG`** — runtime-instelbare LED-helderheid
+  (globale FastLED-brightness) voor daglicht-zichtbaarheid. Config via `{"paal":N,"actie":21,
+  "helderheid":M}` op `commando/masterN`; de master vertaalt actie 21 → `MSG_LED_CONFIG` en stuurt direct
+  (geen FIFO/ACK, status `led`). De slave clamp't 5..255 en past het toe met `setBrightness`+`show`
+  (componeert met de per-LED-schaling van Klokslag/animaties). Node-RED: dashboard-group "LED-helderheid"
+  (slider + Min/Middel/Max) + retained `config/led-helderheid` + auto-herstel na slave-reboot via de
+  heartbeat. `bridge.py` ongewijzigd (`helderheid` komt mee als extra veld). Vereist herflash van
+  slave(s) + master(s).
 - 2026-07-02: **`MSG_SCAN_CONFIG` (0x09) + actie 20 `ACTIE_SCAN_CONFIG`** — runtime-instelbare BLE-scan-
   vensterduur. De slave scant nu **niet-blokkerend**, begrensd door een `millis()`-venster (`scanDuurMs`,
   default 1000 ms, clamp 300..2000), i.p.v. de vaste `start(1 s)` (NimBLE 1.4.2 blokkeert enkel in hele
