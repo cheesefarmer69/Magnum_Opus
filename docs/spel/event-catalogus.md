@@ -524,6 +524,52 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Audio**: `events/wereld-events/tijdreizen.wav` (afroep) + `events/afgelopen/tijdreizen_voorbij.wav`
   (bij afloop) — beide WAV's moet je nog **opnemen**.
 
+## Nieuwe events & regels (juli 2026)
+
+### Body-swap — "Twee spelers wisselen van plaats." (toestand)
+- **Werking**: 2 willekeurige spelers zijn doelwit. **Correct** = beide eindigen op elkaars **startpaal**
+  (`voorwaarde:"wissel"`, gescoord in `Verifieer beweging`). **Geen beloning** (delta 0). Wie **niet correct**
+  wisselt = **foute zet** (`NIET GEWISSELD` → valsspeelpunt + aura, in `_VALS_FOUT`). Middernacht-oversteek
+  bij dichte poort blijft dodelijk.
+- **Config**: `tier:"rare"`, `reactietijd_s:15` + `reactieVast:true` (blijft 15 s ondanks de toestand-basis van
+  10 s, item 10), `doelwit:{type:"speler",aantal:2}`, `gevolgen:[{type:"geen"}]`.
+- **Audio**: `body_swap.wav` (afroep) — **nog opnemen**.
+
+### Verplaatsing (iedereen) — "Iedereen maximum 5 uur vooruit." (verplaatsing)
+- **Werking**: `doelwit:{type:"speler",selectie:"alle"}`, `voorwaarde:"max"`, `getal:[5,5]`. Iedereen mag tot
+  5 uur vooruit; gewone scoring. **Elk bewogen uur maakt de aura 5% slechter** (`auraPerUur:5` → `auraValsspeel
+  += 5 × voor` in `Verifieer beweging`; blijvend). Hoe verder je gaat, hoe vaker je later doelwit wordt van
+  slechte-aura-events. `tier:"rare"`.
+
+### Maximaal aantal per uur — "Vanaf nu mogen er maximaal x spelers per uur staan." (wereld)
+- **Werking**: rolt X uit **4–8** (`getal:[4,8]`, = het afroepgetal), zet `global.maxPerUur=X`. Tijdelijk
+  (`duratie:[10,15]`). Zolang actief: als een uur bij de controle **> X** spelers telt, krijgt iedereen die er
+  die ronde **aankwam of van wegging** een vlag; hun **eerstvolgende** zet levert **0 levensuren** op (geen
+  sterfte). Logica in `Voer gevolg uit` (gevolg `max_per_uur`), `Verifieer beweging` (vlaggen
+  `geenWinstVolgende`) en `Verouder effecten` (opruimen). `tier:"rare"`.
+- **Audio**: `max_per_uur.wav` + `max_per_uur_voorbij.wav` — **nog opnemen**.
+
+### Polonaise — "De polonaise begint." (wereld)
+- **Werking**: duurt **10 verplaatsings-events** (eigen teller `global.polonaiseTeller`, afgeteld in
+  `Verifieer beweging`; niet-verouderend wereld-effect). Bij een **verplaatsings-event**: vertrek met **≥ 4**
+  spelers van hetzelfde uur → gewone beweging **+ 1 levensuur per medevertrekker boven 4** (5 vertrekkers = +1).
+  Vertrek met **< 4** = **foute zet** (`TE WEINIG SAMEN` → valsspeelpunt + aura). `max:1`, `tier:"rare"`.
+- **Audio**: `polonaise.wav` + `polonaise_voorbij.wav` — **nog opnemen** (afloop-cue nog niet gewired).
+
+### Pariteit-verplaatsing — "maximum x uur vooruit." op even/oneven uur (verplaatsing)
+- **Werking**: als de bestaande groep-verplaatsing, maar de groep = spelers op een **even** óf **oneven**
+  **startuur** (`doelwit:{type:"groep",veld:"pariteit"}`; `Kies event` bepaalt de leden uit `spelerLocaties`,
+  niet uit `spelerEigenschappen`). Label/afroep: `uur: even` / `uur: oneven`. Gewone scoring; middernacht-regels
+  gelden. `tier:"uncommon"`.
+- **Audio**: `groepen/uur/even.wav` + `groepen/uur/oneven.wav` — **nog opnemen**.
+
+### Twee groepen tegelijk (item 11, geen apart event)
+- Bij **elk** groep-event (willekeurig veld) is er **~15% kans** dat er een **tweede** groep uit een (mogelijk)
+  ander veld bij komt; het doelwit = de **unie** (bv. "kleur rood **en** jaar eerste"). Overlap telt één keer;
+  bij < 4 actieve spelers of een vast veld gebeurt het niet. Alleen `Kies event`/reveal-label/audio wijzigen —
+  de scoring behandelt `doelwit` al als platte set.
+- **Audio**: `prefix/groepen.wav` (meervoud) + `woorden/en.wav` (verbinding) — **nog opnemen**.
+
 ## Middernacht (permanent mechanisme, géén afroepbaar event)
 Middernacht is **geen** event in `pofEvents` maar een **continu** mechanisme (node "Middernacht", draait per
 event). De poort op de hoogste paal volgt de cijfers van **π**: open (zacht witte LED) / dicht (rode LED),

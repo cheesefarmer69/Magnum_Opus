@@ -55,6 +55,15 @@ bundelt alle invarianten van het systeem op één plek.
 | niet-doelwit dat beweegt | BEWOOG (mocht niet) | **0** |
 | gepauzeerde speler (Admin) | GEPAUZEERD | 0 (niet gescoord — zie **S8b**) |
 | stil blijven staan | OK (stil) | 0 |
+| body-swap, correct (op elkaars startpaal) | OK (gewisseld) | 0 (geen beloning) |
+| body-swap, niet gewisseld | NIET GEWISSELD | **0** + valsspeelpunt/aura |
+| polonaise, vertrek met < 4 samen | TE WEINIG SAMEN | **0** + valsspeelpunt/aura |
+| polonaise, vertrek met ≥ 4 samen | OK (polonaise +N) | **+voor + (M − 4)** (M = medevertrekkers) |
+| max/uur, gevlagd (vorige zet op/naast overvol uur) | … MAX/UUR | winst → **0** (geen sterfte) |
+| stil op **dichte** middernachtpoort (per ronde) | … MIDDERNACHT STIL | **−1** (positionele kost, kan doden — uitzondering op V11) |
+
+Beweeg-aura (item 4): een event met `auraPerUur` verhoogt `auraValsspeel` met `auraPerUur × voor` per mover
+(blijvend, geen delta-effect). Het `verplaatsing_iedereen`-event gebruikt `auraPerUur:5`.
 
 ---
 
@@ -128,6 +137,7 @@ bundelt alle invarianten van het systeem op één plek.
 | M6 | `dienaars` wordt gewist bij **Stop/Herstart** en door de admin-knop "Speler-toestanden → 0"; `pof/dienaars` (retained) wordt dan leeg gepubliceerd. |
 | M7 | De poort-LED op de middernacht-paal is **wit** (open) / **rood** (dicht) via "Sync toestanden + LEDs"; bij een 0 toont de hele ring de **oogst-animatie** (actie 11). |
 | M8 | Middernacht is **uitschakelbaar** via de simulator-checkbox (`sim/middernacht-config` → global `middernachtAan`). Bij `middernachtAan === false` zet de node `middernachtActief=false` en is de hoogste paal een **gewoon uur** (geen poort-LED, geen `MIDDERNACHT DICHT`, geen oogst, kiesbaar als uur-doelwit). De π-stand wordt niet aangeraakt en loopt verder bij heractivering. |
+| M9 | **Stilstand-kost (item 3):** een speler die bij een **dichte** poort (`midnightOpen === false`) bij de controle **op de middernachtpaal blijft staan zonder deze ronde te bewegen**, verliest **1 levensuur per ronde** (`… MIDDERNACHT STIL (-1)`, in "Verifieer beweging"). Dit is een **positionele** kost (**geen** valsspeelpunt) en kan via de 0-clamp **doden** — een bewuste uitzondering op het proportionele model (**V11**). Gepauzeerden tellen niet; geldt niet wie de poort net oversteekt (dat is `MIDDERNACHT DICHT`, M3). |
 
 ---
 
@@ -211,6 +221,17 @@ bundelt alle invarianten van het systeem op één plek.
 
 ---
 
+## 4k. Nieuwe wereld-events & groep-regels (juli 2026)
+
+| # | Invariant |
+|---|-----------|
+| WE1 | **Maximaal per uur (item 5):** gevolg `max_per_uur` zet `global.maxPerUur = X` (X = afroepgetal, 4–8) voor `duratie:[10,15]` rondes. In "Verifieer beweging" krijgt elke speler die bij de controle **aankomt op** of **weggaat van** een uur met **> X** spelers een vlag in `global.geenWinstVolgende`; die zet **de eerstvolgende** winst op **0** (geen sterfte). `Verouder effecten` wist `maxPerUur` + vlaggen bij afloop; `resetPartij` idem. |
+| WE2 | **Polonaise (item 6):** gevolg `polonaise` zet `polonaiseActief=true`, `polonaiseTeller=10` en een **niet-verouderend** wereld-effect (overslaan in `veroud()`). "Verifieer beweging" telt de teller **enkel op verplaatsings-events** af; bij 0 → `polonaiseActief=false` + effect verwijderd. Scoring: mover met **≥ 4** medevertrekkers van hetzelfde startuur → `+ (M − 4)` bonus; **< 4** → `TE WEINIG SAMEN` (valsspeel, delta 0). Reset via `resetPartij`. |
+| WE3 | **Twee groepen (item 11):** bij een groep-event met willekeurig veld en ≥ 4 spelers is er **~15% kans** op een **tweede** groep (ander veld/waarde); het doelwit is de **unie** (`msg.groepen[]`, `msg.groepLabel` = "veld: waarde + veld: waarde"). Overlap telt één keer. "Verifieer beweging" behandelt `doelwit` als platte set → geen scoring-wijziging. |
+| WE4 | **Pariteit-groep (item 7):** `doelwit.veld === "pariteit"` selecteert in "Kies event" de spelers op een **even** óf **oneven** **startuur** (uit `spelerLocaties`, niet uit `spelerEigenschappen`); label/afroep `uur: even`/`uur: oneven`. Verder gewone verplaatsings-scoring incl. middernacht-regels. |
+
+---
+
 ## 5. Events — formaat
 
 | # | Invariant |
@@ -235,6 +256,7 @@ bundelt alle invarianten van het systeem op één plek.
 | D5 | **Stats per spel**: `spelerStats.totaalUren/sterftes` = huidig spel; bij **Stop** opgeteld bij `globaleStats` (cumulatief) en daarna gewist. `spelNummer` +1 per Start; reset via Admin "Reset ALLES" / "[BEHEER] Wis globale stats". De geslaagde-lijst + doel komen in `spelHistorie`. |
 | D6 | **Meta-stats**: per speler ook `valsspeelpunten` (per-spel; bij **Stop** cumulatief in `globaleStats`), `auraValsspeel` (per-spel slechte-aura-% door valsspelen, zie SP5) en `godPunten` (**persistent** saldo over spellen heen, niet gewist bij Start/Stop — enkel door beheer-reset). Getoond in de dashboard-tabel "Vals-spelen & God-punten" (huidig spel) + de globale tabel. Registratie/gebruik: zie SP5 (valsspeel + aura) en D7 (god-punten). |
 | D7 | **God-punten**: een speler die in een **lopend** spel zijn doel haalt, krijgt **eenmalig +2 god-punten** (in "Doel-controle"; `godAward`-latch, gereset bij spelstart/wis → opnieuw verdienbaar per spel). Bij een **foute verplaatsing** (de SP5-set, incl. MIDDERNACHT DICHT) wordt, als `godPunten > 0`, **automatisch 1 god-punt verbruikt**: de zet is dan **ongestraft** (geen levensuren/sterfte, status `… [GOD-PUNT]`) en telt **niet** als valsspelen (geen valsspeelpunt/aura). Een ziek persoon kan zo ook na een foute zet **genezen** op een medicijn-paal. Saldo `godPunten` is persistent; reset enkel via beheer-wis. |
+| D8 | **Goal-lock (item 8):** zodra een speler in een **lopend** spel zijn doel haalt, worden zijn tot dan verdiende levensuren **direct + vergrendeld** naar `globaleStats.totaalUren` geboekt (`doelLocked`-latch + `doelUren`-snapshot in "Doel-controle"). Daarna speelt hij gewoon door: winst/verlies loopt op `spelerStats.totaalUren` (kan nog **sterven** bij < 0). Bij **Stop** telt `transferStats` voor gelockte spelers **enkel** `max(0, totaalUren − doelUren)` bij — de reeds geboekte `doelUren` worden niet dubbel geteld en kunnen dus **nooit** meer verloren gaan (minimaal +0). Reset van `doelLocked`/`doelUren` bij Start/Stop + `resetPartij`. |
 
 ## 6. Simulator vs. echt spel
 

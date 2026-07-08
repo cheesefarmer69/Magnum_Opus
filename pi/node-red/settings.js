@@ -79,6 +79,7 @@ module.exports = {
             global.set("ziekeSpelers", {}); global.set("pofGenezen", []); global.set("dienaars", {}); global.set("luisterNaam", {});
             global.set("tijdbomSpelers", {}); global.set("tijdbomOntmantelPalen", []);
             global.set("tijdreizenActief", false); global.set("etenstijd", null); global.set("tweelingen", []);
+            global.set("polonaiseActief", false); global.set("polonaiseTeller", 0); global.set("polonaiseAfloop", false); global.set("maxPerUur", null); global.set("geenWinstVolgende", {});
             global.set("infectedActief", false); global.set("infected", null); global.set("infectedLed", {}); global.set("infectedLaatstePalen", []); global.set("infectedStatusSig", "");
             global.set("nukeActief", false); global.set("middernachtOogst", false); global.set("tornadoActief", []); global.set("spelTempoFactor", 1); global.set("pofSnapshots", []); global.set("paalLedForceRebuild", true);
             global.set("pofVerificatie", {}); global.set("pofLaatsteControle", []); global.set("pofPad", {});

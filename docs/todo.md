@@ -78,3 +78,25 @@ en waarom het nodig is.
 
 - Zie `docs/spel/spel.md` → sectie "Open vragen / nog uit te werken" voor openstaande
   ontwerpbeslissingen (o.a. de rol voor uitgeschakelde spelers).
+
+## Audio nog op te nemen (nieuwe events, juli 2026)
+
+De code verwijst al naar deze WAV's; ze moeten nog **opgenomen** en in `pi/audio-player/audio/`
+geplaatst worden (paden relatief t.o.v. die map). Zonder bestand valt het segment gewoon stil weg.
+
+- [ ] **Body-swap**: `events/.../body_swap.wav` (afroep).
+- [ ] **Maximaal per uur**: `events/wereld-events/max_per_uur.wav` (afroep) + `events/afgelopen/max_per_uur_voorbij.wav`.
+- [ ] **Polonaise**: `events/wereld-events/polonaise.wav` (afroep) + `events/afgelopen/polonaise_voorbij.wav`.
+- [ ] **Pariteit-verplaatsing**: `groepen/uur/even.wav` + `groepen/uur/oneven.wav`.
+- [ ] **Twee groepen (item 11)**: `prefix/groepen.wav` (meervoud "groepen") + `woorden/en.wav` (verbinding).
+- [ ] **Knop-feedback (firmware)**: de piezo-deuntjes zitten in de slave-firmware (acties 22/23) —
+  geen WAV nodig. Wél nog: centrale zoemer/afroep-clips voor de drukknop-events-modus (komt met de catalogus).
+
+## Follow-ups nieuwe events
+
+- [ ] **Polonaise afloop-cue**: `polonaise_voorbij.wav` wordt nog **niet** afgespeeld bij het aflopen
+  (de teller telt af in `Verifieer beweging`, dat heeft geen audio-uitgang). `global.polonaiseAfloop` wordt
+  wél gezet — koppel dat aan een audio-emit (bv. via de Sync-node of een aparte flow).
+- [ ] **Drukknop-events-modus (item 2)** + **knoppendans-minigame**: aparte fases; zie
+  `~/.claude/plans/oke-dit-is-een-mellow-tulip.md` (Fase D/E) voor de open ontwerpvragen. Firmware-feedback
+  (acties 22/23) is klaar.

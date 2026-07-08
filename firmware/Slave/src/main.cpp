@@ -182,6 +182,12 @@ const uint8_t ACTIE_KNOP_UIT     = 18;
 // 19 = regenboog-test: roterende regenboog over de 7 LEDs. Puur voor kleur-/LED-controle (via een
 // Node-RED-inject). updateAnimatie() blijft tekenen tot een andere actie binnenkomt (bv. ACTIE_NIETS).
 const uint8_t ACTIE_REGENBOOG    = 19;
+// 20/21 = scan/led-config (buiten FIFO, eigen msg_type). 22/23 = knop-feedback: korte groen/rood-flits
+// (auto-terug naar ACTIE_NIETS na KNOP_FLITS_MS) + positief/negatief zoemerdeuntje. FIFO/ACK. Voor
+// drukknop-events (goede/foute keuze) en de knoppendans-minigame.
+const uint8_t ACTIE_KNOP_GOED    = 22;
+const uint8_t ACTIE_KNOP_FOUT    = 23;
+const unsigned long KNOP_FLITS_MS = 800;   // duur van de groen/rood-knop-flits; daarna auto-terug naar ACTIE_NIETS
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -219,6 +225,17 @@ static const Noot MELODIE_ZIEK_W2[] = {
 static const Noot MELODIE_ZIEK_W1[] = {
     {2200,120},{0,160},{2200,120},{0,160},{2200,120},{0,400},
     {1200,90},{0,60},{900,90},{0,500},
+    {   0,   0}
+};
+
+// Knop-feedback: kort POSITIEF (twee stijgende tonen) resp. NEGATIEF (twee dalende, dof) deuntje
+// bij een goede/foute keuze (drukknop-events + knoppendans). Einde = {0,0}.
+static const Noot MELODIE_KNOP_GOED[] = {
+    {2000,90},{0,30},{2600,150},
+    {   0,   0}
+};
+static const Noot MELODIE_KNOP_FOUT[] = {
+    {1600,120},{0,40},{1000,240},
     {   0,   0}
 };
 
@@ -623,6 +640,8 @@ static const Noot* getMelodieSequentie(uint8_t type) {
     case ACTIE_ZIEK_W3:      return MELODIE_ZIEK_W3;
     case ACTIE_ZIEK_W2:      return MELODIE_ZIEK_W2;
     case ACTIE_ZIEK_W1:      return MELODIE_ZIEK_W1;
+    case ACTIE_KNOP_GOED:    return MELODIE_KNOP_GOED;
+    case ACTIE_KNOP_FOUT:    return MELODIE_KNOP_FOUT;
     default:                 return nullptr;
   }
 }
@@ -689,8 +708,26 @@ void verwerkKlokslag() {
 // Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
 // vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
 void updateAnimatie() {
-  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG) return;
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT) return;
   const unsigned long t = millis() - actieStartMs;
+
+  if (huidigeActie == ACTIE_KNOP_GOED || huidigeActie == ACTIE_KNOP_FOUT) {
+    // Knop-feedback: korte groen/rood-flits (~5 Hz). Na KNOP_FLITS_MS auto-terug naar ACTIE_NIETS (LEDs uit).
+    if (t >= KNOP_FLITS_MS) {
+      huidigeActie = ACTIE_NIETS;
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB::Black); FastLED.show(); xSemaphoreGive(xLedMutex); }
+      return;
+    }
+    bool aan = ((t % 200) < 130);
+    CRGB kleur = (huidigeActie == ACTIE_KNOP_GOED) ? (aan ? CRGB(0, 220, 0) : CRGB(0, 40, 0))
+                                                   : (aan ? CRGB(220, 0, 0) : CRGB(40, 0, 0));
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, kleur);
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+    return;
+  }
 
   if (huidigeActie == ACTIE_REGENBOOG) {
     // Kleur-/LED-test: spreidt de volledige kleurencirkel over de 7 LEDs (deltaHue = 255/7 ≈ 36) en
@@ -800,6 +837,16 @@ void voerActieUit(uint8_t actie) {
     return;
   }
 
+  // --- Knop-feedback (22/23): korte groen/rood-flits (auto-stop) + positief/negatief deuntje samen ---
+  if (actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT) {
+    const Noot* mel = getMelodieSequentie(actie);
+    if (mel) { melodie.type = actie; melodie.noot = 0; melodie.startMs = millis(); if (mel[0].freq > 0) tone(BUZZER_PIN, mel[0].freq); }
+    huidigeActie = actie; actieStartMs = millis();
+    Serial.printf("[ACTIE] Knop-feedback %d (flits + deuntje)\n", actie);
+    updateAnimatie();   // teken meteen het eerste frame
+    return;
+  }
+
   // --- Buzzer-melodieën (3 = piep, 5/6/7 = ziekte-waarschuwing) --------
   const Noot* seq = getMelodieSequentie(actie);
   if (seq) {
@@ -869,11 +916,12 @@ void verwerkCommandos() {
     cmdHead = (cmdHead + 1) % CMD_BUF_SLOTS;
 
     // Bekende commando-acties via deze FIFO: 0..15 (LED/anim/buzzer-melodie),
-    // 17/18 (knop arm/uit) en 19 (regenboog-test). 12 (buzzer-toon), 16 (klokslag)
-    // en 20 (scan-config) komen via een eigen msg_type, niet via deze FIFO.
+    // 17/18 (knop arm/uit), 19 (regenboog-test) en 22/23 (knop-feedback groen/rood + deuntje).
+    // 12 (buzzer-toon), 16 (klokslag) en 20/21 (scan-/led-config) komen via een eigen msg_type, niet via deze FIFO.
     uint8_t ackStatus = (actie <= ACTIE_TORNADO_RAND ||
                          actie == ACTIE_KNOP_ARM || actie == ACTIE_KNOP_UIT ||
-                         actie == ACTIE_REGENBOOG) ? 0 : 1;   // 1 = onbekende actie
+                         actie == ACTIE_REGENBOOG ||
+                         actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT) ? 0 : 1;   // 1 = onbekende actie
     if (seq != laatsteUitgevoerdeSeq) {
       Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
       if (ackStatus == 0) voerActieUit(actie);
