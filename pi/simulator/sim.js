@@ -1472,6 +1472,12 @@ function voegSpelerToe() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    // Broker-host automatisch invullen: geserveerd vanaf de Pi (http://<pi>:1880/sim/) is
+    // location.hostname het juiste broker-adres (thuis .1.43, veld-AP .50.1, veld-kabel .51.1).
+    // Via file:// is hostname leeg -> fallback op het veld-AP-adres. Handmatig overtypen kan altijd.
+    const hostVeld = document.getElementById("broker-host");
+    if (!hostVeld.value.trim()) hostVeld.value = location.hostname || "192.168.50.1";
+
     tekenVeld();
     laadDefaultSpelers();
     renderZijbalk();

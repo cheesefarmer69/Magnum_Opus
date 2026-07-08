@@ -119,8 +119,10 @@ Volgorde maakt weinig uit, behalve: **eerst alles aansluiten, dan de Pi voeden.*
 5. **Voed de Pi met de Raspberry Pi-lader op het 1000 Wh power station** — dat grote buffervermogen
    overbrugt een stroomdip ruim en houdt de hub de hele dag draaiende. Wacht ~2 minuten tot alle
    containers draaien.
-6. **Controleer** vanaf een laptop/telefoon op het AP-netwerk:
-   - dashboard bereikbaar: `http://192.168.1.43:1880/dashboard` (pagina's Spelstatus, Bediening, …);
+6. **Controleer** vanaf een laptop/telefoon op het AP-netwerk (of laptop via kabel, zie
+   [`verbinden-met-de-hub.md`](../handleidingen/verbinden-met-de-hub.md)):
+   - dashboard bereikbaar: `http://192.168.50.1:1880/dashboard` op het AP-netwerk,
+     `http://192.168.51.1:1880/dashboard` via de kabel (pagina's Spelstatus, Bediening, …);
    - masters gevonden: de masters' ingebouwde LED pulst zodra palen zenden.
    Komt er niets op, volg dan het [hub-noodherstel-runbook](../handleidingen/hub-noodherstel.md) §Runbook.
 
@@ -222,7 +224,7 @@ Ingevuld voor deze opstelling. Nog te finaliseren op de testdag: **A.3** (AP-kan
 |---|-------|----------|
 | A.1 | **Paal-constructie**: hoe wordt een paal fysiek opgebouwd/verankerd (grondpen? statief?), en hoe zit het slave-bord + LED-strip + batterij erin gemonteerd? | De **drukknop** wordt **bovenaan de paal** bevestigd met een **stevig klittenband-systeem** → **plug-and-play** (geen gereedschap, snel monteren/wisselen). |
 | A.2 | **Batterij**: welk celtype/formaat (bv. 18650), welke lader, en hoeveel reserves neem je mee? | **18650** (1S Li-ion), **> 40 cellen** incl. ruime reserve. Laden kan **tijdens** het spel → we **wisselen batterijen** i.p.v. stroom te sparen. Gevolg: de LED-helderheid mag overdag gerust op **max**. |
-| A.3 | **Accesspoint**: welk apparaat is het AP (de Pi zelf met hostapd? een losse router?), wat is de SSID/wachtwoord-afspraak, en waar stel je het **kanaal** in? | De **Pi zelf** is het accesspoint. Wachtwoord: **`scoutskamp`**. **Kanaal: nog in te stellen** — kies **6 of 11** (nooit 1; H6), in de hostapd-config van de Pi (`/etc/hostapd/hostapd.conf` → regel `channel=`). |
+| A.3 | **Accesspoint**: welk apparaat is het AP (de Pi zelf? een losse router?), wat is de SSID/wachtwoord-afspraak, en waar stel je het **kanaal** in? | De **Pi zelf** is het accesspoint via **NetworkManager** (profiel `MagnumOpus-AP` op `wlan0`; géén hostapd). SSID **`MagnumOpus`**, wachtwoord **`scoutskamp`**, AP-adres **`192.168.50.1`**. **Kanaal staat op 6** (nooit 1; H6); wijzigen: `sudo nmcli connection modify MagnumOpus-AP 802-11-wireless.channel 11` + `sudo nmcli connection up MagnumOpus-AP`. Zie [`verbinden-met-de-hub.md`](../handleidingen/verbinden-met-de-hub.md). |
 | A.4 | **Bakens**: merk/model + app, en de ingestelde parameters (adv-interval 300 ms, tx-power) — hoe wijzig je die als het nodig is? | Parameters (adv-interval / tx-power) zijn **eenvoudig aan te passen via de DX-app**. |
 | A.5 | **Audio**: welk versterker/speaker-model, en de vaste volume-stand die over het hele veld verstaanbaar is? | **JBL boombox** (Bluetooth/aux). De vaste **volumestand wordt bepaald bij de test van de volledige opstelling** (H2/T7). |
 | A.6 | **Vervoer/opslag**: hoe worden palen en hub verpakt (kisten-indeling), en is er een vaste plek voor de reserve-SD en reservebakens? | **Nog te bepalen.** |

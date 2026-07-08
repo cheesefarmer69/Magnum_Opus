@@ -33,9 +33,12 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
 
 ## Symptomen (wanneer grijp je in?)
 
-- Dashboard (`http://192.168.1.43:1880`) onbereikbaar of leeg; geen detecties meer op de radar.
+- Dashboard onbereikbaar of leeg (thuis `http://192.168.1.43:1880`; **veld**: AP `http://192.168.50.1:1880`
+  of kabel `http://192.168.51.1:1880` — zie [`verbinden-met-de-hub.md`](verbinden-met-de-hub.md));
+  geen detecties meer op de radar.
 - Geen audio-afroepen meer; LED's reageren niet op events.
-- Pi niet pingbaar (`ping 192.168.1.43`), of de SD-activiteit-LED knippert niet meer normaal.
+- Pi niet pingbaar (ping het adres van jouw situatie hierboven), of de SD-activiteit-LED knippert
+  niet meer normaal.
 - In de logs: filesystem read-only / I/O errors (klassiek SD-corruptie-symptoom).
 
 ---
@@ -56,7 +59,8 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
    docker ps          # verwacht: mosquitto, magnum-Opus (node-red), serial-bridge, audio-player = Up
    docker logs serial-bridge --tail 20   # "open poorten: [...]" en routes geleerd?
    ```
-6. **Dashboard openen** (`http://192.168.1.43:1880`, hard refresh Ctrl+F5). Controleer de pagina
+6. **Dashboard openen** (veld: `http://192.168.50.1:1880` via het AP of `http://192.168.51.1:1880`
+   via de kabel; thuis: `http://192.168.1.43:1880` — hard refresh Ctrl+F5). Controleer de pagina
    **Spelstatus**: pre-flight moet naar **GO** gaan zodra de palen data sturen. Scores/π-stand/historiek
    horen **terug** te zijn (persistente state).
 7. **Alleen indien nodig** (flows niet actueel op de reserve-SD): op de Pi

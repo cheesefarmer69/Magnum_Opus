@@ -24,6 +24,11 @@ services:
       - "1880:1880"
     environment:
       - TZ=Europe/Brussels
+    extra_hosts:
+      # host.docker.internal -> het host-IP op de docker-bridge. De mqtt-broker-confignode in
+      # flows.json verbindt hiernaartoe i.p.v. naar een hardcoded eth0-IP (192.168.1.43), zodat
+      # Node-RED de broker OOK bereikt op het veld, waar eth0 geen thuisrouter/DHCP heeft.
+      - "host.docker.internal:host-gateway"
     volumes:
       # /data op persistente opslag -> flows + credentials + /data/context (persistente
       # global-context). Pas NODE_RED_DATA aan; default is een map op de SD-kaart (root-fs).
@@ -31,6 +36,9 @@ services:
       # settings.js uit de repo is autoritatief (bevat contextStorage). Read-only overlay:
       # Node-RED schrijft nooit naar settings.js zelf, wel naar de rest van /data.
       - ./settings.js:/data/settings.js:ro
+      # Simulator read-only in de container; via httpStatic (settings.js) geserveerd op
+      # http://<pi>:1880/sim/ — zo werkt de simulator op elk toestel zonder losse bestanden.
+      - ../simulator:/sim-static:ro
 
 # AANDACHTSPUNT (buiten scope van deze wijziging): Mosquitto (`MQTT-broker`) bewaart zijn
 # retained messages (waaronder nu ook `spel/state`) in `/mosquitto/data/`. Wil je die net zo

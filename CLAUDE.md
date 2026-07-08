@@ -38,7 +38,11 @@ de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
 - **Master**: ESP32 WROOM-32, USB verbonden met Pi via CH340 USB-UART (vendor 1a86, product 7523)
 - **Slaves**: ESP32-C3 SuperMini , één per paal, 24 palen
 - **Master/slave-indeling**: Master 1 stuurt slaves 1–8 aan, Master 2 slaves 9–16, Master 3 slaves 17–24
-- **Hub**: Raspberry Pi 4 model B 1GB RAM (IP 192.168.1.43, statisch), Raspberry Pi OS
+- **Hub**: Raspberry Pi 4 model B 1GB RAM, Raspberry Pi OS. Dual-homed:
+  - thuis: eth0 via thuisrouter = `192.168.1.43` (dev/deploy);
+  - veld (geen router): eigen WiFi-AP `MagnumOpus` op wlan0 = `192.168.50.1` (NetworkManager-profiel
+    `MagnumOpus-AP`, WPA2, kanaal 6, ipv4 shared — géén hostapd) + kabel-profiel `Veld-eth` op
+    eth0 = `192.168.51.1` (shared; fallback als DHCP thuis faalt). Zie `docs/handleidingen/verbinden-met-de-hub.md`.
 - **Custom PCB**: ontworpen in EasyEDA, besteld bij JLCPCB (zie docs/hardware/)
 
 ## Software-stack
@@ -114,7 +118,9 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
   in de draaiende Node-RED.
 - Exporteer flows uit de browser-UI terug naar `pi/node-red/flows.json` als je in de
   UI hebt bewerkt (anders raakt de repo achter).
-- MQTT broker-server in Node-RED config: `192.168.1.43` (niet 127.0.0.1 — Node-RED draait in een bridge-netwerk, niet host-netwerk)
+- MQTT broker-server in Node-RED config: `host.docker.internal` (via `extra_hosts: host-gateway`
+  in `docker-compose.yml` — niet 127.0.0.1 want Node-RED draait in een bridge-netwerk, en niet
+  een hardcoded IP want op het veld heeft eth0 geen `192.168.1.43`)
 
 ## Documentatie-ingang
 

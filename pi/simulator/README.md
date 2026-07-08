@@ -11,10 +11,15 @@ De simulator sluit aan op precies dezelfde MQTT-naad als de echte hardware:
 ```
 [Simulator browser]
     ↕  MQTT-over-WebSocket (poort 9001)
-[Mosquitto broker op Pi — 192.168.1.43]
+[Mosquitto broker op Pi — thuis 192.168.1.43, veld-AP 192.168.50.1, veld-kabel 192.168.51.1]
     ↕  MQTT TCP (poort 1883)
 [Node-RED spellogica]
 ```
+
+De simulator wordt **door de Pi zelf geserveerd** op `http://<pi-adres>:1880/sim/` (Node-RED
+`httpStatic`, read-only mount van deze map — zie `pi/node-red/docker-compose.yml` + `settings.js`).
+Het broker-veld vult zichzelf in met het adres uit je adresbalk; zie
+`docs/handleidingen/verbinden-met-de-hub.md` voor alle adressen/situaties.
 
 **Monitor-modus**: de simulator luistert alleen. Geen enkel effect op het
 draaiende spel.
@@ -101,8 +106,10 @@ docker logs <naam-van-mosquitto-container> | grep 9001
 
 ### 2. Simulator starten
 
-Geen build-stap nodig. Open `index.html` direct in je browser. Lukt `file://`
-niet (strikte CSP/CORS in sommige browsers), start dan een lokale webserver:
+Geen build-stap nodig. **Aanbevolen:** open `http://<pi-adres>:1880/sim/` — de Pi serveert de
+simulator zelf (werkt op elk toestel, ook gsm/tablet, en het broker-veld staat dan automatisch
+juist). Alternatief blijft `index.html` direct openen in je browser; lukt `file://` niet
+(strikte CSP/CORS in sommige browsers), start dan een lokale webserver:
 
 ```powershell
 cd "c:\PROJECTEN ELEKTRONICA\Magnum Opus\VS_Code\pi\simulator"
@@ -120,7 +127,8 @@ Kijk passief mee met een echt spel zonder enig risico.
 
 1. Zorg dat het spel actief is: `bridge.py` draait, Node-RED is gestart.
 2. Open de simulator in je browser.
-3. Controleer het broker-adres: `192.168.1.43`, poort `9001`.
+3. Controleer het broker-adres (vult zichzelf in; thuis `192.168.1.43`, veld-AP `192.168.50.1`,
+   veld-kabel `192.168.51.1`), poort `9001`.
 4. Druk **Connect** — status linksbovenaan wordt groen ("online").
 5. Selecteer modus **Monitor** (standaard).
 6. Wat je nu ziet:
@@ -317,8 +325,8 @@ die entry uit `global.pofWachtrij`, en de rij schuift door (vult zich daarna wee
 ## Browser-eisen
 
 Moderne browser (Chrome / Firefox / Edge 2024+). De MQTT-bibliotheek
-(`mqtt.min.js` v5) wordt geladen via unpkg CDN — internetverbinding nodig
-bij het eerste laden (daarna gecached door de browser).
+(`mqtt.min.js` v5.10.1) is **lokaal gebundeld** in `vendor/mqtt.min.js` —
+géén internet/CDN nodig, de simulator werkt dus ook op het veld (offline).
 
 ---
 

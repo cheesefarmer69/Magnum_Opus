@@ -29,6 +29,14 @@ module.exports = {
     // --- HTTP / editor ---
     uiPort: process.env.PORT || 1880,
 
+    // Simulator statisch geserveerd op /sim/ (bron: ../simulator, read-only gemount op
+    // /sim-static — zie docker-compose.yml). Bereikbaar op elk Pi-adres: thuis
+    // http://192.168.1.43:1880/sim/, veld-AP http://192.168.50.1:1880/sim/,
+    // veld-kabel http://192.168.51.1:1880/sim/.
+    httpStatic: [
+        { path: "/sim-static", root: "/sim/" }
+    ],
+
     // --- Runtime ---
     // Log-niveau: info is genoeg voor productie op de Pi.
     logging: {

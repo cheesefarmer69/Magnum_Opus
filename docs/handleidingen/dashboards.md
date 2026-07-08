@@ -6,10 +6,14 @@ De spellogica draait in **Node-RED**; de bediening en monitoring gebeuren via ee
 
 ## Toegang
 
-- **Dashboards (deze pagina's):** `http://192.168.1.43:1880/dashboard`
-- **Flow-editor** (de onderliggende flows zelf bewerken): `http://192.168.1.43:1880/`
-- **Browser-simulator** (losse test-tool, geen Node-RED-dashboard): `pi/simulator/index.html`,
-  verbindt via MQTT-over-WebSocket op poort 9001. Zie `pi/simulator/` en `docs/spel/`.
+Het Pi-adres hangt af van je situatie — **thuis `192.168.1.43`**, **veld-AP `192.168.50.1`**,
+**veld-kabel `192.168.51.1`** (zie [`verbinden-met-de-hub.md`](verbinden-met-de-hub.md)):
+
+- **Dashboards (deze pagina's):** `http://<pi-adres>:1880/dashboard`
+- **Flow-editor** (de onderliggende flows zelf bewerken): `http://<pi-adres>:1880/`
+- **Browser-simulator** (losse test-tool, geen Node-RED-dashboard): `http://<pi-adres>:1880/sim/`
+  (door de Pi geserveerd; ook los te openen via `pi/simulator/index.html`), verbindt via
+  MQTT-over-WebSocket op poort 9001. Zie `pi/simulator/` en `docs/spel/`.
 
 > Dashboard-base: **"My Dashboard"**, path `/dashboard`. De pagina's hieronder zijn de
 > `ui-page`-knopen in `pi/node-red/flows.json`; elke pagina bevat `ui-group`-groepen met

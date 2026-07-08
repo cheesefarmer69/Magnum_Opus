@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
     <title>Magnum Opus — Simulator</title>
     <link rel="stylesheet" href="sim.css">
-    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+    <!-- mqtt.js lokaal gebundeld (geen CDN): de simulator moet ook zonder internet werken
+         (veld). Versie 5.10.1, eenmalig gedownload van unpkg. -->
+    <script src="vendor/mqtt.min.js"></script>
 </head>
 <body>
     <header>
         <div class="hdr-group">
-            <label>Broker: <input id="broker-host" type="text" value="192.168.1.43"></label>
+            <label>Broker: <input id="broker-host" type="text" value=""></label>
             <label>:<input id="broker-port" type="number" value="9001" style="width:5em"></label>
             <button id="btn-connect">Connect</button>
             <span id="conn-status" class="conn-off">offline</span>
