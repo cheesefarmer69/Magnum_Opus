@@ -33,8 +33,8 @@ audio/
 ├── groepen/       ALLE groep-doelwit-clips, gebundeld (zie groepen/README.md)
 │   ├── kleur/    kleur.wav + rood/zwart/blauw.wav
 │   ├── jaar/     jaar.wav + eerste/tweede/derde.wav
-│   ├── maand/    maand.wav + januari..december.wav   (voorbereid)
-│   └── seizoen/  seizoen.wav + lente/zomer/herfst/winter.wav   (voorbereid)
+│   ├── maand/    maand.wav + januari..december.wav
+│   └── seizoen/  seizoen.wav + lente/zomer/herfst/winter.wav
 ├── doelwit/       vaste omkadering rond de doelwit-opsomming
 │   ├── voor.wav   ("De volgende doelwitten zijn gekozen:")
 │   └── na.wav     ("...dat waren de doelwitten.")
@@ -128,10 +128,16 @@ Huidige mapping (config → bestand, per submap):
   `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`,
   en (nog op te nemen) `nuke.wav`, **`identiteitscrisis.wav`**, **`tijdreizen.wav`**
   ("tijdreizen zal worden toegestaan").
+  De **bomaanslag** kiest per afvuring willekeurig één van **vier uur-duo's** (elk 25 %) en speelt de
+  bijhorende clip uit `audioVoorOpties`. Naast de bestaande `..._9_en_11.wav` zijn dus nog op te nemen:
+  **`een_bomaanslag_vind_plaats_op_uur_4_en_20.wav`**, **`..._6_en_7.wav`**, **`..._6_en_9.wav`**.
+  Die clip is meteen de gesproken waarschuwing vlak vóór de reactietijd van dat event.
 - **`events/afgelopen/`** (eind-cue `audioAfgelopen` bij afloop van de duratie, nog op te nemen):
   `identiteitscrisis_voorbij.wav`, **`tijdreizen_voorbij.wav`** ("tijdreizen is afgelopen"),
-  **`etenstijd_voorbij.wav`** ("de wolf is voldaan"). *(Tweeling heeft geen eind-cue — die eindigt
-  op een dood, niet op duratie.)*
+  **`etenstijd_voorbij.wav`** ("de wolf is voldaan"), en **`alle_zieken_gestorven.wav`**
+  ("Alle zieken zijn gestorven." — gespeeld door **Ziekte-beheer** wanneer er geen medicijn meer op
+  het bord staat terwijl er nog zieken zijn, invariant Z9; niet via `audioAfgelopen`).
+  *(Tweeling heeft geen eind-cue — die eindigt op een dood of op samenkomen, niet op duratie.)*
 
 De ziekte-waarschuwing (ziekenhuis-monitor + hartslag) speelt op de **slave-buzzer**
 (acties 5/6/7), niet via de audio-player.

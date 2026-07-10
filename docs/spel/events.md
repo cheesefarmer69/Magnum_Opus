@@ -24,8 +24,12 @@ Eén event is één object in die array.
     type: "uur",             //   "speler" | "uur" | "groep" (gedeelde eigenschap) | "geen"
     selectie: "willekeurig", //   "willekeurig" (toeval) | "alle"
     aantal: "laag",          //   "enkel"|"laag"|"midden"|"hoog" of vast getal (niet bij groep)
+    // alleen bij type "uur":
+    vast: [9, 11],           //   OPTIONEEL — vaste uren (geen keuze)
+    vastOpties: [[9,11], [4,20]], // OPTIONEEL — lijst gelijkwaardige uur-duo's; de engine trekt er
+                             //   uniform één (wint van 'vast'); zie audioVoorOpties
     // alleen bij type "groep":
-    veld: "willekeurig",     //   "kleur" | "jaar" | "willekeurig" (engine kiest kleur of jaar)
+    veld: "willekeurig",     //   "kleur"|"jaar"|"maand"|"seizoen"|"pariteit"|"willekeurig"
     waarde: "rood"           //   OPTIONEEL — vaste groep-waarde; weglaten = willekeurig gekozen
   },
 
@@ -38,6 +42,8 @@ Eén event is één object in die array.
                              //   in de simulator-events-tab (sim/tiers-config → global.eventTiers).
   minAfstand: 3,             // OPTIONEEL — minimale RING-afstand tussen gekozen uur-doelwitten
                              //   (bv. tornado: 3 zodat de centers + buururen nooit overlappen)
+  minSpelerAfstand: 5,       // OPTIONEEL — minimale RING-afstand tussen twee gekozen SPELERS
+                             //   (enkel bij aantal 2; bv. body-swap: 5 uren uit elkaar)
   slechteAura: true,         // OPTIONEEL — "slechte aura": negatief speler-event dat 's avonds (uur 20–6,
                              //   ×1,10) en op middernacht (uur 24, ×1,15) vaker een doelwit kiest, zodat de
                              //   dag veiliger is. Werkt enkel als de spelinstelling badAuraAan aan staat.
@@ -46,6 +52,7 @@ Eén event is één object in die array.
                              //   systeeminstelling "toestand-exclusiviteit" uit staat (global.toestandExclusief)
   duratie: [2, 4],           // OPTIONEEL — hoelang de toestand blijft: getal | [min,max] | "kort"/"middel"/"lang"
   audioVoor: "id_voor.wav",  // OPTIONEEL — WAV vóór het getal in de afroep
+  audioVoorOpties: [...],    // OPTIONEEL — één WAV per doelwit.vastOpties-entry (zelfde index)
   audioNa: "id_na.wav",      // OPTIONEEL — WAV ná het getal in de afroep
   audioAfgelopen: "id_afgelopen.wav", // OPTIONEEL — WAV (uit events/afgelopen/) die speelt zodra de
                              //   toestand/duratie verloopt, net vóór het volgende event → spelers
@@ -65,17 +72,20 @@ Eén event is één object in die array.
 | `naam`          | ja        | Weergavenaam (dashboard "Huidig event", debug, log). |
 | `categorie`     | ja        | `verplaatsing` / `toestand` / `wereld` — soort event (los van `doelwit.type`); bepaalt de `[CONFIG]`-inject. |
 | `tekst`         | ja        | Wat wordt voorgelezen. Een losse `x` wordt door `getal` vervangen. |
-| `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle. **Conventie**: verplaatsing-events (speler) standaard **20 s** (denktijd voor de route); toestand-events die onmiddellijk iets zetten (portaal/happy hour/ziekte) **5 s**. |
-| `doelwit`       | ja        | Wie/wat geraakt wordt — object met `type`, `selectie`, `aantal`. Bij `type: "groep"` ook `veld` (`"kleur"`/`"jaar"`/`"willekeurig"`) en optioneel `waarde` (vaste groepwaarde; weglaten = willekeurig). |
+| `reactietijd_s` | ja        | Seconden reactietijd ná het voorlezen, vóór de controle. **Conventie**: verplaatsing-events standaard **20 s** (denktijd voor de route); toestand-events die onmiddellijk iets zetten (portaal/happy hour/ziekte/tijdbom) **10 s**, live overschrijfbaar via `global.reactieToestand` tenzij het event `reactieVast: true` zet. Op hardware klemt de **sensing-vloer** (SP6) alles op ~7 s. |
+| `doelwit`       | ja        | Wie/wat geraakt wordt — object met `type`, `selectie`, `aantal`. Bij `type: "uur"` optioneel `vast` (vaste uren) of `vastOpties` (lijst gelijkwaardige uur-verzamelingen, uniform getrokken — wint van `vast`). Bij `type: "groep"` ook `veld` (`kleur`/`jaar`/`maand`/`seizoen`/`pariteit`/`willekeurig`) en optioneel `waarde` (vaste groepwaarde; weglaten = willekeurig). Enkel `veld: "willekeurig"` kan ~15 % v/d tijd een **tweede** groep toevoegen. |
 | `getal`         | nee       | Optie/getal dat `x` in de tekst invult én de controle-waarde bepaalt. |
 | `getal2`        | nee       | Tweede optie/getal dat `y` in de tekst invult (bv. de tweede keuze bij `voorwaarde: "of"`). Mag een optie (`laag`/…) of een `[min,max]`-bereik zijn. |
 | `voorwaarde`    | nee       | `min` / `max` / `of` / `geen` — beweging-controle na de reactietijd. Bij `of`: geldig als `voor` exact `x` óf exact `y` is. |
 | `max`           | nee       | Hoeveel instanties van dít event tegelijk actief mogen zijn (toestand). |
 | `duratie`       | nee       | Hoelang de toestand blijft (events/rondes): vast getal, `[min,max]`-bereik (willekeurig), of preset `kort`/`middel`/`lang`. Overschrijft per-gevolg `duurRondes`. Bij `ziekte`: aantal events dat een zieke heeft. |
 | `fase`          | nee       | `middag` (default) / `avond` / `beide` — in welk spel het event verschijnt. In `avondModus` toont/kiest de engine enkel `avond`/`beide`; anders verdwijnt `avond`. Zie `docs/spel/avondspel.md`. |
-| `regroup_s`     | nee       | Enkel bij het NUKE-event: seconden regroup-pauze ná de ontploffing vóór het spel verdergaat. |
+| `minSpelerAfstand` | nee    | Minimale RING-afstand tussen twee gekozen **spelers** (enkel bij `aantal: 2`). Body-swap gebruikt **5**. Geen geldig paar → gewone steekproef + `node.warn`. |
+| `minAfstand`    | nee       | Minimale RING-afstand tussen gekozen **uur**-doelwitten. Tornado gebruikt **3**, portalen **6**. Bij een uur-effect worden bovendien palen uitgesloten die dat effect al dragen (twee portalen delen nooit een paal). |
+| `regroup_s`     | nee       | Enkel bij het NUKE-event: seconden regroup-pauze ná de ontploffing vóór het spel verdergaat (default **45**). Ook in `regroup` is bewegen **niet** vrij (V10) — wie terugloopt, betaalt bij de volgende controle. |
 | `escape_s`      | nee       | Enkel bij het NUKE-event: hoe lang (s) een beacon **niet meer vers gezien** mag zijn om als **ontsnapt** te gelden (default 4). Zorg dat `reactietijd_s ≥ escape_s + 2` — anders kan de ~1 s-prune niet op tijd opschonen. |
 | `audioVoor` / `audioNa` | nee | WAV-bestandsnamen voor de afroep (knip-en-plak rond het getal). |
+| `audioVoorOpties` | nee  | Eén WAV per `doelwit.vastOpties`-entry (**zelfde index**, even lang). De engine speelt de clip van de gekozen optie i.p.v. `audioVoor`. |
 | `gevolgen`      | ja        | Eén of meer gevolgen (`commando` / `score` / `effect` / `geen`). |
 
 ---
@@ -111,8 +121,10 @@ Bepaalt het soort event én in welke config-inject het hoort:
 Voor minder exclusieve events bij veel spelers richt een groep-event zich op **alle actieve
 spelers die een eigenschap delen**:
 
-- **`veld`** — de eigenschap-kolom om op te groeperen: `"kleur"` of `"jaar"` (zie `docs/spel/spelers.md`).
-  Met `"willekeurig"` (of weglaten) kiest de engine **per afvuring** willekeurig tussen kleur en jaar.
+- **`veld`** — de eigenschap-kolom om op te groeperen: `"kleur"`, `"jaar"`, `"maand"`, `"seizoen"`
+  (zie `docs/spel/spelers.md`) of het virtuele `"pariteit"` (even/oneven **startuur**, uit `spelerLocaties`).
+  Met `"willekeurig"` (of weglaten) kiest de engine **per afvuring** willekeurig uit de vier
+  eigenschap-velden — en enkel dán is er ~15 % kans op een **tweede** groep erbij (WE3).
 - **`selectie: "willekeurig"`** — de engine kiest één **willekeurige waarde** die onder de actieve
   spelers voorkomt (bv. `kleur` → `rood`/`zwart`/`blauw`). Met optioneel **`waarde`** (bv. `"rood"`)
   zet je de groep vast.
@@ -121,8 +133,10 @@ spelers die een eigenschap delen**:
 - **Afroep**: de prefix is **"een groep"** (i.p.v. een aantal), gevolgd door de event-tekst en het
   groep-label **`veld: waarde`** (bv. "een groep … maximum 3 uur vooruit. kleur: rood"). De
   individuele leden worden **niet** opgesomd.
-- Eigenschappen komen uit `global.spelerEigenschappen` (`{ naam: { kleur, jaar } }`), gevuld door de
-  `[CONFIG] Speler-eigenschappen`-inject.
+- Eigenschappen komen uit `global.spelerEigenschappen` (`{ naam: { kleur, jaar, maand, seizoen } }`),
+  gevuld door de `[CONFIG] Speler-eigenschappen`-inject.
+- **Identiteitscrisis**: zolang die loopt bepaalt je **luisternaam** je `kleur`; `jaar`, `maand`,
+  `seizoen` en `pariteit` blijven van jezelf. Zie `event-catalogus.md`.
 
 ### Opties `enkel` / `laag` / `midden` / `hoog`
 
@@ -137,22 +151,28 @@ Zowel `getal` als `doelwit.aantal` mogen een optie zijn, maar ze worden **versch
 | `midden` | 1 – 6 |
 | `hoog`   | 3 – 10 |
 
-**`doelwit.aantal` (aantal doelwitten)** — **schaalt met het veld** (doelwit-dichtheid, G3). Het aantal is
-een **fractie van N** (= aantal actieve, niet-gepauzeerde spelers), gestuurd door de globale knob
-`global.doelwitDichtheid` (default **0,25** = 25 %, dashboard-instelbaar — Bediening → "Spelbalans"):
+**`doelwit.aantal` (aantal doelwitten)** — groeit **sub-lineair** met het veld (doelwit-dichtheid, G3).
+Het aantal schaalt met **√N** (N = actieve, niet-gepauzeerde spelers), gestuurd door de globale knob
+`global.doelwitDichtheid` (default **0,25** = neutraal, dashboard-instelbaar — Bediening → "Spelbalans"):
 
-| Optie    | ≈ % van het veld | aantal |
-|----------|------------------|--------|
-| `enkel`  | —                | altijd **1** |
-| `laag`   | ~15 % (0,6×)     | `clamp(round(N × dichtheid × 0,6), 1, min(N,10))` |
-| `midden` | ~25 % (1,0×)     | `clamp(round(N × dichtheid × 1,0), 1, min(N,10))` |
-| `hoog`   | ~45 % (1,8×)     | `clamp(round(N × dichtheid × 1,8), 1, min(N,10))` |
+```
+aantal = clamp( round( mult × √N × (dichtheid / 0,25) ), 1, min(N, 6) )
+```
 
-Zo betrekt elk event een **consistent aandeel** van het veld, of er nu 6 of 31 spelers zijn (i.p.v. een
-vast bereik dat bij veel spelers 80–90 % toeschouwer maakt). **Uitzonderingen (ongewijzigd):** een **vast
-getal** (`portalen` 2, `tweeling` 2), een `[min,max]`-**array** (`tornado` `[1,2]`, via `rol()`), `vast`
-(`bomaanslag` [9,11]) en `selectie:"alle"` schalen **niet**. **Groep-events** hebben helemaal geen `aantal`
-(de omvang is emergent) en worden bovendien **zwaarder gewogen** bij veel spelers (vanaf N > 15).
+| Optie    | `mult` | N = 8 | N = 16 | N = 24 | N = 31 |
+|----------|--------|-------|--------|--------|--------|
+| `enkel`  | —      | 1 | 1 | 1 | 1 |
+| `laag`   | 0,35   | 1 | 1 | 2 | **2** |
+| `midden` | 0,55   | 2 | 2 | 3 | **3** |
+| `hoog`   | 0,90   | 3 | 4 | 4 | **5** |
+
+Waarom sub-lineair: een lineaire fractie van N liet het veld **verzadigen** — bij 31 spelers raakte
+`laag` er al 5 en kleurde happy hour 5 van de 24 uren goud (21 % van de ring). Met √N groeit het aantal
+nog steeds mee, maar vlakt het af, zodat een toestand-event zeldzaam blijft aanvoelen. De harde cap
+is **6**. **Uitzonderingen (ongewijzigd):** een **vast getal** (`portalen` 2, `tweeling` 2, `bodyswap` 2),
+een `[min,max]`-**array** (`tornado` `[1,2]`, via `rol()`), `vast`/`vastOpties` (`bomaanslag`) en
+`selectie:"alle"` schalen **niet**. **Groep-events** hebben helemaal geen `aantal` (de omvang is emergent)
+en worden bovendien **zwaarder gewogen** bij veel spelers (vanaf N > 15).
 
 ### Getallen in de tekst (`getal` → `x`)
 
@@ -209,7 +229,7 @@ Elk gevolg is één object in de array; combineren mag.
 | `nuke`     | —                                         | Wereld-event: na de aftelklok (`reactietijd_s`) ontploft iedereen die nog **gedetecteerd** is (uren 0 + sterfte); wie zijn beacon > `escape_s` (default 4 s) niet meer laat zien is **ontsnapt** (VEILIG). Daarna een **regroup**-pauze van `regroup_s` s. Zie hieronder. |
 | `tijdbom`  | —                                         | Maakt de doelwit-spelers een **tikkende tijdbom** (`duratie` events) + kiest evenveel **ontmantel-palen** (palen met een drukknop). Ontmantelen = de knop op zo'n paal indrukken (dag 80% / nacht 50%). Mislukken of ontploffen → iedereen op die paal verliest `uur` levensuren. Zie hieronder. |
 | `tornado`  | —                                         | **Tornado** op de doelwit-uren (1–2 centers, `minAfstand` houdt ze uit elkaar): spelers op de twee **aanliggende** uren worden naar het center gezogen. Wie niet meebeweegt → **alle** levensuren kwijt (geen sterfte). Zie hieronder. |
-| `bom`      | —                                         | **Bomaanslag** op de doelwit-uren: tijdens `reactietijd_s` een waarschuwing (rode tik-LED + zoemer) op die uren; bij de controle ontploft de bom — wie **dan** op een doel-uur staat verliest `uur` levensuren (vluchten mag, geen bewegingsstraf). Witte flikker (OOGST-strobe) + ontploffingsgeluid (`audioVoor`). Gebruik `doelwit:{type:"uur","vast":[9,11]}` voor vaste uren. |
+| `bom`      | —                                         | **Bomaanslag** op de doelwit-uren: tijdens `reactietijd_s` een waarschuwing (rode tik-LED + zoemer) op die uren; bij de controle ontploft de bom — wie **dan** op een doel-uur staat verliest `uur` levensuren (vluchten mag, geen bewegingsstraf). Witte flikker (OOGST-strobe). De afroep-clip komt uit `audioVoorOpties` van de gekozen optie. Gebruik `doelwit:{type:"uur","vastOpties":[[9,11],[4,20],[6,7],[6,9]]}` → elk duo **25 %**. |
 | `tempo`    | `richting: "sneller"\|"trager"`           | Wereld-event: schaalt het **spel-tempo** (`global.spelTempoFactor`) dat de reactietijd van volgende events vermenigvuldigt. `sneller` −0,1 (min **0,6**), `trager` +0,1 (max **1,3**). Start 1,0; reset naar 1,0 bij Stop. |
 | `onmiddellijke_dood` | —                             | **Avondspel-gimmick.** Loot een slachtoffer (gewicht = `sterftes + valsspeelpunten` per niet-gestorven speler) via een cirkelende paarsrode ring-animatie; zet het op 0 + sterfte + `gestorven`. Enkel zinvol met `fase:"avond"`. Zie `docs/spel/avondspel.md`. |
 | `geen`     | —                                         | Geen neveneffect. Gebruik dit voor pure beweging-opdrachten (met `voorwaarde`). |
@@ -305,9 +325,9 @@ worden daarna één voor één opgesomd.
 Kiest één willekeurige groep onder de actieve spelers en richt zich op **alle** spelers in die
 groep: zij mogen **hoogstens** `x` STAPpen vooruit (minder mag, achteruit niet; een portaal-sprong
 telt 0). Elk teveel is **TE VEEL** → **max(0, x − (voor − x))** (proportioneel, vloer 0); niet-leden moeten stil blijven. Met
-`veld:"willekeurig"` kiest de engine per afvuring tussen **kleur** en **jaar**; afroep bv.
-"een groep … maximum 3 uur vooruit. kleur: rood" of "… jaar: eerste". Vastzetten kan met
-`veld:"kleur"` of `veld:"jaar"`.
+`veld:"willekeurig"` kiest de engine per afvuring een van **kleur / jaar / maand / seizoen**; afroep bv.
+"een groep … maximum 3 uur vooruit. kleur: rood" of "… seizoen: winter". Vastzetten kan met
+`veld:"kleur"`, `"jaar"`, `"maand"`, `"seizoen"` of `"pariteit"`.
 
 ### Groep-of-verplaatsing-event (doelwit = groep, keuze tussen twee getallen)
 
@@ -319,7 +339,7 @@ telt 0). Elk teveel is **TE VEEL** → **max(0, x − (voor − x))** (proportio
   audioVoor:"groep_of_verplaatsing_voor.wav", audioNa:"groep_of_verplaatsing_na.wav",
   gevolgen:[{ type:"geen" }] }
 ```
-Kiest één willekeurige groep (kleur of jaar) en richt zich op **alle** spelers in die groep: zij
+Kiest één willekeurige groep (kleur/jaar/maand/seizoen) en richt zich op **alle** spelers in die groep: zij
 moeten **exact `x` óf exact `y`** STAPpen vooruit zetten. `x` rolt uit `getal:"laag"` (1–3), `y` uit
 `getal2:[4,6]` — het `[min,max]`-bereik houdt `y` gegarandeerd boven `x`. Elk ander aantal (geen
 achterstap) is **ONGELDIGE KEUZE** → **−voor**; niet-leden moeten stil blijven. Een portaal-sprong

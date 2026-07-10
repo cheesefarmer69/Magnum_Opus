@@ -114,8 +114,16 @@ de waarde automatisch binnen ~10 s (eerstvolgende heartbeat).
 PoF-spel (doel kiezen!), laat 2–3 events lopen en versleep spelers legaal/illegaal.
 **Verwacht:** afroep + reveal + reactietijd + `grace` + controle; scoring klopt met de
 [scoringtabel](../invarianten.md) (foutcodes enkel bij echte overtreding).
+**Extra checks (juli 2026):**
+- Versleep tijdens de **aanloop** een speler 2 palen → volgende controle toont `| VRIJ GEWANDELD
+  (0 uur)`, `totaalUren` blijft gelijk, +1 valsspeelpunt. Met god-punt op zak: `[GOD-PUNT]`, saldo −1.
+- Sleep tijdens de **regroup** na een nuke → géén straf, en de timer telt af vanaf **45 s**.
+- Vink **Thuisbank** aan (🎲 Spelinstellingen), laat een speler de ring rond en exact op zijn startuur
+  landen → `| GESTORT (+N uur globaal)` + Leaderboard stijgt. Maak hem ziek en herhaal →
+  `| THUIS (geblokkeerd: toestand)`.
 **Bij falen:** dit is een flows-probleem, geen hardware — check dat de laatste flows gedeployed
-zijn (`deploy-flows.ps1`, **niet** `docker restart`). Herstart daarna `serial-bridge`.
+zijn (`deploy-flows.ps1`, **niet** `docker restart`). Ontbreekt `pofVrijPad` in `resetPartij`, dan is
+`settings.js` gewijzigd zonder **container-herstart**. Herstart daarna `serial-bridge`.
 
 ## T11 — End-to-end mini-spel (hardware)
 

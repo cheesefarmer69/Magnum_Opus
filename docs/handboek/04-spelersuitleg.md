@@ -36,10 +36,13 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 > Levensuren écht kwijtraken + een sterfte kan alleen bij de zware gebeurtenissen (dichte
 > middernachtpoort, nuke, tornado, bom, ziekte) — die staan los van gewoon "te ver lopen".
 >
-> Maar — en dit is jullie vrijheid — **tussen de events door mag je vrij lopen.** Zodra een event
-> is afgehandeld en de stem zwijgt, wandel je waarheen je wil om je voor het volgende event slim
-> op te stellen. Die stappen leveren niets op en kosten niets. Er is één uitzondering, en die is
-> heilig: **de poort van middernacht.**
+> En let op — dit is de hardste regel van het spel: **je verplaatst alleen wanneer een event het
+> zegt.** Zwijgt de stem, dan sta je stil. Wandel je toch rond terwijl niemand je afriep, dan ziet
+> de klok dat: bij de eerstvolgende controle **verdien je niets** (al je winst van die beurt valt weg)
+> en je krijgt een **valsspeelpunt**. Levensuren kost het je niet, sterven doe je er niet aan — maar
+> een beurt lang gratis werken is duur genoeg. Heb je een **god-punt**, dan wordt het kwijtgescholden.
+>
+> Er is één plek waar het nog erger afloopt, en die is heilig: **de poort van middernacht.**
 >
 > Kijk naar de hoogste paal, uur 24. Brandt hij **zacht wit**, dan is de poort **open**: je mag
 > gewoon van 24 naar 1 doorlopen. Brandt hij **rood**, dan is de poort **dicht**: dan komt
@@ -65,12 +68,13 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 > Twee dingen nog. **Vals spelen** wordt geregistreerd: elke overtreding geeft je een slechtere
 > **aura**, en de klok kiest zijn slachtoffers — ziekte, bommen — nét iets vaker onder de spelers
 > met een slechte aura. **God-punten** zijn het omgekeerde: haal je het doel van een partij, dan
-> krijg je er twee. Een god-punt wordt vanzelf gebruikt op het moment dat je een overtreding
-> begaat: die ene keer ben je **ongestraft** — de klok knijpt een oog dicht. Spaar ze.
+> krijg je er twee — maar pas **wanneer die partij voorbij is**. Je speelt deze partij dus met de
+> punten die je vórige keer verdiende, en wie nu aan kop gaat heeft daar niets aan. Een god-punt
+> wordt vanzelf gebruikt zodra je een overtreding begaat of vrij rondwandelt: die ene keer ben je
+> **ongestraft** — de klok knijpt een oog dicht. Spaar ze.
 >
-> Samengevat: luister naar de stem, beweeg alleen als jij wordt afgeroepen, sta stil als
-> standbeeld wanneer niet, gebruik de vrije momenten om je op te stellen, en respecteer de rode
-> poort. De tijd loopt — veel geluk.
+> Samengevat: luister naar de stem, beweeg **alleen** als jij wordt afgeroepen, sta stil als
+> standbeeld wanneer niet, en respecteer de rode poort. De tijd loopt — veel geluk.
 
 **Na de briefing:** kondig het **doel** van deze partij aan (bv. "verplaats in totaal X uur" of
 "haal je rivaal in") en hoeveel spelers het moeten halen.
@@ -104,14 +108,19 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 **Doe:**
 - Luister elke afroep af: **wie** (naam of "een groep … kleur/jaar …"), **wat**, **hoeveel**.
 - Beweeg **alleen** als jij (of jouw groep) is afgeroepen, en tel je stappen.
-- Gebruik de tijd **tussen** events om je op te stellen — dat is gratis en slim.
+- Sta stil zodra de stem zwijgt — rondwandelen tussen events kost je de volgende beurt. Ook tijdens de
+  **regroup** na een nuke: er is geen enkel vrij moment.
 - Kijk vóór de 24→1-oversteek altijd naar de poort-paal: **wit = ja, rood = nee**.
-- Ziek? Wandel tussen events naar een roze paal en **sta daar stil** tijdens het event.
+- Ziek? Hoop dat je afgeroepen wordt richting een roze paal. Kan het niet wachten, wandel er dan
+  toch naartoe: je geneest wél, maar het kost je de winst van die beurt + een valsspeelpunt.
 - Baken zichtbaar dragen (niet onder dikke kleding gepropt).
 
 **Niet doen:**
 - Bewegen tijdens een event dat niet voor jou is — de klok ziet het (je verdient dan **niets**).
-- Achteruit lopen (tenzij "tijdreizen" actief is omgeroepen).
+- Rondwandelen **tussen** events (of in de regroup na een nuke): dat is *vrij wandelen* en kost je de
+  winst van de volgende controle.
+- Achteruit lopen (tenzij "tijdreizen" actief is omgeroepen — en dan nog: kies één richting,
+  heen-én-terug in dezelfde beurt is een overtreding).
 - Te ver of te weinig lopen bij een opdracht met een getal ("maximum 3" / "2 of 5" = exact).
 - Twee keer door hetzelfde portaal in één beurt (ping-pong = ongeldig).
 - Bij een dichte (rode) poort toch oversteken — zwaarste straf van het spel.
@@ -128,11 +137,16 @@ voor de twee minigames. Alles in spelerstaal — geen techniek.
 | Te ver gelopen | hoe verder over de limiet, hoe minder winst (bv. max 5, jij liep 8 → +2; liep 12 → +0) |
 | Verkeerd aantal bij "x of y" | minder winst naarmate je verder van het juiste getal zit (tot 0) |
 | Achteruit gelopen | de achteruit-stappen eten je winst op (tot 0) |
+| Bij tijdreizen heen én terug gelopen | *pendelen* — je verdient **niets** (0) |
 | Bewogen zonder afgeroepen te zijn | je verdient **niets** (0) |
+| Gewandeld **tussen** events | je verdient **niets** bij de volgende controle |
 | Tweemaal zelfde portaal in één beurt | je verdient **niets** (0) |
 | Dichte middernachtpoort overgestoken | **alle levensuren weg + 1 sterfte** |
-| Gestorven door nuke / tornado / bom / ziekte | je blijft op 0 en krijgt **+1 sterfte** |
-| *(met god-punt op zak)* | de eerste overtreding wordt **kwijtgescholden** (1 punt op) |
+| Gestorven door nuke / ziekte / de oogst | je blijft op 0 en krijgt **+1 sterfte** |
+| Geraakt door tornado of bom | je levensuren gaan eraan, maar **géén sterfte** |
+| Doelwit, maar de dichte poort blokkeert je | *OK (poort blokkeert)* — je verliest **niets** |
+| Je tweeling bewoog niet legaal mee | jouw winst vervalt (**0**), verlies blijft |
+| *(met god-punt op zak)* | de eerste overtreding **of** het vrij wandelen wordt kwijtgescholden (1 punt op, hoogstens één per controle) |
 
 ### 2d. Veelgestelde vragen
 

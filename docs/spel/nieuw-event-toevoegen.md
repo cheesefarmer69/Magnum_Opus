@@ -20,7 +20,7 @@ juiste formaat:
    `x` vul ik automatisch met een gerold getal.
 3. **Wie/wat het raakt** — het **doelwit**: spelers, uren of een **groep**? Hoeveel
    (`enkel`/`laag`/`midden`/`hoog` of een vast getal)? Willekeurig of allemaal?
-   - Een **groep** (`type: "groep"`, `veld: "kleur"`/`"jaar"`) richt het event op alle spelers met
+   - Een **groep** (`type: "groep"`, `veld: "kleur"`/`"jaar"`/`"maand"`/`"seizoen"`/`"pariteit"`) richt het event op alle spelers met
      één gedeelde eigenschap (bv. "een groep — kleur: rood") — handig om niet steeds dezelfde paar
      spelers aan te roepen. Zie [events.md](events.md) (Groep-doelwit) en [spelers.md](spelers.md).
 4. **Wat er gebeurt** — het **gevolg**:

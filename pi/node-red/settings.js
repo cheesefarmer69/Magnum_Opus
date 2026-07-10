@@ -83,7 +83,41 @@ module.exports = {
             global.set("infectedActief", false); global.set("infected", null); global.set("infectedLed", {}); global.set("infectedLaatstePalen", []); global.set("infectedStatusSig", "");
             global.set("nukeActief", false); global.set("middernachtOogst", false); global.set("tornadoActief", []); global.set("spelTempoFactor", 1); global.set("pofSnapshots", []); global.set("paalLedForceRebuild", true);
             global.set("pofVerificatie", {}); global.set("pofLaatsteControle", []); global.set("pofPad", {});
+            global.set("pofVrijPad", {}); global.set("pofVrijVanaf", 0);
             global.set("mnGestraft", {}); global.set("paalLedActie", {});
+        },
+
+        // Gedeelde TWEELING-DOOD (single source of truth, invariant TW3). Sterft een speler, dan
+        // sterft zijn tweeling mee (uren 0 + 1 sterfte) en breekt de band. Dit moet OOK gebeuren
+        // buiten "Verifieer beweging": bij de middernacht-oogst en bij de ziekte-dood. Roep aan met
+        // de lijst zojuist gestorven namen:  global.get("tweelingDood")(global, ["Ann"])
+        // Uitzondering: de NUKE roept dit NOOIT aan -- een nuke breekt geen tweelingbanden (TW5).
+        // Retourneert de namen die door de propagatie zijn mee-gestorven (voor logging/afroep).
+        tweelingDood: function (global, namen) {
+            const paren = global.get("tweelingen") || [];
+            if (!paren.length || !namen || !namen.length) return [];
+            const dood = new Set(namen);
+            let stats = global.get("spelerStats") || {};
+            const verbroken = new Set();
+            const meeGestorven = [];
+            for (const p of paren) {
+                const inDood = dood.has(p.a) || dood.has(p.b);
+                if (!inDood) continue;
+                verbroken.add(p.inst);
+                for (const n of [p.a, p.b]) {
+                    let s = stats[n] || {};
+                    if (s.totaalUren === undefined) s.totaalUren = 0;
+                    if (s.sterftes === undefined) s.sterftes = 0;
+                    if (!dood.has(n)) { s.sterftes += 1; meeGestorven.push(n); }   // de partner sterft mee
+                    s.totaalUren = 0;
+                    stats[n] = s;
+                }
+            }
+            if (!verbroken.size) return [];
+            global.set("spelerStats", stats);
+            global.set("tweelingen", paren.filter(p => !verbroken.has(p.inst)));
+            global.set("wereldEffecten", (global.get("wereldEffecten") || []).filter(e => !(e.effect === "tweeling" && verbroken.has(e.instId))));
+            return meeGestorven;
         }
     },
 

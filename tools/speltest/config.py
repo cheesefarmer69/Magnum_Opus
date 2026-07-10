@@ -63,7 +63,10 @@ SUB_TOPICS = [
     T_LOCATIE_SPELERS, T_HISTORIE,
 ]
 
-# --- Opties -> bereik (docs/spel/event-catalogus.md) ---
+# --- Opties -> bereik van het AFROEPGETAL `getal` (docs/spel/events.md) ---
+# LET OP: dit is NIET doelwit.aantal. Dat laatste schaalt sub-lineair met N (EV6):
+#   aantal = clamp(round(mult * sqrt(N) * (dichtheid / 0.25)), 1, min(N, 6))
+#   met mult 0.35 (laag) / 0.55 (midden) / 0.90 (hoog).
 OPTIE_BEREIK = {
     "enkel": (1, 1),
     "laag": (1, 3),
@@ -71,9 +74,14 @@ OPTIE_BEREIK = {
     "hoog": (7, 10),
 }
 
-# De 6 statussen die de engine als "fout" op pof/controle doorlaat (rest -> "OK").
+# De statussen die de engine als "fout" op pof/controle doorlaat (rest -> "OK").
 # Zie "Verifieer beweging" in flows.json: de FOUT-set.
 FOUT_STATUSSEN = {
-    "TERUG IN TIJD", "TE VEEL", "TE WEINIG",
+    "TERUG IN TIJD", "PENDELEN", "TE VEEL", "TE WEINIG",
     "ONGELDIGE KEUZE", "BEWOOG (mocht niet)", "ONGELDIGE TELEPORT",
+    "NIET GEWISSELD", "TE WEINIG SAMEN",
 }
+
+# Statussen die met "OK" beginnen zijn ALTIJD legaal -- ook de fase-2-varianten
+# "OK (poort blokkeert)" (M10), "OK (stil)", "OK (gewisseld)", "OK (polonaise +N)".
+# De wolf-vangst (ET2b) en de tweeling-winst (TW2) hangen aan diezelfde OK-prefix.

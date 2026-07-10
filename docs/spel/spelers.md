@@ -42,7 +42,7 @@ groep-dimensie meedoet). Bij een wijziging hier ook die inject bijwerken en `dep
 | Amélie | blauw | derde | februari | winter |
 | Mien | blauw | tweede | mei | lente |
 | Alix Bruin | blauw | derde | maart | lente |
-| Mila | blauw | tweede | — | — |
+| Mila | blauw | tweede | december | winter |
 | Ina | blauw | tweede | juli | zomer |
 | Stelle | blauw | derde | augustus | zomer |
 | Estée | blauw | eerste | november | herfst |

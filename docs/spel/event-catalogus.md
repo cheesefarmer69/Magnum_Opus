@@ -16,14 +16,22 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
 - **Doelwit**: wie/wat het event raakt. Bepaald door het `doelwit`-object:
   - `type`: `speler`, `uur`, `groep` of `geen`.
   - `selectie`: `willekeurig` (steekproef) of `alle`.
-  - `aantal`: een **vast getal** / `[min,max]`-array (schaalt niet), of een **optie** die met het veld
-    meeschaalt (**doelwit-dichtheid**, G3): `enkel`=1; `laag`≈15 % / `midden`≈25 % / `hoog`≈45 % van N
-    (actieve spelers), × de knob `global.doelwitDichtheid` (default 0,25), clamp `[1, min(N,10)]`. Zo is
-    elk event even "druk" bij 6 als bij 31 spelers. Groep-events negeren `aantal` (emergente omvang) en
+  - `aantal`: een **vast getal** / `[min,max]`-array / `vast`(`Opties`) (schalen niet), of een **optie**
+    die **sub-lineair** met het veld meegroeit (**doelwit-dichtheid**, G3):
+    `aantal = clamp(round(mult × √N × (dichtheid / 0,25)), 1, min(N, 6))` met `mult` **0,35** (`laag`) /
+    **0,55** (`midden`) / **0,90** (`hoog`), en `enkel` = altijd 1. `global.doelwitDichtheid` (default
+    **0,25**) is de globale knob. Bij 31 spelers geeft dat **2 / 3 / 5**; de vroegere lineaire formule
+    gaf 5 / 8 / 10 en liet het veld verzadigen. Groep-events negeren `aantal` (emergente omvang) en
     wegen zwaarder bij veel spelers.
-- **Groep-doelwit** (`type: "groep"`): kiest via `veld` (`kleur`/`jaar`, of `willekeurig` = engine
-  kiest per afvuring kleur of jaar) één willekeurige waarde die onder de actieve spelers voorkomt
-  (of een vaste `waarde`) en richt het event op **alle** actieve spelers met die waarde.
+- **Bewegen mag enkel wanneer een event het zegt.** Buiten een event (fases `aanloop`/`wacht`) is elke
+  paalwissel **vrij wandelen**: bij de eerstvolgende controle vervalt je winst (`delta → 0`) en krijg je
+  +1 valsspeelpunt (`… | VRIJ GEWANDELD`). Géén levensuren-verlies, géén sterfte. Een **god-punt** vergeeft
+  het. Er is **geen enkele vrije fase** — ook niet de `regroup` na een nuke. Zie invariant **V10**.
+- **Groep-doelwit** (`type: "groep"`): kiest via `veld` (`kleur`/`jaar`/`maand`/`seizoen`/`pariteit`, of
+  `willekeurig` = engine kiest er per afvuring één) één willekeurige waarde die onder de actieve spelers
+  voorkomt (of een vaste `waarde`) en richt het event op **alle** actieve spelers met die waarde.
+  Enkel bij `veld: "willekeurig"` (en ≥ 4 spelers) is er ~15 % kans op een **tweede** groep erbij;
+  een vast `veld` (bv. etenstijd = `kleur`) geeft altijd precies één groep.
   Afroep-prefix "een groep"; label `veld: waarde`. Bron: `spelerEigenschappen` (zie `docs/spel/spelers.md`).
 - **Actieve spelers**: alleen spelers met een bekende positie (`spelerLocaties`) en
   niet gepauzeerd komen in aanmerking als doelwit. Verwijderde of niet-aanwezige
@@ -45,7 +53,7 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
 # Hoofdstuk 1 — Verplaatsing
 
 ## Hoe een verplaatsing-event in elkaar zit
-Een verplaatsing-event kiest een **groep** spelers (gedeelde eigenschap: kleur of jaar) die
+Een verplaatsing-event kiest een **groep** spelers (gedeelde eigenschap: kleur, jaar, maand of seizoen) die
 binnen de reactietijd aan een beweging-**voorwaarde** moeten voldoen. Spelers die géén doelwit
 zijn, moeten stil blijven staan. Het event heeft meestal `gevolgen: [{type:"geen"}]` — de
 "straf/beloning" zit in het puntensysteem (levensuren, toegekend bij de controle), niet in een
@@ -63,7 +71,7 @@ LED-commando.
 | `voorwaarde` | `"max"` (hoogstens x vooruit) of `"of"` (exact x óf exact y vooruit) |
 | `getal` | rolt `x` (bv. `midden` → 1–6) en vult het in de tekst in |
 | `getal2` | rolt `y` (tweede keuze bij `voorwaarde: "of"`); optie of `[min,max]`-bereik |
-| `doelwit` | type `groep` (`veld: kleur`/`jaar`/`willekeurig`) — welke groep moet bewegen |
+| `doelwit` | type `groep` (`veld: kleur`/`jaar`/`maand`/`seizoen`/`pariteit`/`willekeurig`) — welke groep moet bewegen |
 
 > Controle/scoring is **pad-gebaseerd** (STAP/TELEPORT, actie-per-actie) — zie
 > `docs/spel/event-systeem.md`. `voor` = aantal STAP vooruit, `x` = budget. Een TELEPORT (sprong
@@ -73,7 +81,7 @@ LED-commando.
 
 ### Groep-verplaatsing — "maximum x uur vooruit."
 - **Tier:** common
-- **Uitleg:** Een hele groep (kleur of jaar) mag hoogstens `x` STAPpen vooruit; niet-leden blijven stil. Levensuren worden bij de controle toegekend.
+- **Uitleg:** Een hele groep (kleur, jaar, maand of seizoen) mag hoogstens `x` STAPpen vooruit; niet-leden blijven stil. Levensuren worden bij de controle toegekend.
 - **Max:** —
 - **Audio (opkomst):** `maximum.wav` + getal + `uur_vooruit.wav`
 - **Audio (weggaan):** —
@@ -88,11 +96,11 @@ LED-commando.
 ## Huidige events
 
 ### Groep-verplaatsing — "maximum x uur vooruit." (groep-doelwit)
-- **Werking**: de engine kiest per afvuring een dimensie (`kleur` of `jaar`, want `veld: willekeurig`),
+- **Werking**: de engine kiest per afvuring een dimensie (`kleur`, `jaar`, `maand` of `seizoen`, want `veld: willekeurig`),
   dan één willekeurige waarde daarvan (bv. `kleur: rood` of `jaar: eerste`) onder de actieve spelers,
   en richt zich op **alle** spelers met die waarde; zij mogen **hoogstens** `x` STAPpen vooruit
   (minder mag, achteruit niet). Een portaal-sprong telt 0.
-- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur of jaar), `selectie: willekeurig`. `x` = `getal: midden`.
+- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur/jaar/maand/seizoen), `selectie: willekeurig`. `x` = `getal: midden`.
 - **Afroep**: "een groep … maximum x uur vooruit. kleur: rood" / "… jaar: eerste" — geen individuele namen.
 - **Controle** — levensuren-Δ (per groepslid; niet-leden moeten stil blijven):
   - `voor ≤ x` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
@@ -103,12 +111,12 @@ LED-commando.
   - valsspelen kost geen levensuren en geeft **geen sterfte** (V11); dodelijke straffen staan los
 
 ### Groep-of-verplaatsing — "x of y uur vooruit." (groep-doelwit)
-- **Werking**: kiest per afvuring een dimensie (`kleur` of `jaar`, `veld: willekeurig`) en daarvan één
+- **Werking**: kiest per afvuring een dimensie (`kleur`/`jaar`/`maand`/`seizoen`, `veld: willekeurig`) en daarvan één
   willekeurige groep onder de actieve spelers; die spelers moeten **exact `x` óf exact `y`** STAPpen
   vooruit zetten. `x` rolt uit `getal: laag` (1–3), `y` uit `getal2: [4,6]` — het `[min,max]`-bereik
   houdt `y` gegarandeerd boven `x`. Een portaal-sprong telt 0.
-- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur of jaar), `selectie: willekeurig`.
-- **Afroep**: "een groep … x of y uur vooruit. kleur: rood" / "… jaar: tweede" — geen individuele namen.
+- **Doelwit**: `type: groep`, `veld: willekeurig` (kleur/jaar/maand/seizoen), `selectie: willekeurig`.
+- **Afroep**: "een groep … x of y uur vooruit. kleur: rood" / "… seizoen: winter" — geen individuele namen.
 - **Controle** — levensuren-Δ (per groepslid; niet-leden moeten stil blijven):
   - `voor === x` of `voor === y` (geen achterstap) → **OK**, +voor (×2 op happy-hour-eindpaal)
   - `voor ≠ x` én `voor ≠ y` (geen achterstap) → **ONGELDIGE KEUZE**, max(0, voor − afstand tot dichtste geldige)
@@ -159,8 +167,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 
 ### Portalen — "Een portaal opent tussen twee uren."
 - **Tier:** uncommon
-- **Uitleg:** Opent een portaal tussen 2 willekeurige uren (paars); een sprong ertussen telt 0 stappen en levert 0 levensuren.
-- **Max:** 1
+- **Uitleg:** Opent een portaal tussen 2 willekeurige uren die **minstens 6 uren uit elkaar** liggen (paars); een sprong ertussen telt 0 stappen en levert 0 levensuren. Twee portalen delen nooit een paal.
+- **Max:** 2
 - **Audio (opkomst):** `een_portaal_opent_tussen_twee_uren.wav`
 - **Audio (weggaan):** `portaal_gesloten.wav`
 
@@ -194,27 +202,29 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 
 ### Etenstijd — "Een wolf zal jagen op zijn schaapjes."
 - **Tier:** epic
-- **Uitleg:** Een groep wordt schaapjes; een wolf (beste aura, buiten de groep) steelt levensuren telkens hij op hetzelfde uur eindigt als een schaap.
+- **Uitleg:** Precies één **kleur**-groep wordt schaapjes; een wolf uit de **laagste 5 van het globale klassement** (buiten de groep) steelt levensuren telkens hij op hetzelfde uur eindigt als een schaap — maar **alleen na een legale eigen zet**. Schapen die de 15 rondes ongevangen overleven, krijgen **+5 levensuren**.
 - **Max:** 1
 - **Audio (opkomst):** `etenstijd.wav` (nog opnemen)
 - **Audio (weggaan):** `etenstijd_voorbij.wav` (nog opnemen)
 
 ### Tweeling — "2 spelers worden een tweeling."
 - **Tier:** epic
-- **Uitleg:** Koppelt 2 spelers; ze mogen enkel samen bewegen of samen stilstaan, anders verliezen beiden alles. Blijft tot spel-einde of tot één van beide sterft.
-- **Max:** 3
+- **Uitleg:** Koppelt 2 spelers; je verdient enkel levensuren als je partner deze ronde óók legaal bewoog. Sterft er één, dan sterft de ander mee (behalve bij een nuke). Samen op hetzelfde uur eindigen heft de vloek op.
+- **Max:** 4
 - **Audio (opkomst):** `tweeling.wav` (nog opnemen)
 - **Audio (weggaan):** — (eindigt op een dood, geen afloop-cue)
 
 ## Huidige events
 
 ### Portalen — "Een portaal opent tussen twee uren."
-- **Werking**: kiest 2 willekeurige uren en opent er een portaal tussen. Beide palen
+- **Werking**: kiest 2 willekeurige uren die **minstens 6 uren uit elkaar** liggen (`minAfstand: 6` —
+  een sprong van 2 uur is geen sprong) en opent er een portaal tussen. Beide palen
   krijgen een `portaal`-effect (uur-niveau) met een willekeurige duur (`duratie: [3,8]` →
   3–8 events); de centrale LED-node kleurt ze **continu paars**. De twee uren worden aan
   elkaar gekoppeld via `data.partner`.
-- **Doelwit**: `type: uur`, `selectie: willekeurig`, `aantal: 2`.
-- **Max**: `max: 1` — er is hooguit één portaal tegelijk op het veld.
+- **Doelwit**: `type: uur`, `selectie: willekeurig`, `aantal: 2`, `minAfstand: 6`.
+- **Max**: `max: 2` — er kunnen **twee** portalen tegelijk open staan. "Kies event" sluit palen uit die
+  het `portaal`-effect al dragen, dus twee portalen **delen nooit een paal**.
 - **Spelregel**: een speler die volgens de spelregels op een portaal-uur landt, mag
   (optioneel) naar het andere portaal-uur springen. Die sprong telt **niet** als stap
   en levert **0 levensuren** op; de stappen ervoor en erna tellen wel. Wie niet terug
@@ -254,6 +264,10 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   - Niet-genezen zieken tellen elke ronde af; bij **0** → **dood**: levensuren → 0 **en +1 sterfte**.
   - Vanaf nog **3** events: elke ronde een **hartslag-waarschuwing** op het uur van de speler —
     ziekenhuis-monitor-piep + **3/2/1** hartslagen (`ACTIE_ZIEK_W3/W2/W1`, 5/6/7).
+  - **Geen medicijnen meer, wél zieken (Z9)**: staat er na het medicijn-verbruik géén enkel medicijn meer op
+    het bord terwijl er nog zieken zijn, dan is genezing onmogelijk → **alle** zieken sterven onmiddellijk
+    (uren 0 + 1 sterfte, ongeacht hun teller), hun tweelingen sterven mee, en de box roept om:
+    *"Alle zieken zijn gestorven."* (`events/afgelopen/alle_zieken_gestorven.wav`).
   - Zijn **alle** zieken genezen of dood → alle medicijn-palen worden **gedeactiveerd** (vrij voor
     andere events). De actieve zieken worden gepubliceerd op `pof/ziekte` voor de simulator.
 
@@ -291,15 +305,27 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   een LED-rebuild geforceerd → de palen keren terug naar hun oorspronkelijke staat.
 
 ### Etenstijd — "Een wolf zal jagen op zijn schaapjes." (wolf vs. schapen-groep)
-- **Werking**: kiest een **groep** (kleur/jaar) als **schaapjes** (afroep "Groep …") + één **wolf** met de
-  **beste aura** (laagste `auraValsspeel`) **buiten** die groep. Zolang de toestand loopt (`duratie: 15`
+- **Werking**: kiest **precies één groep van het type `kleur`** als **schaapjes** (afroep "Groep …") + één **wolf**.
+  Zolang de toestand loopt (`duratie: 15`
   rondes) **jaagt** de wolf: telkens hij **bij de controle** op **hetzelfde uur** eindigt als een schaapje,
   **steelt** hij van dat schaap **`min(uur, schaap-levensuren)`** levensuren (op uur 20 → tot 20, maar nooit
   meer dan het schaap heeft). Het **schaap** krijgt **+1 sterfte**, de **wolf** krijgt de buit erbij. Een
   schaap kan **maar één keer** gevangen worden (`gevangen`-lijst). De vangst is zichtbaar in de controle-tabel
   (`… | GEVANGEN DOOR WOLF (-N uur, +1 sterfte)` en `… | WOLF VING k (+N uur)`).
-- **Doelwit**: `type: "groep"`, `veld: "willekeurig"` (kleur/jaar — **seizoen** is nog niet beschikbaar
-  zolang `spelerEigenschappen` geen seizoen-veld bevat). **Gevolg**: `{type:"etenstijd"}`. `max: 1`.
+- **De wolf is een underdog (ET1b)**: hij wordt gekozen uit de **laagste 5 van het globale klassement**
+  (`globaleStats[n].totaalUren` oplopend; gelijkspel op plek 5 telt mee), onder de actieve spelers **buiten**
+  de schapengroep. Binnen die bodem-5 wint de **beste aura** (laagste `auraValsspeel`); gelijkspel →
+  willekeurig. Zijn er geen niet-schapen, dan komen alle actieve spelers in aanmerking.
+- **De wolf mag niet vrij bewegen (ET2b)**: de vangst telt **alleen** als de wolf zijn eigen zet deze ronde
+  legaal speelde (basis-status begint met `OK`) **én** hij niet vrij wandelde. Anders geen vangst en zijn rij
+  krijgt `… | WOLF MISTE (illegale zet)` bovenop de gewone `BEWOOG (mocht niet)`. Hij jaagt dus door mee te
+  lopen als hij ín de afgeroepen groep zit, of door stil te staan tot een schaap naar hém wordt gestuurd.
+  Tijdens een **nuke**-controle vangt hij nooit (de nuke-tak keert vroeg terug).
+- **Overlevers-bonus (ET4)**: loopt de episode af, dan krijgt elk schaap dat **nooit** gevangen werd en nog
+  actief is **+5 levensuren** ("Verouder effecten"). Bij Stop vervalt de bonus. De wolf houdt zijn buit.
+- **Doelwit**: `type: "groep"`, **`veld: "kleur"`** — dus nooit een jaar-/maand-/seizoen-groep, en nooit
+  twee groepen tegelijk (de ~15 %-tweede-groep-regel WE3 geldt enkel bij `veld: "willekeurig"`).
+  **Gevolg**: `{type:"etenstijd"}`. `tier: epic`, `max: 1`.
 - **Toestand**: `global.etenstijd = {wolf, schapen[], gevangen[], over}`; een `wereldEffecten`-effect telt de
   15 rondes af. Bij afloop ("Verouder effecten") en bij Stop/Herstart → `global.etenstijd = null`. De wolf
   staat zichtbaar in de wereld-effecten-tabel (`Etenstijd (wolf: <naam>)`).
@@ -307,19 +333,28 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   ("de wolf is voldaan", bij afloop) — beide WAV's nog **opnemen**.
 
 ### Tweeling — "2 spelers worden een tweeling." (gekoppeld bewegen)
-- **Werking**: koppelt **2 spelers**. Vanaf dan mogen ze **enkel samen** bewegen: in elke controle moeten
-  ze **allebei** bewegen of **allebei** stil staan (niet per se even ver). **Asymmetrisch** bewegen (de een
-  wel, de ander niet) → **beiden verliezen ALLE levensuren** (geen sterfte). Concreet: als een event maar één
-  van de twee laat bewegen, mág die niet bewegen (anders de straf). Een tweeling blijft tot **spel-einde** of
-  tot **één van beide sterft**: bij een **sterfte** (om het even welke oorzaak — beweging, middernacht, wolf,
-  …) **sterft de andere ook** (uren 0 + 1 sterfte) en de **band verbreekt**.
-- **Grenzen**: **max 3** tweelingen tegelijk (`max: 3`, geteld via een niet-verouderend `wereldEffecten`-
+- **Werking (TW2)**: koppelt **2 spelers**. Vanaf dan verdien je **enkel levensuren als je tweeling deze ronde
+  óók bewoog én zijn zet legaal was** (basis-status begint met `OK`, geen vrij wandelen). Zo niet, dan wordt
+  de zojuist toegekende winst **teruggedraaid** (`… | TWEELING (geen winst: <partner> bewoog niet legaal mee,
+  -N uur)`) — ook winst die via een dienaar naar zijn **meester** ging. **Verlies wordt nooit teruggedraaid**
+  en er valt **geen sterfte**. De oude "asymmetrisch → beiden alles kwijt"-straf bestaat **niet meer**.
+- **Dood-propagatie (TW3)**: krijgt één tweeling een sterfte (beweging, middernacht-oversteek,
+  **middernacht-oogst**, **wolf-vangst**, **ziekte-dood**), dan sterft de andere mee (uren 0 + 1 sterfte) en de
+  **band verbreekt**. Dit loopt via één gedeelde helper `tweelingDood` in `pi/node-red/settings.js`, zodat de
+  oogst en de ziekte-dood exact hetzelfde doen als de controle-tak. Tornado en bom geven **geen** sterfte.
+- **Een nuke spaart de band (TW5)**: iedereen ontplofte tegelijk, niemand trok de ander mee. Na de nuke zijn
+  de tweelingen nog steeds gekoppeld.
+- **De vloek opheffen (TW6)**: eindigen beide tweelingen bij een controle op **hetzelfde uur**, dan breekt de
+  band (`… | TWEELING VERBROKEN (samen op uur N)`). **Geen beloning** — en omdat de TW2-clawback eerst draait,
+  kost samenkomen meestal een ronde winst. Dat is de bedoelde opoffering.
+- **Grenzen**: **max 4** tweelingen tegelijk (`max: 4`, geteld via een niet-verouderend `wereldEffecten`-
   effect per paar). Wie al een tweeling is, kan **geen tweede** tweeling worden (uitgesloten bij de
   doelwitkeuze in "Kies event").
 - **Doelwit**: `type: "speler"`, `aantal: 2`. **Gevolg**: `{type:"tweeling"}`. **Geen duratie** (persistent
   tot dood/spel-einde; het paar-effect veroudert niet, zoals medicijn).
 - **Toestand**: `global.tweelingen = [{a, b, inst}, …]`. Gereset bij Stop/Herstart. De controle-tabel toont
-  `… | TWEELING UIT SYNC (-alle uren)` of `… | TWEELING STERFT MEE`.
+  `… | TWEELING (geen winst: <partner> bewoog niet legaal mee, -N uur)`, `… | TWEELING STERFT MEE` of
+  `… | TWEELING VERBROKEN (samen op uur N)`.
 - **Audio**: `events/toestanden/tweeling.wav` (afroep "2 spelers …") — nog **opnemen**. Geen afloop-cue
   (eindigt op een dood, niet op duratie).
 
@@ -353,12 +388,14 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   schuld is dan "afbetaald". Valsspeelpunten zelf blijven staan en tellen mee in de globale eindstand.
 
 ### God-punten (dynamiek — "ongestraft vals spelen")
-- **Verdienen**: wie in een **lopend** spel zijn **doel** haalt, krijgt **automatisch +2 god-punten**
-  (in "Doel-controle"). Een `godAward`-latch (gereset bij spelstart) zorgt dat het bij **één** keer per spel
-  blijft, ook al blijft het doel behaald. Het saldo `godPunten` is **persistent** over spellen heen — je
-  spaart ze op en geeft ze later uit. Reset enkel via de beheer-wis.
+- **Verdienen (pas NÁ het spel)**: wie zijn **doel** haalde, krijgt bij **Stop** **+2 god-punten** (in
+  `transferStats()` in "Spel aan/uit", achter de `godAward`-latch). Tijdens de lopende partij stijgt je saldo
+  dus **nooit**: een vers verdiend punt kan geen schild zijn in de partij waarin je je doel haalde — anders
+  beloont het eindspel precies de speler die stilstaat. Het saldo `godPunten` is **persistent** over spellen
+  heen — je spaart ze op en geeft ze later uit. Reset enkel via de beheer-wis.
 - **Gebruiken (automatisch)**: bij een **foute verplaatsing** (dezelfde set als de valsspeel-aura, incl.
-  middernacht-oversteek bij dichte poort) verbruikt de engine **automatisch 1 god-punt** als het saldo > 0.
+  middernacht-oversteek bij dichte poort) **of bij vrij wandelen** (V10) verbruikt de engine **automatisch
+  1 god-punt** als het saldo > 0 — hoogstens één punt per controle, ook als beide fouten samen vielen.
   Gevolg: **geen levensuren-verlies, geen sterfte**, de status krijgt `… [GOD-PUNT]`, en het telt **niet**
   als valsspelen (geen valsspeelpunt, geen aura). Zo kun je "ongestraft vals spelen": je verplaatsing geldt
   altijd, je mag middernacht oversteken in gesloten toestand, en een **ziek** persoon mag zo naar een
@@ -435,11 +472,11 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Audio (opkomst):** `events_komen_trager.wav`
 - **Audio (weggaan):** —
 
-### Bomaanslag — "Een bomaanslag vind plaats op uur 9 en 11."
+### Bomaanslag — "Een bomaanslag vind plaats op uur a en b."
 - **Tier:** rare
-- **Uitleg:** Gelokaliseerde bom op de vaste uren 9 en 11; wie er bij de controle staat verliest `uur` levensuren (vluchten mag).
+- **Uitleg:** Gelokaliseerde bom op één van **vier** vaste uur-duo's (elk 25 %): **9+11**, **4+20**, **6+7**, **6+9**. Wie er bij de controle staat verliest `uur` levensuren (vluchten mag).
 - **Max:** —
-- **Audio (opkomst):** `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`
+- **Audio (opkomst):** één clip per duo (`audioVoorOpties`): `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav` (bestaat) + `..._4_en_20.wav`, `..._6_en_7.wav`, `..._6_en_9.wav` (nog opnemen)
 - **Audio (weggaan):** —
 
 ### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis."
@@ -473,9 +510,11 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Lichtshow**: tijdens het aftellen kleurt de hele arena groen↔geel (actie 8), **behalve de
   middernacht-poort-paal** (de hoogste paal) — die houdt zijn poort-status. Na de ontploffing gaan
   alle nuke-palen weer netjes uit (geen blijvend-groene palen).
-- **Regroup**: na de ontploffing een pauze van `regroup_s` s (standaard 60, aanpasbaar) — de engine
+- **Regroup**: na de ontploffing een pauze van `regroup_s` s (standaard **45**, aanpasbaar) — de engine
   staat in fase `regroup` en gaat daarna terug naar de normale aanloop. Geen bewegings-straffen tijdens
-  een NUKE (iedereen mág vluchten).
+  een NUKE (iedereen mág vluchten). **In `regroup` is bewegen niet vrij** (V10): wie terugloopt betaalt bij de
+  volgende controle 0 winst + 1 valsspeelpunt. Levensuren kost het niet — hij staat toch op 0. Een nuke
+  breekt bovendien **geen tweelingbanden** (TW5) en de wolf vangt niet in een nuke-controle.
 - **Wereld-wis**: een nuke ruimt bij de controle ook de lopende **ziekte-episode** (zieke spelers +
   medicijn-uren) en alle **dienaars** op; het veld is daarna schoon. Zieken/medicijnen/dienaars overleven
   dus geen nuke. (De "willekeurige zieken" die je tijdens een spel ziet, komen van het normale
@@ -483,16 +522,26 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Simulator**: een "Out"-knop (en het buiten het veld slepen van een bolletje) zet spelers op **"uit"**
   → ze worden niet meer gepubliceerd → veilig. Bij de ontploffing flitst het veld kort rood/geel.
 
-### Bomaanslag — "Een bomaanslag op uur 9 en 11!" (vaste uren)
-- **Werking**: een gelokaliseerde bom op de **vaste** uren **9 en 11**. Tijdens `reactietijd_s` (3 s) een
-  waarschuwing op die uren (rode tik-LED + zoemer-piep) + het ontploffingsgeluid (`audioVoor`). Bij de
-  controle ontploft de bom: wie **op dat moment** op uur 9 of 11 staat verliest **`uur`** levensuren
-  (uur 9 → −9, uur 11 → −11). Vluchten tijdens de 3 s mag (geen bewegingsstraf, zoals NUKE).
-- **Doelwit**: `type: "uur"`, **`vast: [9, 11]`** (altijd diezelfde uren). **Gevolg**: `{type:"bom"}`.
-- **Lichtshow**: bij de ontploffing een **witte flikker** (OOGST-strobe, actie 11) op uur 9 en 11; daarna
+### Bomaanslag — "Een bomaanslag vind plaats op uur a en b." (vier vaste duo's)
+- **Werking**: een gelokaliseerde bom op **één van vier** vaste uur-duo's, elk met **25 % kans**:
+
+  | Duo | Verlies |
+  |-----|---------|
+  | **9 en 11** | −9 / −11 levensuren |
+  | **4 en 20** | −4 / −20 levensuren |
+  | **6 en 7** | −6 / −7 levensuren |
+  | **6 en 9** | −6 / −9 levensuren |
+
+  Tijdens `reactietijd_s` (3 s; op hardware opgetrokken tot de sensing-vloer van ~7 s, SP6) tikken die
+  uren rood (LED 13) + zoemer-piep. Bij de controle ontploft de bom: wie **op dat moment** op een doel-uur
+  staat verliest **`uur`** levensuren. Vluchten mag (geen bewegingsstraf, zoals NUKE).
+- **Doelwit**: `type: "uur"`, **`vastOpties: [[9,11],[4,20],[6,7],[6,9]]`** (uniform getrokken).
+  **Gevolg**: `{type:"bom"}`.
+- **Lichtshow**: bij de ontploffing een **witte flikker** (OOGST-strobe, actie 11) op de twee uren; daarna
   gaan ze weer uit (via een Sync-rebuild).
-- **Audio**: centraal ontploffingsgeluid via **`events/bomaanslag.wav`** op de audio-player — dit
-  WAV-bestand moet je nog toevoegen in `pi/audio-player/audio/events/`.
+- **Audio**: **één afroep-clip per duo**, parallel aan `vastOpties` in `audioVoorOpties`. Bestaat al:
+  `events/wereld-events/een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`. Nog **opnemen**:
+  `..._4_en_20.wav`, `..._6_en_7.wav`, `..._6_en_9.wav`.
 
 ### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis." (luisternamen verschuiven)
 - **Werking**: schuift de **luisternamen** (`global.luisterNaam`) één **alfabetische** stap door,
@@ -501,6 +550,12 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   naam af, dan geldt die voor de speler die nú die luisternaam draagt — spelers moeten uitkijken naar
   de naam van iemand anders. De toestand loopt `duratie [10, 15]` rondes; bij afloop keren de
   luisternamen terug naar normaal.
+- **Scope**: de crisis raakt **alleen je luisternaam en je kleur**. Draag je de naam van iemand anders, dan
+  hoor je ook bij **zijn kleur-groep**. Je `jaar`, `maand`, `seizoen` en `pariteit` blijven onveranderd van
+  jezelf — die groepen zijn dus altijd betrouwbaar.
+- **Gelijke voornamen**: de cyclische verschuiving sorteert met `localeCompare(nl-BE)` op de **volledige**
+  sleutel in `spelerEigenschappen`, en die bevat de achternaam waar nodig (`"Alix Blond"` < `"Alix Bruin"`,
+  `"Marie DM"` < `"Marie Smet"`). Er is dus nooit dubbelzinnigheid.
 - **Doelwit**: `type: geen`. **Gevolg**: `{type:"identiteitscrisis"}`. `max: 1`. De verschoven namen
   staan in `global.luisterNaam` (gezet in "Voer gevolg uit", afgeteld via een `wereldEffecten`-effect,
   teruggezet bij het verlopen van de toestand en bij Stop/Herstart).
@@ -514,6 +569,9 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   (`stappen = voor + achter`) en moeten nog steeds aan de event-voorwaarde voldoen (min/max/of). Je moet
   dus nog steeds **mogen** bewegen (een niet-doelwit blijft stil staan) en het **aantal stappen moet
   kloppen**.
+- **Kies één richting**: **pendelen mag niet**. Bevat je pad zówel voorwaartse als achterwaartse stappen,
+  dan is de zet fout → status **`PENDELEN`**, `delta = 0` + valsspeelpunt. Heen én terug lopen om stappen
+  te sprokkelen werkt dus niet.
 - **Uitzondering — middernacht**: de **poort** mag enkel **mee met de tijd** (voorwaarts) doorkruist
   worden. Een **achterwaartse** middernacht-oversteek (de 1→24-wrap) blijft verboden en wordt nog steeds
   bestraft als "TERUG IN TIJD". Tijdreizen **opent** de middernachtpoort niet — een dichte poort blijft
@@ -527,17 +585,20 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 ## Nieuwe events & regels (juli 2026)
 
 ### Body-swap — "Twee spelers wisselen van plaats." (toestand)
-- **Werking**: 2 willekeurige spelers zijn doelwit. **Correct** = beide eindigen op elkaars **startpaal**
-  (`voorwaarde:"wissel"`, gescoord in `Verifieer beweging`). **Geen beloning** (delta 0). Wie **niet correct**
-  wisselt = **foute zet** (`NIET GEWISSELD` → valsspeelpunt + aura, in `_VALS_FOUT`). Middernacht-oversteek
-  bij dichte poort blijft dodelijk.
+- **Werking**: 2 spelers die **minstens 5 uren uit elkaar** staan zijn doelwit. **Correct** = beide eindigen
+  op elkaars **startpaal** (`voorwaarde:"wissel"`, gescoord in `Verifieer beweging`). **Geen beloning**
+  (delta 0). Wie **niet correct** wisselt = **foute zet** (`NIET GEWISSELD` → valsspeelpunt + aura,
+  in `_VALS_FOUT`).
+- **Elke route is legaal**: voor de twee doelwitten telt **enkel de eindpositie**. Ze mogen achteruit lopen,
+  de **dichte middernachtpoort** oversteken, en negeren `MIDDERNACHT STIL`, `MAX/UUR`, polonaise en de
+  vrij-wandel-straf (V10). Niet-doelwitten worden gewoon normaal gescoord. Zie invarianten BS1–BS3.
 - **Config**: `tier:"rare"`, `reactietijd_s:15` + `reactieVast:true` (blijft 15 s ondanks de toestand-basis van
-  10 s, item 10), `doelwit:{type:"speler",aantal:2}`, `gevolgen:[{type:"geen"}]`.
+  10 s, item 10), `doelwit:{type:"speler",aantal:2}`, **`minSpelerAfstand:5`**, `gevolgen:[{type:"geen"}]`.
 - **Audio**: `body_swap.wav` (afroep) — **nog opnemen**.
 
 ### Verplaatsing (iedereen) — "Iedereen maximum 5 uur vooruit." (verplaatsing)
-- **Werking**: `doelwit:{type:"speler",selectie:"alle"}`, `voorwaarde:"max"`, `getal:[5,5]`. Iedereen mag tot
-  5 uur vooruit; gewone scoring. **Elk bewogen uur maakt de aura 5% slechter** (`auraPerUur:5` → `auraValsspeel
+- **Werking**: `doelwit:{type:"speler",selectie:"alle"}`, `voorwaarde:"max"`, `getal:[1,5]` — de engine rolt
+  per afvuring een getal **tussen 1 en 5** en roept het af ("Iedereen maximum 3 uur vooruit"). Gewone scoring. **Elk bewogen uur maakt de aura 5% slechter** (`auraPerUur:5` → `auraValsspeel
   += 5 × voor` in `Verifieer beweging`; blijvend). Hoe verder je gaat, hoe vaker je later doelwit wordt van
   slechte-aura-events. `tier:"rare"`.
 

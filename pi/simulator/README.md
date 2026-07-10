@@ -287,10 +287,15 @@ De laatste twee publiceren (retained) op `sim/systeem-config` `{toestandExclusie
 De knop **🎲 Spelinstellingen** (naast Systeeminstellingen) opent een paneel met **spelregel**-instellingen:
 
 - **Slechte aura** (default aan) — negatieve speler-events (ziekte, tijdbom) treffen 's avonds (uur 20–6)
-  en op middernacht (uur 24) vaker, zodat de dag veiliger is. Publiceert (retained) `sim/spel-config`
-  `{badAura}`.
+  en op middernacht (uur 24) vaker, zodat de dag veiliger is.
+- **Thuisbank** (default uit) — wie bij de controle **exact op zijn startuur landt**, stort zijn
+  verzamelde levensuren onverliesbaar in `globaleStats` en begint aan een nieuwe ronde. **Geblokkeerd**
+  zolang hij een *geneesbare* toestand draagt (ziekte of tijdbom), zodat er altijd iets te verliezen
+  blijft. Zie invarianten TB1–TB4.
 - **Spel-tempo** (uitlezing) — de huidige tempo-factor (0,6–1,3), gestuurd door de `Sneller`/`Trager`
   wereld-events; uit `pof/status.spelTempo`.
+
+De eerste twee publiceren (retained) op `sim/spel-config` `{badAura, thuisbank}`.
 
 ## Event-tiers (zeldzaamheid)
 

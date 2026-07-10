@@ -92,7 +92,20 @@ gestopte partijen heen.
 
 ---
 
-## 4. Admin (`/admin`)
+## 4. Leaderbord (`/leaderbord`)
+
+**Functie:** dezelfde ranglijst, maar **groot** — bedoeld voor een scherm of beamer naast het veld,
+leesbaar vanaf afstand.
+
+**Opbouw:**
+
+| Groep | Widgets | Wat het doet |
+|-------|---------|--------------|
+| Globaal klassement | `ui-template` Groot leaderbord | Podium voor de **top 3** (goud/zilver/brons, winnaar in het midden en uitvergroot) + de rest als grote regels `rang · naam · levensuren`. Hangt aan **dezelfde** feeder-function "Bouw leaderboard" als `/leaderboard` — één inject ("Ververs globale stats (2s)"), twee weergaven. Zie invariant NR11. |
+
+---
+
+## 5. Admin (`/admin`)
 
 **Functie:** **beheer/reset** van spel- en speler-data. Alles is 2-staps beveiligd tegen
 per-ongeluk-klikken.
@@ -112,7 +125,7 @@ gerichte reset uit. Globale stats blijven anders bewaard bij een gewone *Stop sp
 
 ---
 
-## 5. Beacons & Locatie (`/beacons`)
+## 6. Beacons & Locatie (`/beacons`)
 
 **Functie:** de **RSSI-locatiebepaling tunen** en de beacon-signaalkwaliteit diagnosticeren.
 Zie `docs/locatiebepaling.md` voor het algoritme achter deze parameters.
@@ -136,7 +149,7 @@ kalibreren.
 
 ---
 
-## 6. Historiek (`/historiek`)
+## 7. Historiek (`/historiek`)
 
 **Functie:** **terugkijken** op gespeelde partijen en hun events.
 
@@ -151,7 +164,7 @@ Geselecteerde partijen verwijderen vraagt eerst een bevestiging.
 
 ---
 
-## 7. Buzzer-tuning (`/buzzer-tuning`)
+## 8. Buzzer-tuning (`/buzzer-tuning`)
 
 **Functie:** per bordje de **luidste buzzer-toon** vinden. Een passieve piezo klinkt het
 luidst rond zijn eigen resonantiefrequentie en die verschilt licht per buzzer

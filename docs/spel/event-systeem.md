@@ -40,12 +40,14 @@ speelveld: voorwaartse_richting (klok loopt ROND), actieve_portalen [{a,b}], hap
 In Node-RED: `spelerStats` (levensuren=`totaalUren`, `sterftes`, `huidigePaal`), `spelerLocaties`
 (settled paal per speler), `bordStaat[uur].effecten` (toestanden `portaal`/`happy_hour` met
 `data.partner` en `resterendeRondes`), `palenActief` (de ring 1..24 in sim), `spelerEigenschappen`
-(`{ naam: { kleur, jaar } }` voor groep-doelwitten, uit `[CONFIG] Speler-eigenschappen`).
+(`{ naam: { kleur, jaar, maand, seizoen } }` voor groep-doelwitten, uit `[CONFIG] Speler-eigenschappen`).
 
-**Groep-doelwit**: een event met `doelwit.type === "groep"` kiest via `veld` (`kleur`/`jaar`) één
-waarde (willekeurig onder de actieve spelers, of vast via `waarde`) en richt zich op **alle** actieve
-spelers met die waarde. De controle behandelt elk groepslid als doelwit; de afroep noemt enkel het
-groep-label `veld: waarde` (prefix "een groep"), niet de individuele spelers.
+**Groep-doelwit**: een event met `doelwit.type === "groep"` kiest via `veld` (`kleur`/`jaar`/`maand`/
+`seizoen`/`pariteit`, of `willekeurig`) één waarde (willekeurig onder de actieve spelers, of vast via
+`waarde`) en richt zich op **alle** actieve spelers met die waarde. De controle behandelt elk groepslid
+als doelwit; de afroep noemt enkel het groep-label `veld: waarde` (prefix "een groep"), niet de
+individuele spelers. Enkel bij `veld: "willekeurig"` (en ≥ 4 spelers) is er ~15 % kans op een **tweede**
+groep; een event met een **vast** veld — bv. **etenstijd** (`kleur`) — krijgt er altijd precies één.
 
 **Ziekte**: `global.ziekeSpelers` (`{ naam: rondesOver }`) houdt de zieke spelers + resterende events
 bij; **medicijn** is een uur-effect (`medicijn` in `bordStaat`, felroze LED) dat **niet** veroudert. Een
@@ -55,7 +57,11 @@ medicijn-uur — "Verifieer beweging" zet die spelers in `global.pofGenezen`. De
 elke ronde na de controle: genezen (uit `pofGenezen`), **medicijn-verbruik** (elk medicijn waar deze
 ronde iemand genas verdwijnt — felroze LED uit, ook bij één genezer), aftellen voor **álle** resterende
 zieken, **dood** bij 0 (uren 0 + sterfte), hartslag-waarschuwing vanaf ≤ 3, en opschoning van de
-medicijnen als er geen zieken meer zijn. Zie `docs/spel/event-catalogus.md`.
+medicijnen als er geen zieken meer zijn. Genezen kijkt naar de **basis-status** (vóór de suffixen), dus
+een zieke die vrij wandelde naar een medicijn-paal geneest wél — hij betaalt enkel de V10-prijs.
+Staat er **géén medicijn meer** op het bord terwijl er nog zieken zijn (**Z9**), dan sterven **alle**
+zieken onmiddellijk en roept de box *"Alle zieken zijn gestorven."* om.
+Zie `docs/spel/event-catalogus.md`.
 
 **Tijdbom**: `global.tijdbomSpelers` (`{ naam: rondesOver }`) houdt de bom-spelers bij; `global.tijdbomOntmantelPalen`
 zijn de gekozen palen-mét-drukknop waarop ontmanteld kan worden (uur-effect `tijdbom`, felrood/knipperend,
@@ -77,6 +83,18 @@ eindigen, anders verliezen ze **al** hun levensuren (geen sterfte, status `WEGGE
 `tornadoActief` geleegd + een LED-rebuild geforceerd zodat de oorspronkelijke LED's terugkeren. Het
 "Volgende events"-paneel toont `global.pofWachtrij`; een entry wegklikken (`sim/wachtrij-weg`) splice't die
 index zodat het event niet voorkomt (de rij vult zich weer aan in "Bouw pof/status").
+
+**Etenstijd**: de **wolf** komt uit de **laagste 5 van het globale klassement** buiten de kleur-groep en
+vangt **alleen** na een legale eigen zet (ET1b/ET2b) — hij mag dus niet vrij achter zijn schaapjes
+aanlopen. Overleeft een schaap de 15 rondes ongevangen, dan krijgt het bij de afloop **+5 levensuren** (ET4).
+
+**Tweeling**: je verdient enkel levensuren als je partner deze ronde **ook legaal bewoog** (TW2, anders
+wordt de winst teruggedraaid — verlies niet). Sterft er één, dan sterft de ander mee en breekt de band
+(TW3, via de gedeelde helper `tweelingDood` in `settings.js`) — **behalve bij een nuke** (TW5). Eindigen
+beide op **hetzelfde uur**, dan is de vloek opgeheven (TW6). Max 4 paren.
+
+**Portalen**: `max: 2` tegelijk, de twee uiteinden liggen **≥ 6 uren** uit elkaar (`minAfstand: 6`) en twee
+portalen delen nooit een paal.
 
 **Spel-tempo**: `global.spelTempoFactor` (start 1,0, **range 0,6–1,3**) wordt door de wereld-events
 `sneller_events` (−0,1, min 0,6) en `trager_events` (+0,1, max 1,3) gestapt (gevolg `{type:"tempo", richting}`)
@@ -102,9 +120,30 @@ de per-paal acties.
 uren 0 + sterfte; wie ontkomen is overleeft. Geen bewegings-straffen. Een nuke **wist de wereld**: ze ruimt
 ook de lopende **ziekte-episode** (`ziekeSpelers` + medicijn-effecten) en alle **dienaars** op, zodat het veld
 daarna schoon is (Ziekte-beheer herpubliceert dan lege `pof/ziekte`/`pof/dienaars`). Daarna zet "Verifieer
-beweging" de engine in de fase **`regroup`** (`regroup_s` s, standaard 60) i.p.v. de normale aanloop; de
-"Engine tick" telt die af en keert daarna terug naar `aanloop`/`wacht`. Reset (`Stop`/`Herstart`) wist
+beweging" de engine in de fase **`regroup`** (`regroup_s` s, standaard **45**) i.p.v. de normale aanloop; de
+"Engine tick" telt die af en keert daarna terug naar `aanloop`/`wacht`. **Ook in `regroup` is bewegen
+verboden** (V10, geen uitzonderingen): wie het veld weer inloopt betaalt bij de eerstvolgende controle
+0 winst + 1 valsspeelpunt (levensuren kost het niet — hij staat toch op 0). Een nuke breekt bovendien
+**geen tweelingbanden** (TW5/N8) en de wolf vangt tijdens een nuke-controle niet.
+Reset (`Stop`/`Herstart`) wist
 `ziekeSpelers`, `pofGenezen`, `dienaars` en publiceert lege `pof/ziekte`/`pof/dienaars`.
+
+**Bomaanslag** (wereld): het event kiest per afvuring **uniform één van vier uur-duo's** —
+`[9,11]`, `[4,20]`, `[6,7]`, `[6,9]` (elk **25 %**, `doelwit.vastOpties`) — en speelt de bijhorende
+afroep-clip uit `audioVoorOpties`. Tijdens de reactietijd tikken die palen rood (`ACTIE_TIJDBOM` 13) +
+zoemer-piep; bij de controle verliest iedereen die er dán staat `uur` levensuren. Vluchten mag (geen
+bewegingsstraf, net als bij de nuke).
+
+**Body-swap** (toestand): twee spelers met **ring-afstand ≥ 5** uren (`minSpelerAfstand`) moeten op
+elkaars startpaal eindigen. **Enkel de eindpositie telt** — de route is volledig vrij: achteruit lopen,
+door de dichte middernachtpoort, dwars door een tornado, of vrij wandelen voorafgaand aan het event
+levert het paar géén straf op. Correct = `OK (gewisseld)` (0 uren), fout = `NIET GEWISSELD` + valsspeelpunt.
+
+**Thuisbank** (optionele dynamiek, Spelinstellingen → `global.thuisbankAan`, default uit): wie bij de
+controle **exact op zijn startuur landt** (en er niet aan de ronde begon), stort zijn `totaalUren`
+onverliesbaar in `globaleStats` en begint aan een nieuwe ronde (`… | GESTORT (+N uur globaal)`).
+**Geblokkeerd** zolang hij een **geneesbare** toestand draagt — ziekte of tijdbom (`… | THUIS
+(geblokkeerd: toestand)`) — zodat er altijd iets te verliezen blijft. Zie invarianten TB1–TB4.
 
 **Middernacht** (permanent mechanisme, geen event): globals `piDigits` (500 cijfers, Machin/BigInt),
 `midnightIndex`/`midnightOpen`/`midnightRemaining` (poort-staat, **niet** gereset bij Stop — π loopt door),
@@ -130,7 +169,11 @@ Een verplaatsing is **niet** "speler van X naar Y", maar een **geordende reeks a
 ### STAP (vooruit)
 - Eén paal vooruit in de voorwaartse richting (klok loopt rond: na 24 → 1).
 - Verbruikt **1** budget; levert **1 levensuur** (vóór happy-hour-×2).
-- Mag **nooit** achteruit — harde regel op STAP-niveau.
+- Mag **nooit** achteruit — harde regel op STAP-niveau. **Uitzondering**: tijdens het wereld-event
+  **tijdreizen** telt een achterwaartse STAP mee als geldige beweging, maar je moet dan **één richting
+  kiezen**: voor- én achterwaarts in hetzelfde pad (pendelen) = status `PENDELEN`, `delta = 0`.
+- Verplaatsen mag **alleen** wanneer een event het toestaat. Elke STAP **buiten** een event
+  (fases `aanloop`/`wacht`) is vrij wandelen en wordt bij de volgende controle bestraft (zie §4 en V10).
 
 ### TELEPORT (portaal)
 - Van het ene portaal-eindpunt naar het andere, enkel als dat portaal **actief** is.
@@ -150,7 +193,13 @@ reeks hops `[van,naar]` per speler (`global.pofPad`). De opname loopt van de **d
 (`bezig`) t/m de **settle-grace** — dus vanaf het moment dat het event gekozen is (de
 begin-snapshot + `pofPad`-reset staan al klaar) tot net vóór de controle. Zo is er géén blind
 venster tijdens de reveal waarin bewegingen ongezien blijven (voorheen begon de opname pas in
-`reactie`, wat een gat gaf: zie invariant V5/V9). Classificatie:
+`reactie`, wat een gat gaf: zie invariant V5/V9).
+
+Hops **buiten** dat venster (fases `aanloop` en `wacht`) belanden in een **tweede** register
+`global.pofVrijPad` — dat is vrij wandelen en het wordt bij de eerstvolgende controle bestraft (V10).
+Na elke controle wordt `pofVrijPad` gewist en zet `global.pofVrijVanaf` een **genade-drempel** van
+`pofSettleGrace` seconden, zodat een hop die pas ná de controle settelt niet twee keer telt.
+De fases `idle` en `regroup` nemen niets op. Classificatie:
 - `{van,naar}` = de twee eindpunten van een **actief portaal** → **TELEPORT** (0 stappen).
 - anders: voorwaartse afstand `fd`, achterwaartse `bd` (ring); `fd ≤ bd` → `fd` STAPpen vooruit,
   anders `bd` STAPpen achteruit (= verboden).
@@ -164,9 +213,12 @@ venster tijdens de reveal waarin bewegingen ongezien blijven (voorheen begon de 
 
 ## 4. De evenement-cyclus
 
-1. **Aanloop** — timer telt af. Dit is een **vrij-verplaats-venster**: zolang de aanloop loopt
-   (en algemeen buiten een event) mag **elke** speler vrij en onbeperkt bewegen — niet opgenomen,
-   niet bestraft (behalve de middernacht-poort). Zie invariant **V10**.
+1. **Aanloop** — timer telt af. Dit is **geen** vrij-verplaats-venster: wie hier (of in de manuele
+   `wacht`-fase) van paal wisselt, **wandelt vrij** en dat is verboden. De hop komt in `pofVrijPad`;
+   bij de eerstvolgende controle vervalt zijn winst (`delta → 0`), krijgt hij +1 valsspeelpunt +3 %
+   aura en de suffix `| VRIJ GEWANDELD (0 uur)` — géén uren-verlies, géén sterfte. Een god-punt
+   vergeeft het. Er is **geen enkele vrije fase** meer — ook niet de `regroup` na een nuke. Er wordt enkel
+   opgenomen zolang de PoF-engine draait (niet bij Klokslag/Infected of een gestopt spel). Zie **V10**.
 2. **Event kiezen + tonen** — respecteer de `max`/`getal`-grenzen van het event.
 3. **Doelwitten bekendmaken** (fase `bezig`) — wie is geselecteerd (afroep: aantal + zelfst.nw +
    tekst). **De pad-opname loopt hier al** (begin-snapshot staat vast), zodat bewegen tijdens de
@@ -201,7 +253,7 @@ willekeurig gerold wordt, of een preset (`kort`/`middel`/`lang`). Dat getal word
 ## 6. De events
 
 ### Event A — "maximum x vooruit" (`groep_verplaatsing`)
-De gekozen **groep** (kleur of jaar) mag tot `x` palen vooruit; minder mag, meer niet, achteruit niet.
+De gekozen **groep** (kleur/jaar/maand/seizoen/pariteit) mag tot `x` palen vooruit; minder mag, meer niet, achteruit niet.
 - **Preconditie**: elk groepslid staat op een geldige paal.
 - **Effect**: `positie` via geldige verplaatsing met `aantal_STAP ≤ x`; `levensuren += verdiend`.
 - **Invariant**: `aantal_STAP ≤ x`; elke STAP vooruit. **Verplaatsing-events zijn groep-only** — de
@@ -216,9 +268,10 @@ De gekozen **groep** moet **exact `x` óf exact `y`** palen vooruit; elk ander a
 
 ### Event B — "portalen" (`portalen`, toestand)
 Twee palen worden paars; er ontstaat een portaal. Verplaatst zelf niemand.
-- **Preconditie**: twee bestaande palen, nog niet aan een portaal gekoppeld.
+- **Preconditie**: twee bestaande palen met ring-afstand ≥ 6 (`minAfstand: 6`), nog niet aan een portaal gekoppeld.
 - **Effect**: `actieve_portalen += {a,b}`; beide palen paars (LED actie 1).
-- **Invariant**: een portaal koppelt precies twee verschillende palen. `max: 1`.
+- **Invariant**: een portaal koppelt precies twee verschillende palen die ≥ 6 uren uit elkaar liggen.
+  `max: 2` — twee portalen tegelijk, die nooit een paal delen (E1).
 
 ### Event C — "happy hour" (`happy_hour`, toestand)
 Eén of meer uren worden goud; wie zijn verplaatsing op zo'n uur **eindigt** krijgt de levensuren
@@ -244,12 +297,17 @@ Per speler, op basis van het opgenomen pad (`pofPad[speler]`):
 | doelwit, `voor > x` | TE VEEL | **max(0, x − (voor − x))** |
 | doelwit `of`, `voor ∉ {x, y}` | ONGELDIGE KEUZE | **max(0, voor − afstand tot dichtste geldige)** |
 | doelwit, `achter > 0` | TERUG IN TIJD | **max(0, voor − achter)** |
+| doelwit, tijdreizen, `voor > 0` én `achter > 0` | PENDELEN | **0** |
 | doelwit, >1× zelfde portaal | ONGELDIGE TELEPORT | **0** |
 | niet-(bewegings)doelwit dat bewoog | BEWOOG (mocht niet) | **0** |
+| bewoog buiten een event (`aanloop`/`wacht`) | … VRIJ GEWANDELD | winst → **0** + valsspeelpunt |
 | gepauzeerde speler | GEPAUZEERD | 0 (niet gescoord) |
 | stil blijven staan | OK (stil) | 0 |
 
 > **Proportioneel model (V11):** valsspelen kost **geen** levensuren — `Δ = max(0, legaalBasis − overtreding)` (vloer 0), nooit negatief, geen sterfte door valsspel. Dodelijke straffen zitten los in middernacht/nuke/tornado/bom/ziekte. Zie `docs/invarianten.md` §2.
+>
+> **Body-swap-doelwitten** worden hier volledig overgeslagen: enkel hun eindpositie telt en alle
+> veld-conflicten (middernachtpoort, max/uur, polonaise, vrij wandelen) worden genegeerd (BS2).
 
 3. **Sterfte**: zou Δ de levensuren onder 0 brengen → blijf op 0 en **+1 sterfte** (speler speelt
    door; legale winst geeft nooit een sterfte).
@@ -279,4 +337,6 @@ verdiend = (eindpaal happy hour) ? 2*basis : basis
 1. Levensuren-basis = aantal STAP-acties (1 stap = 1 levensuur).
 2. Klok loopt **rond** (na 24 → 1).
 3. Max **1 teleport per portaal** per verplaatsing.
-4. STAP achteruit altijd verboden; geen achteruit-events (voorlopig).
+4. STAP achteruit altijd verboden, behalve tijdens **tijdreizen** — en dan enkel in **één** richting per pad.
+5. Bewegen mag **uitsluitend** wanneer een event het toestaat; buiten een event — in élke fase, ook de
+   `regroup` — is elke hop "vrij gewandeld" en kost hij je winst + een valsspeelpunt (**V10**).

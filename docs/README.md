@@ -27,6 +27,7 @@ docs/
 │   ├── event-systeem.md     ← LEIDEND: verplaatsingscontrole, STAP/TELEPORT, scoring
 │   ├── event-catalogus.md   ← per-categorie overzicht van alle events
 │   ├── events.md            ← schema-referentie om een event-object op te stellen
+│   ├── testing.md           ← testscenario's per event/mechanisme/minigame (checklist testdag)
 │   └── nieuw-event-toevoegen.md ← korte checklist: wat lever je aan voor een nieuw event
 ├── hardware/            ← FYSIEKE HARDWARE
 │   ├── pinout.md            ← GPIO-toewijzing slave/master (single source of truth)
@@ -68,6 +69,8 @@ het onderwerp:
 **Bij spellogica / events / Node-RED:**
 - `docs/spel/spel.md`, `docs/spel/event-systeem.md`, `docs/spel/event-catalogus.md`,
   `docs/spel/events.md` (+ `docs/spel/nieuw-event-toevoegen.md` als je een event toevoegt).
+- `docs/spel/testing.md` — testscenario's per event, mechanisme en minigame. Werk dit bij zodra
+  je een regel verandert; het is de checklist voor de testdag.
 - `pi/node-red/flows.json` + de relevante `pi/node-red/blokken/*/README.md`.
 
 **Bij hardware / firmware / communicatie:**

@@ -57,7 +57,8 @@ middernacht staan geoogst**: ze sterven (levensuren → 0, +1 sterfte) en worden
 **dienaar** van de **armste** andere speler. **Elke meester kan maar één dienaar hebben**: zijn er
 meerdere geoogsten tegelijk, dan krijgt de eerste (in **willekeurige** volgorde getrokken) de armste vrije
 speler, de tweede de op-één-na-armste, enzovoort. Een dienaar verdient zelf **geen** levensuren meer — alles wat
-hij verdient gaat **rechtstreeks naar zijn meester** (en die kan het niet meer verliezen). De dienaar
+hij verdient gaat **rechtstreeks naar zijn meester**. Die uren zitten daarna gewoon in het saldo van de
+meester en zijn dus **ook voor hem verliesbaar** (M5). De dienaar
 speelt gewoon door: events blijven op hem vallen en hij kan nog sterftes opbouwen (schadebeperking). De 0
 verandert de open/dicht-volgorde **niet** (bv. *dicht, 0, open*). De π-sequentie **loopt door** over
 gestopte/gestarte spellen heen; na 500 cijfers begint ze opnieuw. Een 0 geeft een **dramatische LED-animatie**
@@ -122,13 +123,16 @@ Een verplaatsing is een reeks atomaire acties:
 - **TELEPORT** = via een actief portaal naar de gekoppelde paal → **0 stappen, 0 levensuren**,
   richting-agnostisch (mag dus naar een lager uur), max 1× per portaal per verplaatsing.
 
-**Tussen events mag je vrij en onbeperkt bewegen.** Zolang er géén event loopt — tijdens de
-aanloop-aftelklok en in de tijd tussen de controle en het volgende event — mag **elke** speler
-lopen waarheen hij wil, zonder straf en zonder dat het wordt opgenomen. Dit is bewuste
-**counterplay**: je positioneert je voor het volgende event, en bijvoorbeeld een **zieke** speler
-wandelt zo naar een **medicijn-paal** om er bij de eerstvolgende controle ("OK (stil)") te
-genezen. (De enige uitzondering buiten een event is de **middernacht-poort**: bij een dichte
-poort mag je de 24→1-oversteek niet lopen.)
+**Vrij wandelen bestaat niet.** Je verplaatst **uitsluitend** wanneer een event het zegt. Wissel je van
+paal terwijl er géén event loopt — tijdens de aanloop-aftelklok, in de manuele wacht-fase, óók tijdens
+de `regroup` na een nuke — dan wordt die hop opgenomen en bij de **eerstvolgende controle** bestraft:
+je winst van die controle vervalt (`delta → 0`) en je krijgt **+1 valsspeelpunt**
+(`… | VRIJ GEWANDELD`). Je verliest er **geen** levensuren mee en je sterft er niet aan — één foute
+beacon-detectie mag niemand het spel uit gooien. Een **god-punt** scheldt het volledig kwijt.
+Een **zieke** die naar een medicijn-paal wil, kan dus wachten tot hij als bewegings-doelwit wordt
+afgeroepen (gratis), of er toch heen wandelen en de prijs betalen — genezen doet hij dan wél.
+(Bovendien blijft de **middernacht-poort** gelden: bij een dichte poort mag je de 24→1-oversteek nooit
+lopen, ook niet buiten een event — dat kost je álles + een sterfte.)
 
 Zodra een event start (vanaf de doelwit-reveal) geldt de in-event-regel: enkel het **doelwit**
 van een verplaatsing-event mag bewegen; anderen blijven stil. Per speler bij de controle

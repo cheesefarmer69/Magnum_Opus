@@ -149,6 +149,7 @@ const state = {
     toestandExclusief: true,    // systeeminstelling: tijdbom & ziekte niet samen op één speler
     tempo: 1,                   // reactietijd-multiplier (systeeminstelling -> sim/systeem-config)
     badAura: true,              // spelinstelling: slechte aura (avond/nacht gevaarlijker) -> sim/spel-config
+    thuisbank: false,           // spelinstelling: levensuren storten bij landen op je startuur -> sim/spel-config
     spelTempo: 1,               // huidig spel-tempo (uitlezing uit pof/status, via sneller/trager-events)
     uitAllen: false,            // true wanneer de 'Out'-knop iedereen het veld uit zette
     events: [],                 // volledige events-pool [{id,naam,categorie,tekst,...}] (uit pof/events, retained)
@@ -760,7 +761,7 @@ function publishSysteemConfig() {
 
 function publishSpelConfig() {
     if (!state.verbonden) return;
-    state.client.publish("sim/spel-config", JSON.stringify({ badAura: state.badAura }), { retain: true });
+    state.client.publish("sim/spel-config", JSON.stringify({ badAura: state.badAura, thuisbank: state.thuisbank }), { retain: true });
 }
 
 function publishAvondModus() {
@@ -1537,6 +1538,12 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("bad-aura").addEventListener("change", (e) => {
         state.badAura = e.target.checked;
         log("info", "Slechte aura " + (state.badAura ? "AAN (avond/nacht gevaarlijker)" : "UIT"));
+        publishSpelConfig();
+    });
+    const _thuisCb = document.getElementById("thuisbank");
+    if (_thuisCb) _thuisCb.addEventListener("change", (e) => {
+        state.thuisbank = e.target.checked;
+        log("info", "Thuisbank " + (state.thuisbank ? "AAN (storten bij landen op je startuur)" : "UIT"));
         publishSpelConfig();
     });
     const _avondCb = document.getElementById("avond-modus");

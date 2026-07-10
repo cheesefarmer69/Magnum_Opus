@@ -28,21 +28,20 @@ groepen/
 ├── groepen.wav   (optioneel) meervoud "groepen" — voor toekomstig gebruik
 ├── kleur/        kleur_rood.wav , kleur_zwart.wav , kleur_blauw.wav
 ├── jaar/         eerste_jaars.wav , tweede_jaars.wav , derde_jaars.wav
-├── maand/        (voorbereid — patroon nog te kiezen, bv. maand_januari.wav)
-└── seizoen/      (voorbereid — patroon nog te kiezen, bv. seizoen_lente.wav)
+├── maand/        januari.wav .. december.wav
+└── seizoen/      lente.wav , zomer.wav , herfst.wav , winter.wav
 ```
 
 ## Welke dimensies gebruikt het spel nu?
 
-- **Actief:** `kleur` en `jaar` — de engine ("Kies event") kiest hieruit een groep en
-  "Kies doelwit" speelt de bijbehorende gecombineerde clip af. Bron: `[CONFIG]
-  Speler-eigenschappen` in Node-RED (`{ naam: { kleur, jaar } }`).
-- **Voorbereid (nog niet gekozen):** `maand` en `seizoen` staan in `docs/spel/spelers.md`,
-  maar de engine kiest ze nog niet. Om ze te activeren:
-  1. voeg `maand` en `seizoen` per speler toe aan `[CONFIG] Speler-eigenschappen`;
-  2. neem die velden mee in de veld-keuze in **"Kies event"**;
-  3. voeg het bestandsnaam-patroon voor die velden toe in `_GROEPCLIP` in **"Kies doelwit"**
-     (bv. `maand: w => "maand_" + w`) en leg de WAV's klaar.
+- **Actief:** `kleur`, `jaar`, `maand` én `seizoen` — de engine ("Kies event", `ATTR`) kiest bij
+  `veld: "willekeurig"` uit alle vier, en "Kies doelwit" speelt de bijbehorende clip af. Bron:
+  `[CONFIG] Speler-eigenschappen` in Node-RED (`{ naam: { kleur, jaar, maand, seizoen } }`).
+- Daarnaast bestaat het **virtuele** veld `pariteit` (even/oneven **startuur**, uit `spelerLocaties`);
+  dat komt niet uit `spelerEigenschappen` en gebruikt de `uur/`-clips (`even.wav` / `oneven.wav`).
+- **Identiteitscrisis** verschuift alleen de **luisternaam** en daarmee de **kleur**-groep;
+  jaar/maand/seizoen/pariteit blijven van de speler zelf.
+- Het **etenstijd**-event zit vast op `veld: "kleur"` en roept dus altijd één kleur-groep af.
 
 ## Op te nemen WAV's (checklist — actief)
 
