@@ -162,10 +162,20 @@ const state = {
 // ============================================================
 // MQTT
 // ============================================================
+// De MQTT-broker draait op dezelfde Pi die deze pagina serveert. Geserveerd via http(s)
+// (Node-RED op /sim/) => altijd location.hostname, zodat de verbinding klopt ongeacht het
+// toestel/IP waarmee je kijkt (desktop .1.43, gsm .50.1, laptop .51.1). Enkel bij lokaal
+// openen via file:// (hostname leeg) telt het invulveld nog.
+function brokerHost() {
+    if (location.hostname) return location.hostname;
+    return document.getElementById("broker-host").value.trim() || "192.168.50.1";
+}
+
 function connecteer() {
-    const host = document.getElementById("broker-host").value.trim();
-    const port = document.getElementById("broker-port").value.trim();
-    const url  = `ws://${host}:${port}`;
+    const host  = brokerHost();
+    const port  = document.getElementById("broker-port").value.trim() || "9001";
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    const url   = `${proto}://${host}:${port}`;
     log("info", `Verbinden met ${url} ...`);
 
     try {
@@ -1473,11 +1483,18 @@ function voegSpelerToe() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-    // Broker-host automatisch invullen: geserveerd vanaf de Pi (http://<pi>:1880/sim/) is
-    // location.hostname het juiste broker-adres (thuis .1.43, veld-AP .50.1, veld-kabel .51.1).
-    // Via file:// is hostname leeg -> fallback op het veld-AP-adres. Handmatig overtypen kan altijd.
+    // Broker-adres: geserveerd vanaf de Pi (http://<pi>:1880/sim/) is location.hostname per
+    // definitie het juiste broker-adres (thuis .1.43, veld-AP .50.1, veld-kabel .51.1). We tonen
+    // het en zetten het veld VAST (readOnly) zodat er nooit een oud/achtergebleven adres blijft
+    // staan dat op een ander toestel de verbinding breekt. Via file:// is hostname leeg -> veld
+    // blijft bewerkbaar met een zinvolle default. De echte host komt uit brokerHost() bij connect.
     const hostVeld = document.getElementById("broker-host");
-    if (!hostVeld.value.trim()) hostVeld.value = location.hostname || "192.168.50.1";
+    if (location.hostname) {
+        hostVeld.value = location.hostname;
+        hostVeld.readOnly = true;
+    } else if (!hostVeld.value.trim()) {
+        hostVeld.value = "192.168.50.1";
+    }
 
     tekenVeld();
     laadDefaultSpelers();
@@ -1490,6 +1507,11 @@ window.addEventListener("DOMContentLoaded", () => {
         if (state.client) { state.client.end(true); state.client = null; }
         connecteer();
     });
+
+    // Geserveerd door de Pi => het broker-adres (location.hostname) is zeker juist =>
+    // meteen automatisch verbinden, zodat je nooit iets hoeft in te vullen of te klikken.
+    // (Via file:// niet auto-verbinden: dan is het adres nog een gok -> gebruiker klikt Connect.)
+    if (location.hostname) connecteer();
     document.getElementById("btn-add-speler").addEventListener("click", voegSpelerToe);
     document.getElementById("btn-reset-spelers").addEventListener("click", resetPosities);
     document.getElementById("btn-out").addEventListener("click", toggleOut);

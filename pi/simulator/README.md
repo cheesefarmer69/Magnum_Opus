@@ -107,9 +107,12 @@ docker logs <naam-van-mosquitto-container> | grep 9001
 ### 2. Simulator starten
 
 Geen build-stap nodig. **Aanbevolen:** open `http://<pi-adres>:1880/sim/` — de Pi serveert de
-simulator zelf (werkt op elk toestel, ook gsm/tablet, en het broker-veld staat dan automatisch
-juist). Alternatief blijft `index.html` direct openen in je browser; lukt `file://` niet
-(strikte CSP/CORS in sommige browsers), start dan een lokale webserver:
+simulator zelf (werkt op elk toestel, ook gsm/tablet). Bij `/sim/` staat het broker-adres **vast
+op het adres uit je adresbalk** (= dezelfde Pi) en **verbindt de simulator automatisch** — je hoeft
+niets in te vullen of op Connect te klikken, ongeacht of je met desktop, gsm of laptop kijkt.
+Alternatief blijft `index.html` direct openen in je browser; dan typ je het broker-adres zelf en
+klik je Connect. Lukt `file://` niet (strikte CSP/CORS in sommige browsers), start dan een lokale
+webserver:
 
 ```powershell
 cd "c:\PROJECTEN ELEKTRONICA\Magnum Opus\VS_Code\pi\simulator"
