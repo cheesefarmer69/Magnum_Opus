@@ -39,6 +39,11 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
 - Geen audio-afroepen meer; LED's reageren niet op events.
 - Pi niet pingbaar (ping het adres van jouw situatie hierboven), of de SD-activiteit-LED knippert
   niet meer normaal.
+- **Alles extreem traag** (dashboard/editor doen er 10+ s over of time-outen) terwijl ping wél
+  vlot antwoordt: Node-RED/Pi overbelast — géén SD-wissel nodig. Eerste hulp:
+  `docker restart magnum-Opus` (spelstand overleeft: contextStorage + retained `spel/state`),
+  overtollige dashboard-/sim-tabs sluiten. Triage: `uptime && free -h`, `docker stats --no-stream`,
+  `docker logs magnum-Opus --tail 40` (zie `verbinden-met-de-hub.md` §probleemoplossing).
 - In de logs: filesystem read-only / I/O errors (klassiek SD-corruptie-symptoom).
 
 ---

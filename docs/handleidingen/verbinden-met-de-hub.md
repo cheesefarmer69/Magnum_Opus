@@ -15,6 +15,15 @@ Alles hieronder werkt **zonder internet** — op het veld is er geen router en d
 De Node-RED **editor** (flows) staat telkens op hetzelfde adres zonder `/dashboard`:
 `http://<pi-adres>:1880/`.
 
+⚠️ **Twee klassieke instinkers:**
+- **Altijd `http://` typen, nooit `https://`.** Browsers "upgraden" een adres stiekem naar https;
+  Node-RED spreekt geen TLS en dan lijkt de hub dood terwijl alles draait.
+- **Verwar `192.168.50.1` (veld-AP) niet met `192.168.1.50`** — dat laatste adres bestaat niet.
+  Thuis is het `192.168.1.43`.
+
+💡 Op desktop/laptop werkt thuis ook **`http://raspberrypinic.local:1880/...`** (mDNS) — dat
+blijft kloppen zelfs als de router het IP ooit verandert (het thuis-IP is DHCP, geen garantie).
+
 > **Waarom dit altijd werkt:** Node-RED verbindt met de MQTT-broker via `host.docker.internal`
 > (docker host-gateway, zie `pi/node-red/docker-compose.yml`) — niet via een hardcoded IP. De
 > broker (Mosquitto) luistert op alle interfaces (1883 TCP + 9001 WebSocket). De simulator vult
@@ -94,3 +103,15 @@ sudo nmcli connection add type ethernet ifname eth0 con-name Veld-eth autoconnec
 
 **Pagina laadt niet, netwerk is wél oké**
 - `ping <pi-adres>` als sanity-check; let op **http** (niet https) en poort **1880**; Ctrl+F5.
+
+**Alles extreem traag (pagina's doen er 10+ seconden over) of time-outs terwijl ping werkt**
+- Dat is de hub zelf (Node-RED/Pi overbelast), geen netwerkprobleem. Triage op de Pi:
+  ```bash
+  uptime && free -h
+  docker stats --no-stream
+  docker logs magnum-Opus --tail 40
+  ```
+- Eerste hulp: `docker restart magnum-Opus` — veilig, de spelstand overleeft dit
+  (contextStorage + retained `spel/state`). Sluit ook overtollige dashboard-/simulator-tabs
+  (elke tab kost geheugen op de 1 GB-Pi). Komt de traagheid terug → logs bekijken op
+  MQTT-reconnect-fouten of een loop; zie ook `hub-noodherstel.md`.
