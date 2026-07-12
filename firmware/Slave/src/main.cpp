@@ -31,8 +31,8 @@ const int WIFI_KANAAL    = 1;
 const int MAX_BACKOFF_MS = 150;   // willekeurige zendvertraging (0..150ms)
 
 // Per-paal buzzer-resonantiefrequentie (productiespreiding op de passieve piezo).
-// Eén universele build: enkel PAAL_ID hierboven aanpassen, de buzzer-piep gebruikt
-// automatisch de gekalibreerde frequentie voor díe paal uit onderstaande tabel.
+// Eén universele build: PAAL_ID komt bij boot uit de MAC-lookup (paal_macs.h), de
+// buzzer-piep gebruikt automatisch de gekalibreerde frequentie uit onderstaande tabel.
 // Vind de luidste waarde per bordje met het Node-RED dashboard "Buzzer-tuning"
 // (stuurt actie 12 / MSG_BUZZER_TOON). Index = paal_id (1..24); index 0 ongebruikt.
 const uint16_t BUZZER_FREQ_TABEL[25] = {
@@ -1025,7 +1025,8 @@ void setup() {
   esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
 
   // Eenmalig het MAC-adres van deze slave (ESP32-C3 mini) tonen.
-  // Noteer dit adres en zet het in de master's slaveAdressen[] array.
+  // Nieuw bord: noteer dit adres, voeg één regel {mac, paal} toe aan
+  // firmware/shared/paal_macs.h en herflash de master van dat paalbereik.
   Serial.println();
   Serial.println("============================================");
   Serial.print("  SLAVE MAC-ADRES : ");
