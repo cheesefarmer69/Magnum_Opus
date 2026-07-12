@@ -149,7 +149,8 @@ Kijk passief mee met een echt spel zonder enig risico.
      Ook **"Toestand afgelopen"** verschijnt in de log zodra een toestand verdwijnt.
    - **Audio**-aanvragen (oranje in de log) verschijnen bij Plates-of-Fate events.
    - **Historiek-paneel** (rechts, klik op de verticale "Historiek"-tab) toont de
-     events van het lopende spel chronologisch (topic `spel/historie`).
+     events van het lopende spel chronologisch (topic `spel/historie`; de **laatste 40**
+     events — oudere schuiven eruit, S6-cap tegen MQTT-/geheugengroei).
    - **Portaal**: zodra een portaal-event valt, kleuren twee palen continu paars en
      verschijnt er een **paarse stippellijn** tussen de twee uren (topic
      `pof/portalen`).

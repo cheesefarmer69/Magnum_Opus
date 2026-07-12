@@ -73,6 +73,11 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
    cd ~/Magnum_Opus && git pull && ./pi/node-red/deploy-flows.sh
    ```
    en eventueel `./pi/deploy.sh` (serial-bridge) / `./pi/deploy-audio.sh` (audio).
+   ⚠️ Is ook **`pi/node-red/settings.js`** gewijzigd (bv. `resetPartij`/`tweelingDood` in
+   `functionGlobalContext`), dan volstaat `deploy-flows` **niet**: de container leest settings.js
+   alleen bij start, en na een `git pull` wijst de single-file bind-mount nog naar het oude bestand
+   tot een **`docker restart magnum-Opus`**. Symptoom: `node.warn`-meldingen als "tweelingDood
+   ontbreekt - herstart de Node-RED container".
 
 ---
 
