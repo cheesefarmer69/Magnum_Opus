@@ -10,6 +10,11 @@ import time
 MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_DATA_TOPIC = os.getenv("MQTT_DATA_TOPIC", "plaatjes/data")
+# VERBOSE=1 zet de per-regel [DATA]/[DEBUG]-prints aan (diagnose). Default UIT:
+# op vol bedrijf is dat 10-20 regels/s (~100+ MB/speeldag in de docker-log), en een
+# master in een reboot-loop spuwt anders MB/minuut aan boot-ROM-tekst via [DEBUG]
+# net wanneer de hardware hapert. De 10s-[STATUS]-teller + [ROUTE]/fouten blijven altijd.
+VERBOSE = os.getenv("VERBOSE", "0") == "1"
 
 # CH340 USB-UART (op de master-bordjes). Poort-onafhankelijk: we detecteren
 # ALLE CH340-poorten automatisch i.p.v. een vaste /dev/ttyMaster1. Zo werkt het
@@ -155,8 +160,10 @@ def lees_poort(device):
             try:
                 data = json.loads(lijn)
             except json.JSONDecodeError:
-                # Debug output van de ESP, toon maar stuur niet door
-                print(f"[DEBUG] {device}: {lijn}")
+                # Debug output van de ESP, niet doorsturen; enkel tonen met VERBOSE=1
+                # (anders vult een ruisende/reboot-loopende master de docker-log met MB/min)
+                if VERBOSE:
+                    print(f"[DEBUG] {device}: {lijn}")
                 continue
 
             # Identiteits-aankondiging van een master ({"announce":1,"master":N,...}): leer hieruit
@@ -211,7 +218,8 @@ def lees_poort(device):
             client.publish(MQTT_DATA_TOPIC, json.dumps(data))
             with pub_lock:
                 publicaties += 1
-            print(f"[DATA] {device}: {data}")
+            if VERBOSE:
+                print(f"[DATA] {device}: {data}")
 
     except Exception as e:
         print(f"Fout op {device}: {e}, poort vrijgegeven")

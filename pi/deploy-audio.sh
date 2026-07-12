@@ -29,6 +29,8 @@ docker run -d \
   --name audio-player \
   --restart unless-stopped \
   --network host \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
   --device=/dev/snd \
   -e MQTT_BROKER=127.0.0.1 \
   -e MQTT_PORT=1883 \
@@ -37,6 +39,9 @@ docker run -d \
   -e AUDIO_DEV=default \
   -v "$AUDIO_DIR/audio:/app/audio" \
   audio-player
+
+echo "[deploy-audio] Dangling images opruimen (SD-bescherming)..."
+docker image prune -f >/dev/null
 
 echo "[deploy-audio] Klaar. Container status:"
 docker ps --filter name=audio-player --format "table {{.Names}}\t{{.Status}}"

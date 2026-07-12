@@ -29,8 +29,13 @@ def speel_segment(relpad: str) -> None:
         return
     try:
         # -q = quiet, -D = ALSA-device. Blokkeert tot het segment klaar is.
-        subprocess.run(["aplay", "-q", "-D", AUDIO_DEV, pad], check=True)
+        # timeout: een hangende ALSA (device bezet/kapot) mag de worker niet permanent
+        # blokkeren — dan valt alle audio stil zonder foutmelding. Segmenten zijn kort;
+        # 30 s is ruim en aplay wordt bij overschrijding gekild.
+        subprocess.run(["aplay", "-q", "-D", AUDIO_DEV, pad], check=True, timeout=30)
         print(f"[AUDIO] Afgespeeld: {relpad}")
+    except subprocess.TimeoutExpired:
+        print(f"[AUDIO] aplay hing >30s bij {relpad} - gekild, wachtrij loopt door")
     except subprocess.CalledProcessError as e:
         print(f"[AUDIO] aplay-fout bij {relpad}: {e}")
     except FileNotFoundError:

@@ -188,8 +188,11 @@ foutcodes ([blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md)):
 
 - [ ] Veld + touwen intact; palen recht en op nummer.
 - [ ] 24 palen: batterij vers erin; ingebouwde LED knippert; geen rode fout-blink.
-- [ ] Hub: masters (3×) + audio + AP aangesloten; Pi gevoed via Pi-lader op het 1000 Wh power station; containers up.
+- [ ] Hub: masters (3×) + audio + AP aangesloten; Pi gevoed via Pi-lader op het 1000 Wh power station; containers up (`docker ps` → 4× Up).
 - [ ] **AP-kanaal 6/11 bevestigd** + korte kanaalscan van de omgeving.
+- [ ] `df -h /` → ruim vrije ruimte op de SD (log-rotatie actief; zie `hardware-info.md` "Opslag").
+- [ ] Weet: zonder internet loopt de **Pi-klok** op de laatst bekende tijd (geen RTC) — timestamps in
+      logs/historiek kunnen afwijken; het spel zelf rekent relatief en heeft er geen last van.
 - [ ] Dashboard bereikbaar; **Spelstatus = GO**; geen ST-005 batterijwaarschuwingen.
 - [ ] Audio-test: één afroep hoorbaar over het veld (H2/T7); volume goed.
 - [ ] LED-test op 2–3 palen (H2/T2) — kleuren zichtbaar in daglicht.

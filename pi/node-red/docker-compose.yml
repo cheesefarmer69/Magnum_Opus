@@ -20,6 +20,13 @@ services:
     image: nodered/node-red:4.1.7        # gepind (zie docs/versions.md); was 'latest'
     container_name: magnum-Opus
     restart: unless-stopped
+    logging:
+      # SD-bescherming: zonder cap groeit de json-file-log onbeperkt (volle SD = read-only fs).
+      # Zelfde caps staan host-breed in /etc/docker/daemon.json (zie docs/hardware/hardware-info.md).
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "1880:1880"
     environment:
@@ -40,7 +47,25 @@ services:
       # http://<pi>:1880/sim/ — zo werkt de simulator op elk toestel zonder losse bestanden.
       - ../simulator:/sim-static:ro
 
-# AANDACHTSPUNT (buiten scope van deze wijziging): Mosquitto (`MQTT-broker`) bewaart zijn
-# retained messages (waaronder nu ook `spel/state`) in `/mosquitto/data/`. Wil je die net zo
-# hard vastleggen, voeg dan een tweede service toe met een bind-mount naar persistente opslag
-# en config/mqtt/mosquitto.conf gemount op /mosquitto/config/.
+  mosquitto:
+    # Was een handmatige, ongecodificeerde container ("MQTT-broker", tag latest) — hier vastgelegd:
+    # gepinde tag (geen stille major-upgrade), restart-policy (bus komt terug na stroomdip/reboot),
+    # config uit de repo, en /mosquitto/data persistent zodat retained messages (spel/state,
+    # config/spelers, spel/type, tiers, ...) een recreate overleven. MIGRATIE vanaf de oude
+    # container: zie docs/handleidingen/hub-noodherstel.md (docker cp van /mosquitto/data
+    # VOORDAT je de oude container verwijdert; container_name blijft "MQTT-broker" zodat
+    # bestaande runbook-commando's blijven werken).
+    image: eclipse-mosquitto:2.0.21
+    container_name: MQTT-broker
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "1883:1883"    # MQTT TCP (Node-RED, bridge, audio, testharnas)
+      - "9001:9001"    # MQTT over WebSocket (simulator/dashboard in de browser)
+    volumes:
+      - ../../config/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${MOSQUITTO_DATA:-/home/pi/mosquitto-data}:/mosquitto/data

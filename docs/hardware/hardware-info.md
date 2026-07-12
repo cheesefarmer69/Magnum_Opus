@@ -73,18 +73,45 @@ dus ~350–500 MB speling. Node-RED is de swingfactor.
 **Begrensd (caps in `flows.json`):**
 - `spelHistorie` → **laatste 30 partijen** (oudere gedropt; de **globale stats** blijven apart bewaard).
   Zonder cap groeide die onbegrensd — én ze zit in de 30 s-`spel/state`-dump (retained MQTT + SD elke 30 s).
+- `spelHistorie[].events` / `pofHuidigSpel.events` → **rolling 250 events per partij** (`Kies event`;
+  `nr` telt door via `eventTeller`, de snapshot-functie saneert oude vette entries). Zonder deze cap
+  produceerde een dagenlange testpartij ~1 MB/s MQTT en 100 % CPU (97 GB in 3 dagen).
 - `pofSnapshots` (tijd-terug) → **diepte 10** en **zonder** de groeiende event-log (`pofHuidigSpel`); dat
   snijdt de per-partij-piek van ~1 MB naar ~0,15–0,3 MB. (Tijd-terug herstelt stats/posities/effecten/π
   sowieso; de event-log is cosmetisch.)
 - `globaleStats[n].skills` → **laatste 50** per speler.
+- `status_lastSeenMac` → **TTL-prune**: onbekende MACs (niet in de spelerslijst) die > 5 min stil zijn
+  worden 1×/min verwijderd (`Registreer detectie`). Nodig omdat omstander-telefoons hun BLE-MAC elk
+  kwartier roteren — zonder TTL duizenden keys per dag. `beaconBuf` pruned zichzelf ook (30 s-interval,
+  MACs > 60 s stil), los van de 2 s-UI-inject.
+
+**Opslag / SD-bescherming (containers):**
+- **Docker-log-rotatie is verplicht.** Zonder cap groeit de json-file-log per container onbeperkt op de
+  SD (bridge logt het meest; een master in een reboot-loop kan MB/min spuwen) → volle SD = read-only
+  filesystem = totale uitval. Host-breed afgedwongen via `/etc/docker/daemon.json`:
+  ```json
+  { "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "3" } }
+  ```
+  (+ `sudo systemctl restart docker`; geldt per container pas na een recreate). De compose en
+  deploy-scripts zetten dezelfde caps per container als tweede slot.
+- De bridge print per-bericht-regels (`[DATA]`/`[DEBUG]`) alleen nog met **`VERBOSE=1`** (env in
+  `deploy.sh`); de 10 s-`[STATUS]`-teller en `[ROUTE]`/fouten blijven altijd zichtbaar.
+- `deploy.sh`/`deploy-audio.sh` draaien na elke rebuild **`docker image prune -f`** (dangling images
+  stapelden anders op). Mosquitto is **gecodificeerd** in `pi/node-red/docker-compose.yml` (gepinde
+  tag, restart-policy, config-mount, persistent `/mosquitto/data`) — zie `hub-noodherstel.md` voor de
+  eenmalige migratie. journald op de host: cap via `SystemMaxUse=100M`
+  (`/etc/systemd/journald.conf.d/cap.conf`).
 
 **Operationele tips:**
 - **Houd het aantal open dashboard-/simulator-tabs beperkt.** Elke tab is een WebSocket-client die alle
   retained + de 1 s-`pof/status`-berichten meekrijgt; veel tabs = meer geheugen én CPU. Sluit ongebruikte.
-- Monitor op de speeldag: `free -h` en `docker stats --no-stream` (let op de node-red-container); OOM-kills
-  zie je met `dmesg | grep -i oom`.
+- Monitor op de speeldag: `free -h`, `docker stats --no-stream` (let op de node-red-container) en
+  `df -h /` (SD-vulling); OOM-kills zie je met `dmesg | grep -i oom`.
 - `contextStorage` (localfilesystem) flusht **alle** globals elke 15 s naar de SD — de caps hierboven houden
   ook die writes klein.
+- **Klok zonder RTC:** op het veld (geen internet/NTP) start de Pi met de laatst bekende tijd
+  (fake-hwclock) — timestamps in logs/historie kunnen dan afwijken. Geen spellogica-impact (alles
+  rekent relatief), enkel cosmetisch.
 
 ## Aandachtspunten / PCB rev-B
 

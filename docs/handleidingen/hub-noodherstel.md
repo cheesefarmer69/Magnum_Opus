@@ -28,6 +28,30 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
    USB's + audio + voeding hoeft over te prikken.
 4. **Label alles.** Markeer welke USB-poort welke master is (al is de bridge poort-onafhankelijk — zie
    `docs/handleidingen/serial-bridge.md`), en welke jack de audio is. Scheelt zoeken onder stress.
+5. **Docker-log-rotatie host-breed** (eenmalig; beschermt de SD tegen vollopen door container-logs):
+   ```bash
+   echo '{ "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "3" } }' | sudo tee /etc/docker/daemon.json
+   sudo systemctl restart docker    # korte herstart van alle containers
+   ```
+   Geldt per container pas na een **recreate** (compose up / redeploy). Cap ook journald:
+   ```bash
+   sudo mkdir -p /etc/systemd/journald.conf.d
+   printf '[Journal]\nSystemMaxUse=100M\n' | sudo tee /etc/systemd/journald.conf.d/cap.conf
+   sudo systemctl restart systemd-journald
+   ```
+6. **Mosquitto draait gecodificeerd in `pi/node-red/docker-compose.yml`** (gepinde tag, restart-policy,
+   config-mount, persistent `/mosquitto/data`). **Eenmalige migratie** vanaf de oude handmatige container
+   (retained spelstand behouden!):
+   ```bash
+   # 1. retained-DB veiligstellen VOORDAT de oude container weggaat
+   docker cp MQTT-broker:/mosquitto/data /home/pi/mosquitto-data
+   # 2. oude container stoppen en verwijderen (de naam komt vrij voor de compose-service)
+   docker stop MQTT-broker && docker rm MQTT-broker
+   # 3. broker (en node-red) via compose starten
+   cd ~/Magnum_Opus/pi/node-red && docker compose up -d
+   # 4. controleren dat de retained spelstand er nog is
+   docker exec MQTT-broker sh -c "mosquitto_sub -t 'spel/state' -C 1 | wc -c"   # > 0 bytes
+   ```
 
 ---
 

@@ -51,8 +51,10 @@ de spellogica orkestreert en commando's terugstuurt (LEDs, geluid, etc.).
 - **Serial-bridge**: Python 3.11-slim in Docker container (network: host)
 - **Audio-player**: Python 3.11-slim + alsa-utils in Docker (network: host, `--device=/dev/snd`).
   Subscribet `audio/afspelen` en speelt WAV-segmenten via `aplay` over de aux-jack. Zie `pi/audio-player/` en `docs/handleidingen/audio-player.md`.
-- **MQTT broker**: Eclipse Mosquitto in Docker
-- **Orchestratie**: Node-RED in Docker
+- **MQTT broker**: Eclipse Mosquitto in Docker — **gecodificeerd als service in
+  `pi/node-red/docker-compose.yml`** (gepinde tag, `restart: unless-stopped`, config-mount uit
+  `config/mqtt/mosquitto.conf`, persistent `/mosquitto/data` voor retained messages)
+- **Orchestratie**: Node-RED in Docker (zelfde compose)
 
 Voor exacte versies: zie `docs/versions.md`.
 
@@ -150,8 +152,8 @@ tussen Xtensa (WROOM) en RISC-V (C3) te voorkomen.
 - **Route-leren in de bridge gebeurt via de master-`announce`** (`{"announce":1,"master":N,"paal_min":..,"paal_max":..}`, elke ~3 s + bij boot, zie `docs/protocol.md §3`). Vroeger leerde de bridge `commando/masterN → poort` enkel uit een batch/heartbeat mét `paal`, dus zonder rapporterende slave bleef de route ongeleerd en werden commando's genegeerd (`Nog geen poort geleerd`). De master kondigt zich nu proactief aan; de bridge (her)koppelt de poort en publiceert de announce niet naar MQTT. Een master moet wél met de **juiste env** geflasht zijn (`MASTER_NR`), anders kondigt hij de verkeerde master aan (zichtbaar in de `[ROUTE]`-log).
 - BLE-scan op C3 moet wijken voor ESP-NOW listening — de C3 heeft maar 1 antenne. De **werkende, veld-geteste** init-volgorde in de slave is: NimBLEDevice.init → WiFi.mode(WIFI_STA) → esp_now_init → kanaal vastzetten → callbacks → peer (zie `firmware/Slave/src/main.cpp` setup()). Deze volgorde NIET herschikken zonder hardwaretest — RF-init-volgorde is gevoelig op de single-antenne C3.
 - `esp_now_peer_info_t` mag **lokaal** in setup gedeclareerd worden, mits volledig ge-`memset` en alleen gebruikt vóór `esp_now_add_peer()` terugkeert (die kopieert de struct). De oude valkuil betrof een struct die búíten zijn scope nog gebruikt werd — niet de lokale declaratie zelf.
-- Container `serial-bridge` draait in `--network host` mode. Andere containers (Node-RED) in default bridge mode.
-- Docker image tags zijn nog `latest` voor Mosquitto en Node-RED. Aandachtspunt: pin naar specifieke versies wanneer projecten stabiel zijn.
+- Container `serial-bridge` draait in `--network host` mode. Andere containers (Node-RED, Mosquitto) in default bridge mode met published ports.
+- **SD-bescherming (speldag-hardening, juli 2026):** Docker-log-rotatie host-breed via `/etc/docker/daemon.json` (`max-size 10m`/`max-file 3`; geldt per container na recreate) + dezelfde caps in compose en deploy-scripts; `deploy.sh`/`deploy-audio.sh` doen `docker image prune -f`; de bridge print per-bericht-`[DATA]`/`[DEBUG]`-regels enkel met `VERBOSE=1` (env). `status_lastSeenMac` krijgt een TTL-prune (onbekende MACs > 5 min weg — omstander-telefoons roteren hun BLE-MAC) en `beaconBuf` pruned zichzelf tijd-gebaseerd. Zie `docs/hardware/hardware-info.md` ("Opslag") + invariant S6.
 - Mosquitto WebSocket-listener op poort 9001 vereist `log_dest stdout` in `config/mqtt/mosquitto.conf`. Bij `log_dest file ...` crasht de container omdat `/mosquitto/log/` niet bestaat in het Docker-image.
 - **BLE-scan-duur is runtime instelbaar** (`MSG_SCAN_CONFIG`/actie 20, dashboard "Scan-duur (BLE)"): de slave scant **niet-blokkerend**, begrensd met `millis()` (`scanDuurMs`, default 1000, clamp 300–2000) — NimBLE 1.4.2 kan enkel in hele seconden blokkeren. Kortere scan = versere detectie = minder scoring-latentie. Volatile → Node-RED herstelt na reboot via de heartbeat. Zie `docs/locatiebepaling.md` + `docs/protocol.md`.
 - **Settle-grace** (`global.pofSettleGrace`, default 3 s) in de PoF-engine: de verplaatsingscontrole draait op **T+grace** i.p.v. T (nieuwe fase `grace` in "Engine tick") zodat trage paalwissels nog in het juiste event landen. Instelbaar via Systeeminstellingen (`sim/systeem-config`). Zie `docs/spel/event-systeem.md §4` + invariant V9.

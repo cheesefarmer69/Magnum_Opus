@@ -63,12 +63,14 @@ in beide `platformio.ini`); master vult hieruit `slaveAdressen[]`, slave leest z
 
 ## Container images
 
-Tags zijn nog op `latest` — bij significant breekrisico of vóór een release overstappen op gepinde versies. De image-ID's hieronder dienen als referentiepunt voor wat er feitelijk draaide op de bijhouddatum.
+Mosquitto en Node-RED zijn **gepind** in `pi/node-red/docker-compose.yml` (juli 2026); de lokaal
+gebouwde images (bridge/audio) hebben geen versietag nodig. De image-ID's hieronder dienen als
+referentiepunt voor wat er feitelijk draaide op de bijhouddatum.
 
 | Service | Image | Tag | Image ID |
 |---------|-------|-----|----------|
-| MQTT broker | `eclipse-mosquitto` | latest | `a91f36de744c` |
-| Node-RED | `nodered/node-red` | latest | `ab580c156804` |
+| MQTT broker | `eclipse-mosquitto` | **2.0.21** (gepind, compose) | was `latest` = `a91f36de744c` |
+| Node-RED | `nodered/node-red` | **4.1.7** (gepind, compose) | was `latest` = `ab580c156804` |
 | Serial bridge | `serial-bridge` (lokaal gebouwd) | latest | `e107134fd251` |
 
 ### Node-RED runtime details

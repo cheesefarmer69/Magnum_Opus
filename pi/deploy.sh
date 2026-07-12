@@ -36,12 +36,17 @@ docker run -d \
   --name serial-bridge \
   --restart unless-stopped \
   --network host \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
   --device-cgroup-rule='c 188:* rmw' \
   -v /dev:/dev \
   -e MQTT_BROKER=127.0.0.1 \
   -e MQTT_PORT=1883 \
   -e MQTT_DATA_TOPIC=plaatjes/data \
   serial-bridge
+
+echo "[deploy] Dangling images opruimen (SD-bescherming)..."
+docker image prune -f >/dev/null
 
 echo "[deploy] Klaar. Container status:"
 docker ps --filter name=serial-bridge --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
