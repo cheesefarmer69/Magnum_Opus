@@ -48,3 +48,50 @@ groep-dimensie meedoet). Bij een wijziging hier ook die inject bijwerken en `dep
 | Estée | blauw | eerste | november | herfst |
 | Lola | blauw | eerste | januari | winter |
 | Zoë | blauw | eerste | januari | winter |
+
+## Beacon-toewijzing (MAC → speler)
+
+De actuele koppeling van elk baken (BLE-MAC) aan een speler — de bron voor de Node-RED-seed
+`[CONFIG] Spelerslijst` (`global.spelersLijst`). De MAC's staan in **kleine letters**, want zo levert de
+hardware ze aan; hoofdletters zouden de detectie breken. De namen zijn identiek aan de kolom **Voornaam**
+hierboven, zodat elke speler ook zijn groep-eigenschappen krijgt. Wijzigen: pas de `[CONFIG] Spelerslijst`-
+inject aan én draai `deploy-flows`, **of** koppel live via het dashboard (**Beacons & Locatie → Spelers /
+bakens beheren**; retained op `config/spelers`, wint dan van deze seed).
+
+| Speler | Beacon-MAC |
+|--------|------------|
+| Aagje | `48:87:2d:9d:ba:a1` |
+| Alix Blond | `48:87:2d:9d:c2:31` |
+| Alix Bruin | `48:87:2d:9d:ba:a2` |
+| Amélie | `48:87:2d:9d:ba:66` |
+| Anna | `48:87:2d:9d:bb:79` |
+| Aster | `48:87:2d:9d:ba:d7` |
+| Blanche | `48:87:2d:9d:cc:ec` |
+| Casper | `48:87:2d:9d:ba:f2` |
+| Elias | `48:87:2d:9d:ba:d8` |
+| Elisa | `48:87:2d:9d:bb:9c` |
+| Emma | `48:87:2d:9d:cf:67` |
+| Estée | `48:87:2d:9d:bb:8b` |
+| Ina | `48:87:2d:9d:ba:ac` |
+| Jinte | `48:87:2d:9d:bb:d4` |
+| Lilou | `48:87:2d:9d:bb:7d` |
+| Lola | `48:87:2d:9d:ba:5f` |
+| Lore | `48:87:2d:9d:b9:f2` |
+| Lotta | `48:87:2d:9d:bb:97` |
+| Louisa | `48:87:2d:9d:ba:cc` |
+| Margaux | `48:87:2d:9d:ba:99` |
+| Marie DM | `48:87:2d:9d:bb:a6` |
+| Marie Smet | `48:87:2d:9d:bb:6f` |
+| Maud | `48:87:2d:9d:bb:0b` |
+| Mauro | `48:87:2d:9d:bb:a4` |
+| Maybel | `48:87:2d:9d:ba:a6` |
+| Mien | `48:87:2d:9d:ba:a5` |
+| Mila | `48:87:2d:9d:c2:5e` |
+| Stelle | `48:87:2d:9d:cf:6b` |
+| Suzan | `48:87:2d:9d:ba:51` |
+| Tobin | `48:87:2d:9d:bb:96` |
+| Zoë | `48:87:2d:9d:ba:5c` |
+
+> **Reserve-baken:** `48:87:2d:9d:ba:b8` ligt apart en staat **niet** in de seed. Nodig op de dag? Koppel
+> het via het dashboard aan de te vervangen speler — dan gelden diens eigenschappen automatisch. (Lore
+> draagt het baken dat vroeger “reserve 2” heette, `48:87:2d:9d:b9:f2`.)
