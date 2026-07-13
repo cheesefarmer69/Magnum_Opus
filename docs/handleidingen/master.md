@@ -79,10 +79,16 @@ Het veld heeft **3 masters**: master 1 → palen **1–8**, master 2 → **9–1
 Eén codebase, drie PlatformIO-environments in `platformio.ini`:
 
 ```ini
-[env:master1]  build_flags = -DPAAL_MIN=1  -DPAAL_MAX=7  -DMASTER_NR=1
-[env:master2]  build_flags = -DPAAL_MIN=8  -DPAAL_MAX=16 -DMASTER_NR=2
-[env:master3]  build_flags = -DPAAL_MIN=17 -DPAAL_MAX=24 -DMASTER_NR=3
+[env:master1]  build_flags = -DPAAL_MIN=1  -DPAAL_MAX=8  -DMASTER_NR=1 -I ../shared
+[env:master2]  build_flags = -DPAAL_MIN=9  -DPAAL_MAX=16 -DMASTER_NR=2 -I ../shared
+[env:master3]  build_flags = -DPAAL_MIN=17 -DPAAL_MAX=24 -DMASTER_NR=3 -I ../shared
 ```
+
+> ⚠️ **Paal 8 hoort bij master 1, niet bij master 2.** Dit document zei vroeger `PAAL_MAX=7` /
+> `PAAL_MIN=8`; dat was **fout** en liet paal 8 buiten elk masterbereik vallen. De waarden hierboven
+> komen letterlijk uit `firmware/Master/platformio.ini` en matchen de slave (`PAAL_ID <= 8 → master 1`).
+> Controleer bij twijfel de boot-banner van de master: er hoort **`[SETUP] Master 1, palen 1-8 (8 slaves)`**
+> te staan.
 
 In de code: `AANTAL_SLAVES = PAAL_MAX − PAAL_MIN + 1` en `paalNaarIndex(paal) = paal − PAAL_MIN` (de
 globale paal-ID → 0-based index; index 0 = `PAAL_MIN`). Het verzonden commando draagt de **globale**
@@ -93,27 +99,40 @@ globale paal-ID → 0-based index; index 0 = `PAAL_MIN`). Het verzonden commando
 
 ## Slaves registreren
 
-De slave-MAC's staan **per master** in `firmware/Master/include/slave_macs.h`, in `#if MASTER_NR`-blokken:
+De slave-MAC's staan in de **gedeelde** tabel `firmware/shared/paal_macs.h` (`MAC → PAAL_ID`, één bron
+van waarheid voor slave én master — het oude per-master `slave_macs.h` bestaat niet meer). De master
+vult daaruit bij boot zijn eigen peer-tabel:
 
 ```cpp
-#if MASTER_NR == 1            // palen 1..7
-uint8_t slaveAdressen[AANTAL_SLAVES][6] = {
-  {0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},  // paal 1
-  {0xAC, 0xA7, 0x04, 0xC0, 0xC6, 0x14},  // paal 2
-  {0x8C, 0xFD, 0x49, 0x54, 0xC4, 0x38},  // paal 3
-  {0x00, ...},                            // paal 4..7 (placeholders)
-};
-#elif MASTER_NR == 2 ...      // palen 8..16
+static void vulSlaveAdressen() {
+  for (int i = 0; i < PAAL_MACS_N; i++) {
+    int paal = PAAL_MACS[i].paal;
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX)          // alleen zijn eigen bereik
+      memcpy(slaveAdressen[paal - PAAL_MIN], PAAL_MACS[i].mac, 6);
+  }
+}
 ```
 
-- Rij-index = `paal − PAAL_MIN` (master2: paal 8 = index 0). Rijen met alleen `0x00` zijn placeholders
-  (overgeslagen bij peer-registratie én de ontvangst-gate).
-- Elke master kent **uitsluitend zijn eigen** slaves → de sender-MAC gate segmenteert automatisch.
+- Rij-index = `paal − PAAL_MIN` (master1: paal 1 = index 0). Staat een paal **niet** in `paal_macs.h`,
+  dan blijft zijn rij all-zero = **placeholder** → overgeslagen bij peer-registratie **én** bij de
+  ontvangst-gate.
+- Elke master kent **uitsluitend zijn eigen** slaves → de sender-MAC-gate segmenteert automatisch.
 
-**Nieuwe slave toevoegen/wijzigen:**
-1. Flash slave (zet `PAAL_ID`), lees MAC uit de Serial Monitor-banner `SLAVE MAC-ADRES : ...`
-2. Vul het MAC in op rij `paal − PAAL_MIN` in het juiste `MASTER_NR`-blok van `slave_macs.h`
-3. Herflash de juiste master-environment (`AANTAL_SLAVES` is afgeleid — niet meer handmatig ophogen)
+**Wat de master bij boot logt** (dit is je belangrijkste diagnose-bron):
+```
+[SETUP] Master 1, palen 1-8 (8 slaves)
+[PEER] Paal 1 toegevoegd: AC:A7:04:BD:3A:48
+[PEER] Paal 4 overgeslagen (geen MAC ingevuld)   <-- paal staat niet in paal_macs.h
+[PEER] Paal 5 toevoegen MISLUKT!                 <-- esp_now_add_peer faalde
+```
+
+**Nieuwe slave toevoegen/vervangen:**
+1. Flash de slave met de **universele binary** (één binary voor alle 24 borden — je zet niets per bord).
+2. Lees zijn MAC: `firmware/tools/lees-mac.ps1 -Port COMx -Paal N`, of uit de banner
+   `SLAVE MAC-ADRES : ...` in de Serial Monitor.
+3. Voeg/vervang de regel `{{0x.., ...}, N},` in **`firmware/shared/paal_macs.h`**.
+4. **Herflash de betrokken master** — hij bouwt `slaveAdressen[]` uit diezelfde header, dus zonder
+   herflash blijft hij de nieuwe slave in de gate droppen (`[GATE] Genegeerd`).
 
 ---
 

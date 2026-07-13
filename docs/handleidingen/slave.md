@@ -260,6 +260,50 @@ actie binnenkomt. `huidigeActie` onthoudt de actieve LED-staat.
 
 ## Veelvoorkomende problemen
 
+### Een paal maakt geen contact — beslisboom
+
+Begin **altijd** met deze twee splitsingen. Ze snijden de zoekruimte in één keer doormidden en
+voorkomen dat je uren in de verkeerde laag zoekt.
+
+**Splitsing 1 — wat zegt het dashboard?** (Spelstatus → tabel "Palen / Slaves")
+
+| Status | Betekenis | Waar zoeken |
+|---|---|---|
+| **`GEEN CONTACT`** | sinds de start van Node-RED is er **nooit één byte** van die paal gekomen | structureel: bord uit/stuk, niet geflasht, of de master dropt hem |
+| **`VEROUDERD (uit ring)`** | hij **wérkte** en is daarna weggevallen (> 60 s stil) | batterij, afstand/RF, kanaal-conflict (H6) |
+
+Ze zijn niet inwisselbaar: een lege batterij geeft `VEROUDERD`, nooit `GEEN CONTACT`.
+
+**Splitsing 2 — wat zegt de slave zelf?** (Serial Monitor @115200)
+
+| Wat je ziet | Conclusie |
+|---|---|
+| **Rode fout-blink (~4 Hz)** + `!! ONBEKEND BORD: MAC ...` | Het MAC van dít bord staat **niet** in `firmware/shared/paal_macs.h` → toevoegen/corrigeren, dan slave **én** master herflashen. Geen blink = het MAC klopt. |
+| `Eigen MAC herkend -> PAAL_ID N` + **`[ESP-NOW] Batch verzonden OK`** | ⚠️ **De slave is vrijgepleit — zoek verder bij de MASTER.** Zie hieronder. |
+| `Eigen MAC herkend -> PAAL_ID N` + **`[ESP-NOW] Verzending MISLUKT`** | De master hoort hem niet: kanaal-mismatch, master uit, peer ontbreekt, of te ver/te veel interferentie. |
+| Monitor blijft **leeg** (ook na BOOT/RESET-truc) | Bord is niet geflasht of stuk → zie *"Bord niet vindbaar voor upload"* onderaan. |
+
+> **`[ESP-NOW] Batch verzonden OK` betekent méér dan het lijkt.** Die regel komt uit de
+> **send-callback** met `ESP_NOW_SEND_SUCCESS` — dat is een **ACK van de master op MAC-niveau**. Het
+> pakket is dus **fysiek bij de master aangekomen**. Zie je dit én tóch `GEEN CONTACT` in het
+> dashboard, dan is de slave, zijn MAC, zijn firmware en de radio-link **allemaal in orde** en zit de
+> fout **bij de master** (of daarna: bridge → MQTT → Node-RED). Ga dan naar de master-log:
+>
+> ```
+> [SETUP] Master 1, palen 1-8 (8 slaves)          <-- staat er "1-7"? verkeerde build-flags
+> [PEER] Paal 4 toegevoegd: AC:A7:04:BD:CD:2C     <-- master kent hem
+> [PEER] Paal 4 overgeslagen (geen MAC ingevuld)  <-- master draait op een oude paal_macs.h
+> [GATE] Genegeerd: AC:A7:04:.. (niet in slaveAdressen[])   <-- ontvangen maar gedropt
+> [RECV] Paal 4, 2 spelers, batt 3870 mV          <-- correct ontvangen -> zoek downstream
+> ```
+> **Fix bij `overgeslagen` / `[GATE] Genegeerd`:** herflash de master met de juiste env
+> (`master1`/`master2`/`master3`) — hij bouwt `slaveAdressen[]` uit `paal_macs.h`.
+>
+> De master-poort is bezet door de bridge; lees mee via `VERBOSE=1` +
+> `docker logs -f serial-bridge`, of stop de bridge tijdelijk (`docker stop serial-bridge`).
+
+### Overige problemen
+
 **ESP-NOW Verzending MISLUKT**
 → Master staat op een ander WiFi-kanaal, of masterAddress klopt niet.
 Check: `[SETUP] WiFi kanaal:` in Serial Monitor van beide apparaten.

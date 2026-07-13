@@ -16,7 +16,16 @@
 //   3. Voeg hieronder één regel  {{0x.., ...}, <paal>}  toe.
 //   4. Herflash de master die dat paalbereik bedient.
 //
-// STATUS: alle 24 palen bekend en ingevuld (uitgelezen 2026-07-05).
+// STATUS: alle 24 palen ingevuld.
+//   - Palen 10-16 en 18-24 zijn MACHINAAL uitgelezen (esptool via tools/lees-mac.ps1);
+//     hun regels staan byte-identiek in tools/paal-macs-verzameld.txt.
+//   - Palen 1, 2, 3, 9, 17 stammen uit de eerste versie van deze tabel.
+//   - Palen 4, 5, 6, 7 en 8 zijn HANDMATIG ingevoerd: er bestaat geen uitlees-spoor
+//     in tools/paal-macs-verzameld.txt. Ze zijn in het veld correct gebleken (de borden
+//     herkennen zichzelf), maar verifieer ze met lees-mac.ps1 bij twijfel/vervanging.
+//
+// Symptoom bij een FOUT MAC hier: de slave vindt zichzelf niet -> PAAL_ID 0 ->
+// rode fout-blink (~4 Hz) en het bord doet volledig niet mee. Geen blink = MAC klopt.
 
 #include <stdint.h>
 
