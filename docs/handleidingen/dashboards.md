@@ -41,11 +41,12 @@ per speler en per paal wanneer ze laatst gezien zijn; de foutcodetabel vat probl
 | Masters verbonden | `ui-template` Master-status | Bovenaan: per master (M1 = palen 1-8, M2 = 9-16, M3 = 17-24) een naam + **groen/rood bolletje**. Groen = minstens één paal in dat bereik stuurde < 60 s geleden data én geen master-conflict; rood = geen recente data of ST-006. Afgeleid uit de paal-heartbeats (geen aparte master-heartbeat). Zie invariant NR10. |
 | MQTT | `ui-template` MQTT indicator | Groen/rood: staat de MQTT-broker-verbinding aan. |
 | Spelstatus | `ui-template` Status | Kleur-gecodeerde GO/NO-GO-status (groen = GO, rood = NO-GO). |
-| Spelers | `ui-table` Tabel Spelers | Alle spelers + detectiestatus + laatst gezien. |
+| Spelers | `ui-table` Tabel Spelers | **Alle** spelers uit `global.spelersLijst` (roster-gestuurd, geen limiet) + detectiestatus + laatst gezien. Nog niet gezien → **NIET GEZIEN** (ST-001) tot het baken binnenkomt; zo zie je in één oogopslag of elke speler zijn beacon draagt. |
 | Bediening status | `ui-switch` Toon batterij · `ui-switch` Override NO-GO | Batterijkolom tonen; geforceerd starten ondanks NO-GO. |
 | Palen / Slaves | `ui-table` Tabel Palen | Alle palen/slaves: status, laatst gezien, batterijspanning. |
 | Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-006) met ernst + uitleg. **ST-005** = batterij bijna leeg (< 3,5 V, WAARSCHUWING, niet-blokkerend → "vervang batterij"; drempel `BATT_VERVANG_V`). **ST-006** = master-conflict (FOUT, blokkerend): twee poorten melden hetzelfde `MASTER_NR` — twee borden met dezelfde env geflasht; herflash het verkeerde bord (invariant C8). |
-| Paaltest (LED + zoemer) | `ui-slider` Kies paal (1-24) · `ui-button` LED-test · `ui-button` Zoemer-test · `ui-button` Uit · `ui-text` Laatste paaltest | Snel elke paal fysiek testen tijdens de opbouw. Kies de paal, klik **LED-test** (regenboog, actie 19) of **Zoemer-test** (piep, actie 3); **Uit** dooft die paal (actie 0). Alles via Route commando naar de juiste master. Vervangt de oude `[TEST]`-injects op de Configuratie-tab. |
+
+> De groep **Paaltest (LED + zoemer)** is verhuisd naar de pagina **[Buzzer/LED test](#8-buzzerled-test-buzzer-tuning)**.
 
 ---
 
@@ -164,9 +165,11 @@ Geselecteerde partijen verwijderen vraagt eerst een bevestiging.
 
 ---
 
-## 8. Buzzer-tuning (`/buzzer-tuning`)
+## 8. Buzzer/LED test (`/buzzer-tuning`)
 
-**Functie:** per bordje de **luidste buzzer-toon** vinden. Een passieve piezo klinkt het
+**Functie:** per bordje de **luidste buzzer-toon** vinden én elke paal fysiek **LED/zoemer testen**
+tijdens de opbouw. (Deze pagina heette voorheen "Buzzer-tuning"; de paal-test-groep is hierheen
+verhuisd vanaf Spelstatus. De URL `/buzzer-tuning` blijft ongewijzigd.) Een passieve piezo klinkt het
 luidst rond zijn eigen resonantiefrequentie en die verschilt licht per buzzer
 (productiespreiding). Met een **frequentie-sweep** hoor je welke frequentie het hardst
 klinkt; die waarde zet je daarna in `BUZZER_FREQ_TABEL` in de slave-firmware.
@@ -181,6 +184,7 @@ de frequentie elke interval op van min → max (en weer terug naar min). **Stop*
 
 | Groep | Widgets | Wat het doet |
 |-------|---------|--------------|
+| Paaltest (LED + zoemer) | `ui-slider` Kies paal (1-24) · `ui-button` LED-test · `ui-button` Zoemer-test · `ui-button` Uit · `ui-text` Laatste paaltest | Snel elke paal fysiek testen tijdens de opbouw. Kies de paal, klik **LED-test** (regenboog, actie 19) of **Zoemer-test** (piep, actie 3); **Uit** dooft die paal (actie 0). Alles via Route commando naar de juiste master. (Verhuisd vanaf Spelstatus.) |
 | Buzzer-tuning (paal 1) | `ui-slider` Min/Max frequentie (Hz) | Onder- en bovengrens van de sweep (1000–5000 Hz). |
 | | `ui-slider` Stapgrootte (Hz) | Hoeveel Hz per stap omhoog. |
 | | `ui-slider` Stappen per seconde | Hoe snel de sweep door de range loopt. |
