@@ -17,12 +17,18 @@
 //   4. Herflash de master die dat paalbereik bedient.
 //
 // STATUS: alle 24 palen ingevuld.
-//   - Palen 10-16 en 18-24 zijn MACHINAAL uitgelezen (esptool via tools/lees-mac.ps1);
+//   - Palen 4, 5, 8 en 23 kregen in juli 2026 een NIEUW bordje (de oude waren defect:
+//     brownout op batterij / geen BLE-detectie). Hun MAC's hieronder zijn die van de
+//     vervangborden — de oude MAC's zijn vervallen en komen nergens meer voor.
+//   - Palen 10-16, 18-22 en 24 zijn MACHINAAL uitgelezen (esptool via tools/lees-mac.ps1);
 //     hun regels staan byte-identiek in tools/paal-macs-verzameld.txt.
-//   - Palen 1, 2, 3, 9, 17 stammen uit de eerste versie van deze tabel.
-//   - Palen 4, 5, 6, 7 en 8 zijn HANDMATIG ingevoerd: er bestaat geen uitlees-spoor
-//     in tools/paal-macs-verzameld.txt. Ze zijn in het veld correct gebleken (de borden
-//     herkennen zichzelf), maar verifieer ze met lees-mac.ps1 bij twijfel/vervanging.
+//   - Palen 1, 2, 3, 9, 17 stammen uit de eerste versie van deze tabel; 6 en 7 zijn
+//     handmatig ingevoerd maar in het veld correct gebleken.
+//
+// LET OP bij het wisselen van een bord: naast deze regel moet je ook de SLAVE (nieuwe
+// binary) en de MASTER van dat paalbereik herflashen — de master bouwt zijn peer-tabel
+// (slaveAdressen[]) uit deze header. Zonder master-herflash dropt hij de nieuwe slave
+// in de ontvangst-gate ([GATE] Genegeerd).
 //
 // Symptoom bij een FOUT MAC hier: de slave vindt zichzelf niet -> PAAL_ID 0 ->
 // rode fout-blink (~4 Hz) en het bord doet volledig niet mee. Geen blink = MAC klopt.
@@ -35,11 +41,11 @@ static const PaalMac PAAL_MACS[] = {
   {{0xAC, 0xA7, 0x04, 0xBD, 0x3A, 0x48},  1},
   {{0xAC, 0xA7, 0x04, 0xC0, 0xC6, 0x14},  2},
   {{0x8C, 0xFD, 0x49, 0x54, 0xC4, 0x38},  3},
-  {{0xAC, 0xA7, 0x04, 0xBD, 0xCD, 0x2C},  4},
-  {{0x8C, 0xFD, 0x49, 0x54, 0xB1, 0xA8},  5},
+  {{0x8C, 0xFD, 0x49, 0x54, 0xBC, 0x10},  4},
+  {{0xAC, 0xA7, 0x04, 0xD3, 0x01, 0x30},  5},
   {{0xAC, 0xA7, 0x04, 0xD5, 0x2A, 0xA0},  6},
   {{0xAC, 0xA7, 0x04, 0xBF, 0xB5, 0xA8},  7},
-  {{0xAC, 0xA7, 0x04, 0xD5, 0x05, 0xA0},  8},
+  {{0xAC, 0xA7, 0x04, 0xBF, 0x4D, 0x0C},  8},
   {{0xAC, 0xA7, 0x04, 0xC0, 0x7F, 0xC8},  9},
   {{0xAC, 0xA7, 0x04, 0xBC, 0xB5, 0x54}, 10},
   {{0xAC, 0xA7, 0x04, 0xC0, 0x79, 0xDC}, 11},
@@ -54,7 +60,7 @@ static const PaalMac PAAL_MACS[] = {
   {{0x8C, 0xFD, 0x49, 0x55, 0x14, 0xE8}, 20},
   {{0xAC, 0xA7, 0x04, 0xB8, 0x96, 0xC8}, 21},
   {{0xAC, 0xA7, 0x04, 0xB9, 0xD6, 0x90}, 22},
-  {{0xAC, 0xA7, 0x04, 0xB9, 0xD6, 0x34}, 23},
+  {{0xAC, 0xA7, 0x04, 0xBE, 0x60, 0x28}, 23},
   {{0xAC, 0xA7, 0x04, 0xBA, 0x60, 0x18}, 24},
 };
 static const int PAAL_MACS_N = (int)(sizeof(PAAL_MACS) / sizeof(PAAL_MACS[0]));

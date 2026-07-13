@@ -291,7 +291,7 @@ Ze zijn niet inwisselbaar: een lege batterij geeft `VEROUDERD`, nooit `GEEN CONT
 >
 > ```
 > [SETUP] Master 1, palen 1-8 (8 slaves)          <-- staat er "1-7"? verkeerde build-flags
-> [PEER] Paal 4 toegevoegd: AC:A7:04:BD:CD:2C     <-- master kent hem
+> [PEER] Paal 4 toegevoegd: 8C:FD:49:54:BC:10     <-- master kent hem
 > [PEER] Paal 4 overgeslagen (geen MAC ingevuld)  <-- master draait op een oude paal_macs.h
 > [GATE] Genegeerd: AC:A7:04:.. (niet in slaveAdressen[])   <-- ontvangen maar gedropt
 > [RECV] Paal 4, 2 spelers, batt 3870 mV          <-- correct ontvangen -> zoek downstream

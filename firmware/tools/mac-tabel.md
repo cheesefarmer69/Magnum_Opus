@@ -18,11 +18,11 @@ monitor. Dit MAC gaat 1-op-1 in [`firmware/shared/paal_macs.h`](../shared/paal_m
 | 1  | 1 | `AC:A7:04:BD:3A:48` | ✅ |
 | 2  | 1 | `AC:A7:04:C0:C6:14` | ✅ |
 | 3  | 1 | `8C:FD:49:54:C4:38` | ✅ |
-| 4  | 1 | `AC:A7:04:BD:CD:2C` | ✅ |
-| 5  | 1 | `8C:FD:49:54:B1:A8` | ✅ |
+| 4  | 1 | `8C:FD:49:54:BC:10` | ✅ |
+| 5  | 1 | `AC:A7:04:D3:01:30` | ✅ |
 | 6  | 1 | `AC:A7:04:D5:2A:A0` | ✅ |
 | 7  | 1 | `AC:A7:04:BF:B5:A8` | ✅ |
-| 8  | 1 | `AC:A7:04:D5:05:A0` | ✅ |
+| 8  | 1 | `AC:A7:04:BF:4D:0C` | ✅ |
 | 9  | 2 | `AC:A7:04:C0:7F:C8` | ✅ |
 | 10 | 2 | `AC:A7:04:BC:B5:54` | ✅ |
 | 11 | 2 | `AC:A7:04:C0:79:DC` | ✅ |
@@ -37,7 +37,7 @@ monitor. Dit MAC gaat 1-op-1 in [`firmware/shared/paal_macs.h`](../shared/paal_m
 | 20 | 3 | `8C:FD:49:55:14:E8` | ✅ |
 | 21 | 3 | `AC:A7:04:B8:96:C8` | ✅ |
 | 22 | 3 | `AC:A7:04:B9:D6:90` | ✅ |
-| 23 | 3 | `AC:A7:04:B9:D6:34` | ✅ |
+| 23 | 3 | `AC:A7:04:BE:60:28` | ✅ |
 | 24 | 3 | `AC:A7:04:BA:60:18` | ✅ |
 
 Master-indeling: master1 = palen 1–8, master2 = 9–16, master3 = 17–24.
