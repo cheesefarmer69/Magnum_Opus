@@ -118,6 +118,124 @@ module.exports = {
             global.set("tweelingen", paren.filter(p => !verbroken.has(p.inst)));
             global.set("wereldEffecten", (global.get("wereldEffecten") || []).filter(e => !(e.effect === "tweeling" && verbroken.has(e.instId))));
             return meeGestorven;
+        },
+
+        // Gedeelde SPELER-RESET (single source of truth, invariant S10). Haalt ÉÉN speler uit ALLE
+        // lopende toestanden en uit elk doelwit waarvoor hij gekozen was, zodat hij "schoon" verder
+        // speelt. Bedoeld voor het Admin-paneel wanneer een speler door een beacon-/detectiefout in
+        // een toestand is beland die niet klopt.
+        //
+        // WAT WEL:  ziekte, tijdbom, speler-effecten, dienaar/meester, identiteitscrisis-alias,
+        //           tweelingband (verbroken ZONDER dood), etenstijd (wolf/schaap), infected,
+        //           max-per-uur-vlag, middernacht-dedup, pad-opnames, en zijn lidmaatschap van
+        //           het huidige doelwit / de laatste controle.
+        // WAT NIET: zijn SCORE (totaalUren, sterftes, valsspeelpunten, godPunten, doel-voortgang) --
+        //           daarvoor is "Handmatig bijstellen" (S9). Ook zijn LOCATIE (fysieke waarheid) en
+        //           zijn PAUZE-stand (aparte, bewuste operator-keuze) blijven staan.
+        //
+        // Roep SYNCHROON aan:  global.get("resetSpeler")(global, "Aagje")
+        // Geeft een lijst terug van wat er effectief gewist is (voor de dashboard-melding).
+        resetSpeler: function (global, naam) {
+            if (!naam) return [];
+            const weg = [];
+            const zonder = (arr, n) => (arr || []).filter(x => x !== n);
+
+            // --- Speler-toestanden
+            const ziek = global.get("ziekeSpelers") || {};
+            if (ziek[naam] != null) { delete ziek[naam]; global.set("ziekeSpelers", ziek); weg.push("ziekte"); }
+
+            const bommen = global.get("tijdbomSpelers") || {};
+            if (bommen[naam] != null) { delete bommen[naam]; global.set("tijdbomSpelers", bommen); weg.push("tijdbom"); }
+
+            const se = global.get("spelerEffecten") || {};
+            if ((se[naam] || []).length) { delete se[naam]; global.set("spelerEffecten", se); weg.push("speler-effecten"); }
+
+            // --- Dienaar/meester (middernacht-oogst): beide richtingen
+            const dn = global.get("dienaars") || {};
+            let dnDirty = false;
+            if (dn[naam] != null) { delete dn[naam]; dnDirty = true; weg.push("dienaar-van"); }
+            for (const d in dn) { if (dn[d] === naam) { delete dn[d]; dnDirty = true; weg.push("meester-van-" + d); } }
+            if (dnDirty) global.set("dienaars", dn);
+
+            // --- Identiteitscrisis: als key én als waarde (anders luistert hij nog naar/voor iemand)
+            const ln = global.get("luisterNaam") || {};
+            let lnDirty = false;
+            if (ln[naam] != null) { delete ln[naam]; lnDirty = true; }
+            for (const k in ln) { if (ln[k] === naam) { delete ln[k]; lnDirty = true; } }
+            if (lnDirty) { global.set("luisterNaam", ln); weg.push("identiteitscrisis"); }
+
+            // --- Tweeling: band verbreken ZONDER dood (dus NIET tweelingDood gebruiken)
+            const paren = global.get("tweelingen") || [];
+            const raak = paren.filter(p => p.a === naam || p.b === naam);
+            if (raak.length) {
+                const inst = new Set(raak.map(p => p.inst));
+                global.set("tweelingen", paren.filter(p => !inst.has(p.inst)));
+                global.set("wereldEffecten", (global.get("wereldEffecten") || [])
+                    .filter(e => !(e.effect === "tweeling" && inst.has(e.instId))));
+                weg.push("tweelingband");
+            }
+
+            // --- Etenstijd: wolf -> hele jacht opheffen; schaap -> enkel hemzelf eruit
+            const et = global.get("etenstijd");
+            if (et) {
+                if (et.wolf === naam) {
+                    global.set("etenstijd", null);
+                    global.set("wereldEffecten", (global.get("wereldEffecten") || []).filter(e => e.effect !== "etenstijd"));
+                    weg.push("etenstijd (was de wolf -> jacht opgeheven)");
+                } else if ((et.schapen || []).indexOf(naam) >= 0 || (et.gevangen || []).indexOf(naam) >= 0) {
+                    et.schapen = zonder(et.schapen, naam);
+                    et.gevangen = zonder(et.gevangen, naam);
+                    et.over = et.schapen.length;
+                    global.set("etenstijd", et);
+                    weg.push("etenstijd (schaap)");
+                }
+            }
+
+            // --- Infected-minigame
+            const inf = global.get("infected");
+            if (inf && typeof inf === "object") {
+                let infDirty = false;
+                for (const k of ["besmet", "gezond", "genezen", "patient0"]) {
+                    if (Array.isArray(inf[k]) && inf[k].indexOf(naam) >= 0) { inf[k] = zonder(inf[k], naam); infDirty = true; }
+                    else if (inf[k] === naam) { inf[k] = null; infDirty = true; }
+                }
+                if (infDirty) { global.set("infected", inf); weg.push("infected"); }
+            }
+
+            // --- Losse vlaggen en pad-opnames
+            for (const key of ["geenWinstVolgende", "mnGestraft", "pofPad", "pofVrijPad"]) {
+                const m = global.get(key) || {};
+                if (m[naam] != null) { delete m[naam]; global.set(key, m); }
+            }
+            const genezen = global.get("pofGenezen") || [];
+            if (genezen.some(g => g && g.naam === naam)) {
+                global.set("pofGenezen", genezen.filter(g => !(g && g.naam === naam)));
+            }
+
+            // --- Doelwit-lidmaatschap: hij vervalt als doelwit van het LOPENDE event
+            const ver = global.get("pofVerificatie") || {};
+            if (Array.isArray(ver.doelwit) && ver.doelwit.indexOf(naam) >= 0) {
+                ver.doelwit = zonder(ver.doelwit, naam);
+                if (ver.startPosities) delete ver.startPosities[naam];
+                global.set("pofVerificatie", ver);
+                weg.push("doelwit (lopend event)");
+            }
+            const he = global.get("pofHuidigEvent");
+            if (he && Array.isArray(he.doelwit) && he.doelwit.indexOf(naam) >= 0) {
+                he.doelwit = zonder(he.doelwit, naam);
+                global.set("pofHuidigEvent", he);
+            }
+            const bereikt = global.get("pofDoelBereikt") || [];
+            if (bereikt.indexOf(naam) >= 0) global.set("pofDoelBereikt", zonder(bereikt, naam));
+
+            const ctrl = global.get("pofLaatsteControle") || [];
+            if (ctrl.some(r => r && (r.Speler === naam || r.speler === naam))) {
+                global.set("pofLaatsteControle", ctrl.filter(r => !(r && (r.Speler === naam || r.speler === naam))));
+            }
+
+            // LED's opnieuw laten opbouwen (medicijn/tijdbom-palen kunnen nu overbodig zijn).
+            global.set("paalLedForceRebuild", true);
+            return weg;
         }
     },
 

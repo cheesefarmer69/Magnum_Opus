@@ -1,206 +1,242 @@
-# Handleiding: Node-RED dashboards
+# Handleiding: de Node-RED dashboards
 
-De spellogica draait in **Node-RED**; de bediening en monitoring gebeuren via een set
-**Node-RED Dashboard 2.0**-pagina's. Dit document beschrijft per dashboard de **functie**
-(waarvoor je het gebruikt), de **werking** en de **opbouw** (groepen + widgets).
+De spellogica draait in **Node-RED**; je bedient en bewaakt het spel via een set
+**Node-RED Dashboard 2.0**-pagina's. Dit document beschrijft per pagina **waarvoor je hem gebruikt**,
+**wat elke knop doet als je hem aanraakt**, en **in welke volgorde je ze op een speeldag gebruikt**.
 
 ## Toegang
 
-Het Pi-adres hangt af van je situatie — **thuis `192.168.1.43`**, **veld-AP `192.168.50.1`**,
+Het Pi-adres hangt af van waar je zit — **thuis `192.168.1.43`**, **veld-AP `192.168.50.1`**,
 **veld-kabel `192.168.51.1`** (zie [`verbinden-met-de-hub.md`](verbinden-met-de-hub.md)):
 
-- **Dashboards (deze pagina's):** `http://<pi-adres>:1880/dashboard`
-- **Flow-editor** (de onderliggende flows zelf bewerken): `http://<pi-adres>:1880/`
-- **Browser-simulator** (losse test-tool, geen Node-RED-dashboard): `http://<pi-adres>:1880/sim/`
-  (door de Pi geserveerd; ook los te openen via `pi/simulator/index.html`), verbindt via
-  MQTT-over-WebSocket op poort 9001. Zie `pi/simulator/` en `docs/spel/`.
+| Wat | URL |
+|---|---|
+| **Dashboards** (deze pagina's) | `http://<pi-adres>:1880/dashboard` |
+| **Simulator** (losse test-tool) | `http://<pi-adres>:1880/sim/` |
+| **Flow-editor** (de logica zelf) | `http://<pi-adres>:1880/` |
 
-> Dashboard-base: **"My Dashboard"**, path `/dashboard`. De pagina's hieronder zijn de
-> `ui-page`-knopen in `pi/node-red/flows.json`; elke pagina bevat `ui-group`-groepen met
-> widgets (`ui-text`, `ui-table`, `ui-switch`, `ui-button`, `ui-slider`, `ui-template`).
-> Voor de logica achter de knoppen: zie de blok-README's in `pi/node-red/blokken/*/`.
+> ⚠️ **`http://`, niet `https://`.** De browser wil er graag `https` van maken; dat werkt niet.
 
-De **bron van waarheid** is `pi/node-red/flows.json`. Wijzig je daar dashboards, werk dan dit
-document bij en deploy met `pi/node-red/deploy-flows.ps1` (een `docker restart` herlaadt de
-repo-`flows.json` niet).
+> Wijzig je een dashboard in `pi/node-red/flows.json`, werk dan **dit document** bij en deploy met
+> `pi/node-red/deploy-flows.ps1` (Windows) of `deploy-flows.sh` (Pi). Een `docker restart` herlaadt de
+> repo-flows **niet**. Wijzig je `pi/node-red/settings.js` (bv. `resetSpeler`), dan is een
+> **container-herstart** nodig — `deploy-flows` volstaat dan niet.
+
+---
+
+## Werkstroom op een speeldag
+
+Zo hangen de pagina's samen. Volg deze volgorde:
+
+| # | Fase | Pagina | Wat je doet |
+|---|------|--------|-------------|
+| 1 | **Opbouw** | [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning) | Elke paal fysiek testen: brandt de LED, klinkt de zoemer? |
+| 2 | **Bakens uitdelen** | [Beacons & Locatie](#6-beacons--locatie-beacons) | Baken ↔ speler koppelen; LED-helderheid op daglicht zetten |
+| 3 | **GO/NO-GO** | [Spelstatus](#1-spelstatus-spelstatus) | Staan alle 31 spelers op **OK**? Alle palen groen? Geen foutcodes? |
+| 4 | **Testronde** | Simulator (🧪 Test) + [Bediening](#2-bediening-bediening) | Spelers een ronde laten oefenen — telt niet mee |
+| 5 | **Spelen** | [Bediening](#2-bediening-bediening) | Spel starten, events volgen, ingrijpen |
+| 6 | **Ingrijpen** | [Admin](#5-admin-admin) | Kapotte paal eruit, speler pauzeren, foute score corrigeren |
+| 7 | **Afsluiten** | [Leaderbord](#4-leaderbord-leaderbord) | Speltoestand-schakelaar uit → stand op de beamer |
 
 ---
 
 ## 1. Spelstatus (`/spelstatus`)
 
-**Functie:** GO/NO-GO-controle vóór de start — in één oogopslag zien of alle hardware en
-verbindingen werken voor je een spel begint.
+**Waarvoor:** de **GO/NO-GO-controle vóór de start**. In één blik zien of alle hardware meedoet.
+Dit is de pagina waar je naar kijkt terwijl de spelers hun baken omhangen.
 
-**Werking:** subscribet op de status-topics (spelers, palen/slaves, MQTT). De tabellen tonen
-per speler en per paal wanneer ze laatst gezien zijn; de foutcodetabel vat problemen samen.
+**Hoe je hem gebruikt:** laat hem openstaan tijdens de opbouw. Elke speler die zijn baken omhangt
+en langs een paal loopt, springt van **NIET GEZIEN** naar **OK**. Wie na tien minuten nog op NIET
+GEZIEN staat, draagt zijn baken niet (of het is stuk).
 
-**Opbouw:**
+| Groep | Wat je ziet / doet |
+|---|---|
+| **Masters verbonden** | Per master (M1 = palen 1–8, M2 = 9–16, M3 = 17–24) een **groen/rood bolletje**. Rood = geen enkele paal in dat bereik stuurde de laatste 60 s data → die master of zijn USB-kabel hangt. |
+| **MQTT** | Groen = Node-RED praat met de broker. Rood hier betekent dat *niets* meer werkt. |
+| **Spelstatus** | De samenvatting: **GO** (groen) of **NO-GO** (rood, met het aantal fouten). |
+| **Spelers** | **Alle** spelers uit de roster (`global.spelersLijst`), niet enkel de geziene. Per speler: **OK** (< 15 s geleden gezien), **VERLOREN** (> 15 s stil) of **NIET GEZIEN** (nog nooit gedetecteerd). |
+| **Bediening status** | **Toon batterij** = batterijkolom bij de palen. **Override NO-GO** = tóch kunnen starten ondanks fouten (bewuste ontsnappingsklep). |
+| **Palen / Slaves** | Per paal: status, laatst gezien, batterijspanning. |
+| **Foutcodes** | De actieve problemen met uitleg — zie de tabel hieronder. |
 
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Masters verbonden | `ui-template` Master-status | Bovenaan: per master (M1 = palen 1-8, M2 = 9-16, M3 = 17-24) een naam + **groen/rood bolletje**. Groen = minstens één paal in dat bereik stuurde < 60 s geleden data én geen master-conflict; rood = geen recente data of ST-006. Afgeleid uit de paal-heartbeats (geen aparte master-heartbeat). Zie invariant NR10. |
-| MQTT | `ui-template` MQTT indicator | Groen/rood: staat de MQTT-broker-verbinding aan. |
-| Spelstatus | `ui-template` Status | Kleur-gecodeerde GO/NO-GO-status (groen = GO, rood = NO-GO). |
-| Spelers | `ui-table` Tabel Spelers | **Alle** spelers uit `global.spelersLijst` (roster-gestuurd, geen limiet) + detectiestatus + laatst gezien. Nog niet gezien → **NIET GEZIEN** (ST-001) tot het baken binnenkomt; zo zie je in één oogopslag of elke speler zijn beacon draagt. |
-| Bediening status | `ui-switch` Toon batterij · `ui-switch` Override NO-GO | Batterijkolom tonen; geforceerd starten ondanks NO-GO. |
-| Palen / Slaves | `ui-table` Tabel Palen | Alle palen/slaves: status, laatst gezien, batterijspanning. |
-| Foutcodes | `ui-table` Tabel Foutcodes | Actieve foutcodes (ST-001…ST-006) met ernst + uitleg. **ST-005** = batterij bijna leeg (< 3,5 V, WAARSCHUWING, niet-blokkerend → "vervang batterij"; drempel `BATT_VERVANG_V`). **ST-006** = master-conflict (FOUT, blokkerend): twee poorten melden hetzelfde `MASTER_NR` — twee borden met dezelfde env geflasht; herflash het verkeerde bord (invariant C8). |
+**De foutcodes:**
 
-> De groep **Paaltest (LED + zoemer)** is verhuisd naar de pagina **[Buzzer/LED test](#8-buzzerled-test-buzzer-tuning)**.
+| Code | Ernst | Betekent |
+|---|---|---|
+| ST-001 | FOUT | Speler niet (meer) gedetecteerd |
+| ST-002 | WAARSCHUWING | Paal > 60 s stil — hij gaat tijdelijk **uit de ring** (events kiezen hem niet meer) en komt vanzelf terug |
+| ST-003 | FOUT | Geen enkel bericht op `plaatjes/data` — master of bridge ligt eruit |
+| ST-004 | INFO | Onbekend baken gezien (een omstander-telefoon) — onschuldig |
+| ST-005 | WAARSCHUWING | **Batterij bijna leeg** (< 3,5 V) → vervangen. Blokkeert niet; **hot-swap mag tijdens het spel** |
+| ST-006 | FOUT | **Master-conflict**: twee borden zijn met hetzelfde `MASTER_NR` geflasht → herflash het verkeerde |
 
 ---
 
 ## 2. Bediening (`/bediening`)
 
-**Functie:** de centrale **spelbesturing** tijdens een echt spel — starten, pauzeren, het
-Plates-of-Fate-verloop volgen en veilig stoppen.
+**Waarvoor:** de **centrale spelbesturing**. Hier start je, volg je het verloop, en grijp je in.
+Dit is de pagina die openstaat zolang het spel loopt.
 
-**Werking:** de switches sturen de engine-toestandsmachine (zie `blokken/06_plates_of_fate/`).
-In **Manueel**-modus stuur je events stap voor stap met *Volgende event* en *Controle*; anders
-loopt de engine automatisch. De tekstvelden en tabellen tonen de live-toestand.
+### Groep "Speltoestand" — de hoofdschakelaars
 
-**Opbouw:**
+| Bediening | Wat het doet |
+|---|---|
+| **Spel: uit / LOOPT** | Start en stopt het spel. **Stoppen telt de scores op bij het cumulatieve klassement** en schrijft de partij in de historiek. Er is geen aparte noodstop-knop meer — dit *is* hem. |
+| **Speltype** | *Plates of Fate* (het hoofdspel), *Klokslag* of *Infected* (minigames). |
+| **Simulatie-modus** | Uit = **monitor** (echte hardware). Aan = de browser-simulator vervangt de hardware. Sim en echt spel draaien **nooit** tegelijk. |
+| **Pauze / Hervat** | Bevriest de engine (bv. als er iemand valt). |
+| **Manueel** | Volledig handmatig: jij drukt op *Volgende event* **én** op *Controle*. Voor debuggen. |
+| **🕐 Met timer** | **Semi-automatisch.** Alles loopt vanzelf — 5 s-aanloop, event, doelwit, reactietijd, controle, afroep — maar het **volgende event start pas als jij op *Volgende event* drukt**. Zo bepaal jij het tempo zonder alles met de hand te doen. Staat dit samen met *Manueel* aan, dan **wint Met timer** (de reactietijd telt dus tóch af). |
+| **Aanloop tonen (manueel)** | Alleen in *Manueel*: laat *Volgende event* eerst de zichtbare 5 s-aanloop aftellen i.p.v. meteen te vuren. |
+| **Volgende event** | Start het volgende event. Werkt in *Manueel* én in *Met timer*. |
+| **Controle (manueel)** | Voert de controle van het lopende event uit. Alleen nodig in *Manueel*. |
 
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Speltoestand | `ui-text` Spel-teller (`Spel #`) · `ui-switch` Spel (uit/LOOPT) · `ui-switch` Modus monitor/sim (via feedback-node, consistent met de andere) · `ui-switch` Pauze/Hervat + `ui-text` Pauze-status · `ui-switch` Manueel · `ui-switch` Aanloop tonen (manueel) · `ui-button` Volgende event · `ui-button` Controle (manueel) · `ui-template` Speltoestand | Hoofdbesturing; de **monitor/sim-schakelaar** vervangt de aparte Simulatie-pagina (publiceert `sim/modus`). **Aanloop tonen (manueel)** (`global.manueleAanloop`, item 9): aan → *Volgende event* telt in manuele modus eerst de zichtbare **5 s-aanloop** af; uit (default) springt direct naar het event — handig snel testen. |
-| Doel (Plates of Fate) | `ui-dropdown` Doel · `ui-dropdown` Aantal uur (X) · `ui-dropdown` Aantal spelers · `ui-switch` Auto-einde · `ui-text` Doel-status (a/n geslaagd) | PoF-doelkeuze + voortgang. Een PoF-spel start pas met een gekozen doel + aantal. De groep wordt **verborgen** (`ui-control`) wanneer Klokslag het speltype is. |
-| Plates of Fate besturing | `ui-text` Timer (groot/gekleurd) · `ui-text` Huidig event · `ui-text` Doelwit · `ui-table` Controle laatste event · `ui-text` Events deze ronde · `ui-button` Tijd terug (laatste ronde ongedaan) | Live-verloop van de events en de laatste controle-uitslag. **Tijd terug** herstelt de vorige ronde-state uit de snapshot-stack (`pofSnapshots`, diepte 10) — handig na een verkeerde controle of beacon-fout. |
-| Spelbalans | `ui-slider` Doelwit-dichtheid (%) (10–50) · `ui-text` Dichtheid-status · `ui-slider` Reactietijd toestanden (s) (3–30) · `ui-text` Reactietijd-toestand-status | **Doelwit-dichtheid** (G3): hoeveel % van het veld een gemiddeld event betrekt (`global.doelwitDichtheid`, default 25 %). Schaalt de doelwit-aantallen met het aantal spelers; hoger = drukker. Bij kleine testgroepen zet je hem hoger. **Reactietijd toestanden** (item 10, `global.reactieToestand`, default **10 s**): overschrijft runtime de reactietijd van **toestand**-events (behalve die met `reactieVast`, zoals body-swap 15 s); componeert met de tempo-factor. Zie `docs/spel/events.md` (Opties). |
-| Live Radar | `ui-table` Tabel Locatie Spelers | Per speler: huidige paal, RSSI, levensdagen/-uren, sterftes. |
-| Actieve effecten (bord-staat) | `ui-table` Tabel Actieve effecten · `ui-table` Tabel Speler-toestanden | Blijvende uur-/speler-effecten + 🤒 ziek / 💣 tijdbom met resterende rondes. |
-| Huidig spel | `ui-table` Tabel Huidig spel | Levensdagen/-uren/sterftes van de **lopende** partij (per spel). |
-| Wereld-effecten | `ui-table` Tabel Wereld-effecten | Actieve wereld-effecten (bv. events sneller). |
+> **Welke modus kies je?** Voor een gewone partij: alles uit (volautomatisch). Wil je zelf het tempo
+> bepalen — bv. wachten tot iedereen weer stilstaat — zet dan **Met timer** aan. *Manueel* is voor
+> testen en debuggen.
 
-> **De cumulatieve globale stats staan nu op een eigen [Leaderboard-pagina](#3-leaderboard-leaderboard)**
-> (niet meer als groep op Bediening). **De Noodstop-groep is verwijderd** — een spel stop je met de
-> **Spel**-schakelaar in de Speltoestand-groep (die transfereert stats + schrijft historiek). De aparte
-> **Simulatie-pagina** is eveneens weg: monitor vs. simulatie kies je met de **Modus**-schakelaar op deze
-> Bediening-pagina (synct via retained `sim/modus`). Sim en echt spel draaien nooit tegelijk (SIM1–SIM4).
+### De rest van de pagina
+
+| Groep | Wat je ziet / doet |
+|---|---|
+| **Plates of Fate besturing** | De live-timer (groot), het huidige event, het doelwit, en de **controle-uitslag** van het laatste event per speler. **Tijd terug** draait de laatste ronde ongedaan (10 diep) — je redmiddel na een beacon-fout of een verkeerde controle. |
+| **Doel (Plates of Fate)** | Kies het **spel-doel** en hoeveel spelers het moeten halen. Een PoF-spel start pas met een doel. **Auto-einde** stopt het spel zodra het doel bereikt is. Deze groep verdwijnt bij Klokslag. |
+| **Live Radar** | Per speler: huidige paal, RSSI, levensuren, sterftes. Je belangrijkste "wat gebeurt er nu"-tabel. |
+| **Actieve effecten (bord-staat)** | Welke uren een effect dragen (portaal, happy hour, medicijn, tijdbom) + welke spelers 🤒 ziek of 💣 bebomd zijn, met resterende rondes. |
+| **Wereld-effecten** | Regelwijzigingen die op **iedereen** slaan: tijdreizen, polonaise, max-per-uur, etenstijd, identiteitscrisis. |
+| **Middernacht & Dienaren** | De π-klok: staat de poort **open** of **dicht**, en hoeveel events nog. Plus wie **dienaar** van wie is na een oogst. |
+| **Vals-spelen & God-punten** | Wie valsspeelde (en dus een slechtere aura heeft) en wie nog een **god-punt** als schild heeft. |
+| **Infected (minigame)** | Status van de Infected-minigame. |
+| **Spelbalans** | Twee schuiven die je **tijdens** het spel mag bijstellen:<br>**Doelwit-dichtheid** (10–50 %, default 25) — hoeveel spelers een gemiddeld event raakt. Voelt het veld leeg? Zet hoger.<br>**Reactietijd toestanden** (3–30 s, default 10) — hoeveel tijd spelers krijgen bij toestand-events. |
 
 ---
 
 ## 3. Leaderboard (`/leaderboard`)
 
-**Functie:** de **ranglijst** — alle spelers cumulatief gerangschikt op levensuren, over alle
-gestopte partijen heen.
+**Waarvoor:** de **ranglijst** voor jezelf — alle spelers cumulatief over alle gestopte partijen,
+met rang, levensuren, levensdagen, sterftes, skills, valsspeelpunten en god-punten. Ververst elke 2 s.
 
-**Opbouw:**
-
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Ranglijst levensuren | `ui-table` Ranglijst | Alle spelers gesorteerd op **`globaleStats.totaalUren`** (aflopend) met rang, levensuren, levensdagen, sterftes, skills, valsspeelpunten en god-punten. Ververst elke 2 s. Bij **Stop** telt het huidige spel bij het cumulatief op. Zie invariant NR11. |
-
----
+> Gesorteerd op **totale levensuren**, niet op uren-modulo-24. Een speler met 3 levensdagen staat dus
+> boven iemand met 20 losse uren.
 
 ## 4. Leaderbord (`/leaderbord`)
 
-**Functie:** dezelfde ranglijst, maar **groot** — bedoeld voor een scherm of beamer naast het veld,
-leesbaar vanaf afstand.
-
-**Opbouw:**
-
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Globaal klassement | `ui-template` Groot leaderbord | Podium voor de **top 3** (goud/zilver/brons, winnaar in het midden en uitvergroot) + de rest als grote regels `rang · naam · levensuren`. Hangt aan **dezelfde** feeder-function "Bouw leaderboard" als `/leaderboard` — één inject ("Ververs globale stats (2s)"), twee weergaven. Zie invariant NR11. |
+**Waarvoor:** **dezelfde ranglijst, maar groot** — voor een scherm of beamer naast het veld.
+Podium voor de top 3 (winnaar in het midden, uitvergroot), daaronder de rest in grote regels.
+Zet deze op de beamer bij de prijsuitreiking.
 
 ---
 
 ## 5. Admin (`/admin`)
 
-**Functie:** **beheer/reset** van spel- en speler-data. Alles is 2-staps beveiligd tegen
-per-ongeluk-klikken.
+**Waarvoor:** **ingrijpen als er iets misgaat.** Alles achter de knop *Admin ontgrendelen* is
+**twee-staps** beveiligd: je moet eerst ontgrendelen, en na élke actie vergrendelt het paneel
+zichzelf weer. Dat is met opzet — je wil hier niet per ongeluk op klikken.
 
-**Werking:** *Admin ontgrendelen (stap 1)* zet de reset-knoppen vrij; daarna voert elke knop een
-gerichte reset uit. Globale stats blijven anders bewaard bij een gewone *Stop spel*
-(zie `docs/invarianten.md`, S4–S5).
+### Groep "Beheer" — resets
 
-**Opbouw:**
+Zet eerst **Admin ontgrendelen (stap 1)** aan; daarna werkt één knop, en dan valt het slot terug.
 
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Levensjaren beheer | `ui-switch` Admin ontgrendelen (stap 1) · `ui-button` Levensdagen → 0 · `ui-button` Levensuren → 0 · `ui-button` Sterftes → 0 · `ui-button` Paal-effecten → 0 · `ui-button` Speler-effecten → 0 · `ui-button` Speler-toestanden → 0 · `ui-button` Middernacht-klok → start · `ui-button` ALLES → 0 · `ui-dropdown` Paal om te resetten + `ui-button` Reset paal → rust | Gerichte resets (stap 2) na ontgrendelen. "Middernacht-klok → start" zet de π-sequentie terug; "ALLES → 0" doet alle resets in één klik; "Reset paal → rust" zet één gekozen paal (effecten weg, LED uit) terug. |
-| Speler pauze | `ui-template` Speler pauze knoppen | Per speler **pauzeren/hervatten**. Een gepauzeerde speler wordt **volledig uit het spel** gehouden: niet gescoord bij een controle (status GEPAUZEERD) en genegeerd in Klokslag/Infected/tweeling/etenstijd (S8b/EV3). De pauze-toestand **overleeft een herstart** (in `spel/state`). |
-| Handmatig bijstellen | `ui-template` Handmatig bijstellen UI · `ui-text` Aanpassing-feedback | **Eén spelerveld met de hand corrigeren** (achter *Admin ontgrendelen*): kies speler + parameter (Levensuren / Sterftes / Valsspeelpunten / God-punten), geef een waarde en **Zet op waarde** of **+ optellen**. Muteert het huidige-spel `spelerStats` (nooit onder 0). Bedoeld om een beacon-/detectiefout recht te zetten (invariant S9). |
-| Palen handmatig uit/in | `ui-template` Paal-override UI | **Een kapotte paal uit het spel halen** terwijl de rest doorloopt (achter *Admin ontgrendelen*): kies de paal + **Uit spel** / **Terug in spel**. Zet `palenHandmatigUit`; de L3-ring in "Evalueer spelstatus" slaat die palen over (≥2-palen-vloer blijft gelden). Statusregel toont welke palen uit staan (invariant F5). |
+| Knop | Wat het wist |
+|---|---|
+| Levensdagen → 0 | De hele dagen; de losse uren-rest blijft |
+| Levensuren → 0 | De uren-rest; de volle dagen blijven |
+| Sterftes → 0 | Alle sterftes |
+| Paal-effecten → 0 | Alles op het bord (portalen, happy hours, medicijnen) |
+| Speler-effecten → 0 | Speler- én wereld-effecten |
+| Speler-toestanden → 0 | Ziekte, dienaren, identiteitscrisis — van **iedereen** |
+| Middernacht-klok → start | De π-sequentie terug naar het begin |
+| **ALLES → 0** | Alles hierboven **plus** het cumulatieve klassement. De grote rode knop. |
+| **Paal om te resetten** + **Reset paal → rust** | Eén paal terug naar rust: effecten weg, LED uit |
+| **Speler om te resetten** + **Reset speler-toestand** | **Zie hieronder** |
+
+**"Reset speler-toestand"** haalt **één speler** uit **alles** waar hij in vastzit: ziekte, tijdbom,
+speler-effecten, dienaar-/meester-relatie, identiteitscrisis, tweelingband (**verbroken zonder dat
+zijn tweeling sterft**), etenstijd, infected — en hij **vervalt als doelwit** van het lopende event.
+
+> Zijn **score blijft staan** (levensuren, sterftes, valsspeelpunten, god-punten) — daarvoor is
+> *Handmatig bijstellen*. Zijn **locatie** en zijn **pauze-stand** blijven ook staan.
+> Gebruik dit als een detectiefout iemand in een toestand heeft geduwd die niet klopt.
+
+### De andere groepen
+
+| Groep | Waarvoor |
+|---|---|
+| **Handmatig bijstellen** | **Eén spelerveld corrigeren**: kies speler + veld (levensuren / sterftes / valsspeelpunten / god-punten), geef een waarde, en kies **Zet op waarde** of **+ optellen**. Nooit onder 0. Voor als een beacon-fout iemand punten heeft gekost. |
+| **Speler pauze** | Een speler **volledig uit het spel** halen (geblesseerd, moet weg). Hij wordt niet meer gescoord en telt niet mee in Klokslag/Infected/tweeling/etenstijd. De pauze **overleeft een herstart**. |
+| **Palen handmatig uit/in** | Een **kapotte paal** uit het spel halen terwijl de rest doorloopt. Events kiezen hem niet meer. Er blijven altijd minstens 2 palen over. |
+| **Geluid (box)** | **Volume van de aux-box.** Schuif (0–100 %) of de knoppen **Stil (30 %)** / **Normaal (70 %)** / **MAX (100 %)**. Werkt **meteen**, ook midden in een lopend geluid, en de stand **overleeft een herstart** van de Pi (retained). Buiten op een veld wil je dit gewoon op MAX. |
 
 ---
 
 ## 6. Beacons & Locatie (`/beacons`)
 
-**Functie:** de **RSSI-locatiebepaling tunen** en de beacon-signaalkwaliteit diagnosticeren.
-Zie `docs/locatiebepaling.md` voor het algoritme achter deze parameters.
+**Waarvoor:** de **RSSI-locatiebepaling tunen** en slechte bakens opsporen.
+Zie [`../locatiebepaling.md`](../locatiebepaling.md) voor het algoritme erachter.
 
-**Werking:** de sliders stellen de live-parameters van de locatie-functie in; de tekst toont de
-actieve waarden. De tabellen helpen zwakke/instabiele beacons opsporen en per-beacon offsets
-kalibreren.
-
-**Opbouw:**
-
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Locatie-instellingen | `ui-slider` Venster (ms) · `ui-slider` Hysterese (dB) · `ui-slider` RSSI-vloer (dBm) · `ui-slider` Grace (ms) · `ui-slider` Switch-samples · `ui-slider` Min-samples · `ui-text` Actieve locatie-parameters | Tuning van het locatie-algoritme. |
-| Scan-duur (BLE) | `ui-slider` Scan-duur alle slaves (ms) · `ui-slider` Paal · `ui-slider` Scan-duur deze paal (ms) · `ui-button` Pas toe · `ui-text` Laatste scan-actie | BLE-scan-vensterduur van de slaves instellen (400–1000 ms), voor alle slaves of per paal. Kortere scan = versere detectie. Stuurt actie 20 (`MSG_SCAN_CONFIG`); auto-herstel na reboot via heartbeat. Zie `docs/locatiebepaling.md`. |
-| LED-helderheid | `ui-slider` Helderheid (10–255) · `ui-button` Min · `ui-button` Middel · `ui-button` Max · `ui-text` Laatste LED-actie | Globale LED-helderheid van **alle** palen instellen voor daglicht-zichtbaarheid. Slider of preset (Min 40 / Middel 140 / Max 255). Stuurt actie 21 (`MSG_LED_CONFIG`); slave clamp't 5–255; auto-herstel na reboot via heartbeat + retained `config/led-helderheid`. "Max" ~verdubbelt de LED-stroom (batterij). Zie invariant HW9. |
-| Profielen (dag/avond) | `ui-button` Laad dag · `ui-button` Laad avond · `ui-button` Bewaar → dag · `ui-button` Bewaar → avond · `ui-text` Profiel | Twee opgeslagen `locParams`-profielen (dag/avond) die met één knop wisselen — de RF-omgeving 's avonds (dauw/jassen) verschilt van 's middags. Tune de sliders en **Bewaar** het profiel; **Laad** zet ze terug. Persistent. Zie `docs/locatiebepaling.md` ("Dag/avond-profielen"). |
-| Spelers / bakens beheren | `ui-dropdown` Speler · `ui-text` Nieuw baken · `ui-button` Koppel · `ui-button` Ontkoppel · `ui-text` Laatste actie · `ui-table` Huidige koppelingen | Baken-MAC ↔ speler koppelen/vervangen/loskoppelen **zonder deploy**: wapper een baken bij een paal → kies de speler → Koppel. Retained op `config/spelers` (overleeft deploy/herstart). Zie `docs/locatiebepaling.md` ("Bakens toewijzen en vervangen"). |
-| Beacon-stabiliteit | `ui-table` Beacon-stabiliteit (laagste score bovenaan) | Ranglijst van signaalstabiliteit per beacon. |
-| Beacon-kalibratie (RSSI-offset) | `ui-template` Beacon-kalibratie | Per-beacon RSSI-offset instellen, begrensd op −20…+20 dB. |
-| Ruwe RSSI (diagnose) | `ui-switch` Toon ruwe RSSI · `ui-table` Ruwe RSSI per beacon per paal (laatste 6 s) | Ruwe meetwaarden tonen voor diagnose. |
+| Groep | Waarvoor |
+|---|---|
+| **Spelers / bakens beheren** | **Dit heb je op de speeldag nodig.** Baken ↔ speler koppelen zonder deploy: wapper het baken bij een paal → kies de speler → **Koppel**. Baken kapot? Neem een reserve, koppel hem, klaar. Retained (`config/spelers`), dus dit overleeft alles. |
+| **LED-helderheid** | Helderheid van **alle** palen (10–255) of via **Min/Middel/Max**. Overdag hoog zetten, anders zie je de LED's niet. **Max verdubbelt ongeveer de LED-stroom** — dat kost batterij. |
+| **Scan-duur (BLE)** | Hoe lang een slave per cyclus scant (400–1000 ms), voor alle palen of één paal. Korter = versere detectie = minder scoring-vertraging. |
+| **Locatie-instellingen** | De zes schuiven van het locatie-algoritme (venster, hysterese, RSSI-vloer, grace, switch-samples, min-samples). |
+| **Profielen (dag/avond)** | Twee opgeslagen sets locatie-parameters. De RF-omgeving 's avonds (dauw, jassen) verschilt van 's middags — tune één keer, bewaar, en wissel met één knop. |
+| **Beacon-stabiliteit** | Ranglijst van signaalstabiliteit. Onderaan staan de bakens die problemen gaan geven. |
+| **Beacon-kalibratie** | Per baken een RSSI-offset (−20…+20 dB), voor een baken dat structureel zwakker zendt. |
+| **Ruwe RSSI (diagnose)** | De rauwe meetwaarden per baken per paal. Alleen aanzetten als je echt aan het zoeken bent. |
 
 ---
 
 ## 7. Historiek (`/historiek`)
 
-**Functie:** **terugkijken** op gespeelde partijen en hun events.
-
-**Werking:** een `ui-template` toont de opgeslagen spel-historiek (events per partij, in volgorde).
-Geselecteerde partijen verwijderen vraagt eerst een bevestiging.
-
-**Opbouw:**
-
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Spel-historiek | `ui-template` Historiek | Overzicht van vorige partijen en hun event-verloop. |
+**Waarvoor:** **terugkijken** op gespeelde partijen en hun event-verloop.
+Partijen verwijderen vraagt eerst een bevestiging.
 
 ---
 
 ## 8. Buzzer/LED test (`/buzzer-tuning`)
 
-**Functie:** per bordje de **luidste buzzer-toon** vinden én elke paal fysiek **LED/zoemer testen**
-tijdens de opbouw. (Deze pagina heette voorheen "Buzzer-tuning"; de paal-test-groep is hierheen
-verhuisd vanaf Spelstatus. De URL `/buzzer-tuning` blijft ongewijzigd.) Een passieve piezo klinkt het
-luidst rond zijn eigen resonantiefrequentie en die verschilt licht per buzzer
-(productiespreiding). Met een **frequentie-sweep** hoor je welke frequentie het hardst
-klinkt; die waarde zet je daarna in `BUZZER_FREQ_TABEL` in de slave-firmware.
+**Waarvoor:** **de opbouw**. Twee dingen: elke paal fysiek testen, en de buzzer-frequentie per bordje
+zoeken.
 
-**Werking:** alle commando's gaan naar **paal 1** (`commando/master1`, actie 12 =
-`MSG_BUZZER_TOON`, zie `docs/protocol.md`). Verwissel je test-ESP telkens naar **paal 1**
-om elk bordje te meten. De "Buzzer-sweep controller" stuurt een **continue** toon en stapt
-de frequentie elke interval op van min → max (en weer terug naar min). **Stop** stuurt
-`toon:0`.
+| Groep | Waarvoor |
+|---|---|
+| **Paaltest (LED + zoemer)** | **Dit gebruik je bij het opbouwen.** Kies de paal (1–24) en druk **LED-test** (regenboog) of **Zoemer-test** (piep). **Uit** dooft hem weer. Zo loop je in tien minuten alle 24 palen af en weet je zeker dat ze allemaal leven. |
+| **Buzzer-tuning (paal 1)** | Een passieve piezo klinkt het luidst rond zijn eigen resonantiefrequentie, en die verschilt per bordje. De **sweep** loopt van min naar max; je hoort waar het het hardst klinkt, en met **Handmatige frequentie** zoom je in op de piek. Die waarde zet je in `BUZZER_FREQ_TABEL` in de slave-firmware. **Alle commando's gaan naar paal 1** — verwissel dus telkens het test-bordje naar paal 1. |
 
-**Opbouw:**
+---
 
-| Groep | Widgets | Wat het doet |
-|-------|---------|--------------|
-| Paaltest (LED + zoemer) | `ui-slider` Kies paal (1-24) · `ui-button` LED-test · `ui-button` Zoemer-test · `ui-button` Uit · `ui-text` Laatste paaltest | Snel elke paal fysiek testen tijdens de opbouw. Kies de paal, klik **LED-test** (regenboog, actie 19) of **Zoemer-test** (piep, actie 3); **Uit** dooft die paal (actie 0). Alles via Route commando naar de juiste master. (Verhuisd vanaf Spelstatus.) |
-| Buzzer-tuning (paal 1) | `ui-slider` Min/Max frequentie (Hz) | Onder- en bovengrens van de sweep (1000–5000 Hz). |
-| | `ui-slider` Stapgrootte (Hz) | Hoeveel Hz per stap omhoog. |
-| | `ui-slider` Stappen per seconde | Hoe snel de sweep door de range loopt. |
-| | `ui-button` Start sweep / Stop | Start de oplopende sweep / zet de toon uit (`toon:0`). |
-| | `ui-slider` Handmatige frequentie | Stopt de sweep en houdt één vaste frequentie aan (inzoomen op de piek). |
-| | `ui-text` Actuele frequentie | Toont de frequentie die nu klinkt. |
+## 9. Audio-test (`/audio-test`)
 
-> Wijzig je `flows.json`, draai dan `pi/node-red/deploy-flows.ps1` (Admin API) — een
-> `docker restart` herlaadt de repo-flows niet.
+**Waarvoor:** controleren of de **box** het doet en of de gesproken namen kloppen, **voordat** het
+spel begint. Druk op een naam → die WAV speelt op de aux-box. **Volledige onthulling** speelt de hele
+reeks achter elkaar.
+
+> ⚠️ De naam-knoppen zijn nog de **oude zes testspelers**. Wil je alle 31 namen kunnen testen, dan
+> moeten die knoppen mee met de roster — nu test je enkel of de box werkt.
+
+---
+
+## 10. Drukknop-test (`/drukknop-test`)
+
+**Waarvoor:** de **fysieke drukknoppen** testen (palen 3, 4, 7, 9, 11, 13, 15, 17, 19, 21 en 22).
+
+**Belangrijk om te snappen:** een slave **negeert elke druk** zolang de paal niet **gearmd** is. De
+schakelaars in "Knoppen activeren" doen precies dat (actie 17 = armen, 18 = uit). In het echte spel
+armt de **tijdbom** zijn ontmantelpalen automatisch — hier doe je het met de hand om te testen.
+
+| Groep | Waarvoor |
+|---|---|
+| **Knoppen activeren** | Per paal de knop **arm**en. De GPIO6-LED op het bordje gaat aan; hij dooft zolang je de knop indrukt — zo zie je meteen of de knop elektrisch werkt. |
+| **Druk-tellers** | Hoe vaak er op elke paal gedrukt is. **Reset tellers** zet ze op 0. |
 
 ---
 
 ## Zie ook
 
-- `pi/node-red/blokken/*/README.md` — de logica per flow-blok (bediening, puntensysteem,
-  Plates of Fate, …).
-- `docs/locatiebepaling.md` — het algoritme achter de Beacons-sliders.
-- `docs/invarianten.md` — regels rond globale stats, sim vs. echt spel, dashboard-widgets (NR5/NR6).
-- `docs/spel/` — het spelontwerp en de events die de Bediening-pagina aansturen (monitor én simulatie).
+- [`../invarianten.md`](../invarianten.md) — de harde regels (EV9 engine-modi, TM1–TM3 test-modus,
+  S9/S10 admin-ingrepen, M11 middernachtpaal, T1–T8 tijdbom).
+- [`../locatiebepaling.md`](../locatiebepaling.md) — het algoritme achter de Beacons-schuiven.
+- [`../protocol.md`](../protocol.md) — de actie-tabel (0–24) achter elke LED en zoemer.
+- [`../spel/`](../spel/) — het spelontwerp en de events.
+- `pi/node-red/blokken/*/README.md` — de logica per flow-blok.

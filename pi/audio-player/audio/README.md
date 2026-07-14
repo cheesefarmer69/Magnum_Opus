@@ -137,10 +137,18 @@ Huidige mapping (config → bestand, per submap):
   **`etenstijd_voorbij.wav`** ("de wolf is voldaan"), en **`alle_zieken_gestorven.wav`**
   ("Alle zieken zijn gestorven." — gespeeld door **Ziekte-beheer** wanneer er geen medicijn meer op
   het bord staat terwijl er nog zieken zijn, invariant Z9; niet via `audioAfgelopen`).
+  Ook **`tijdbom_ontmanteld.wav`** ("de tijdbom is ontmanteld") en **`tijdbom_ontploft.wav`**
+  ("de tijdbom is ontploft") — gespeeld door **Knop-verwerking** / **Tijdbom-beheer** bij een
+  geslaagde resp. mislukte ontmanteling en bij een afgelopen bom-teller (invarianten T4/T5/T6).
   *(Tweeling heeft geen eind-cue — die eindigt op een dood of op samenkomen, niet op duratie.)*
 
+> Ontbrekende WAV's zijn **niet fataal**: `player.py` slaat een onbestaand bestand over
+> (`[AUDIO] Bestand ontbreekt, overgeslagen`). De **zoemer op de paal** klinkt sowieso.
+
 De ziekte-waarschuwing (ziekenhuis-monitor + hartslag) speelt op de **slave-buzzer**
-(acties 5/6/7), niet via de audio-player.
+(acties 5/6/7), niet via de audio-player. Dat geldt ook voor de **ontploffing** (actie 24:
+dalende sirene-sweep + rode strobe) en de **ontmantel-feedback** (actie 22: groene flits +
+positief deuntje).
 
 De aantal-prefix (`speler`/`spelers`/`uur`/`uren`/`groep`/`groepen`) staat in `prefix/`
 (zie `prefix/README.md`); de connector `of.wav` staat in `woorden/`.

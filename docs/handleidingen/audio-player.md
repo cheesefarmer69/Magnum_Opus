@@ -112,6 +112,45 @@ Het script bouwt de image, (her)start de container met `--network host`,
 `--device=/dev/snd` en de audio-map als volume. De container draait los van
 `serial-bridge` (deploy.sh raakt die niet aan).
 
+## Volume regelen (dashboard)
+
+Het volume staat op het **Admin-dashboard**, groep **"Geluid (box)"**: een schuif (0–100 %) plus de
+knoppen **Stil (30 %)**, **Normaal (70 %)** en **MAX (100 %)**. Buiten op een veld wil je meestal
+gewoon MAX.
+
+**Hoe het werkt.** Het dashboard publiceert **retained** op `audio/volume`
+(`{"volume": 85}`); `player.py` is daarop geabonneerd en draait
+
+```bash
+amixer -q -M -c "$MIXER_CARD" sset "$MIXER_CONTROL" 85%
+```
+
+Drie dingen die daarbij van belang zijn:
+
+- **`-M` (mapped)** is essentieel: de bcm2835-schaal is **dB-lineair**. Zonder `-M` klinkt 80 % al
+  bijna vol en doet de onderste helft van de schuif niets. Met `-M` loopt hij zoals je verwacht.
+- Het volume gaat **niet door de afspeel-wachtrij**, dus het werkt **meteen** — ook midden in een
+  lopend geluid.
+- Het topic is **retained**: na een container-herstart of een reboot van de Pi krijgt de player de
+  laatste stand meteen terug en **herstelt het volume zichzelf**. Je hoeft dit dus niet elke speeldag
+  opnieuw te zetten.
+
+De container heeft alles wat daarvoor nodig is al: `alsa-utils` levert **`amixer`** (naast `aplay`),
+en `--device=/dev/snd` geeft ook `controlC0` (het mixer-device) door. ALSA-mixerstanden zijn
+**kernel-globaal**, dus wat de container zet, geldt meteen voor de hele Pi.
+
+**Klopt de mixer niet?** `player.py` spoort de control zelf op (Bookworm: `Headphone`, oudere images:
+`PCM`). Controleer met:
+
+```bash
+aplay -l                                                   # kaartnaam (zoek "Headphones")
+docker exec audio-player amixer -c Headphones scontrols    # welke controls bestaan er
+docker exec audio-player amixer -M -c Headphones sset Headphone 80%   # handmatige test
+```
+
+Wijkt jouw Pi af, zet dan `MIXER_CARD` / `MIXER_CONTROL` in `pi/deploy-audio.sh` en draai
+`./pi/deploy-audio.sh` opnieuw.
+
 ## Geluid testen
 
 ```bash
@@ -119,7 +158,7 @@ Het script bouwt de image, (her)start de container met `--network host`,
 aplay -l
 # Forceer de analoge jack (i.p.v. HDMI) — eenmalig op de Pi:
 sudo raspi-config   # System Options → Audio → Headphones
-# Volume:
+# Volume: bij voorkeur via het Admin-dashboard (zie boven); handmatig kan met:
 alsamixer
 # Directe test (host):
 aplay ~/Magnum_Opus/pi/audio-player/audio/getallen/3.wav
@@ -137,7 +176,9 @@ docker exec -it audio-player aplay -D "$AUDIO_DEV" /app/audio/spelers/lilou.wav
 
 | Symptoom | Oorzaak / oplossing |
 |----------|---------------------|
-| Geen geluid, log toont "Afgespeeld" | Verkeerde uitgang (HDMI i.p.v. jack) → `raspi-config` audio op Headphones; check `alsamixer`-volume. |
+| Geen geluid, log toont "Afgespeeld" | Verkeerde uitgang (HDMI i.p.v. jack) → `raspi-config` audio op Headphones; check het volume (Admin → Geluid). |
+| Volumeschuif doet niets | `[VOLUME] Geen mixer-control gevonden` in `docker logs audio-player` → `MIXER_CARD` klopt niet. Zoek de kaart met `aplay -l` en zet hem in `deploy-audio.sh`. |
+| Volume springt terug na herstart | Zou niet mogen: `audio/volume` is **retained**. Controleer met `mosquitto_sub -t audio/volume -C 1` of de waarde er nog staat. |
 | "Bestand ontbreekt, overgeslagen" | Naam/locatie klopt niet met de conventie. Controleer submap + exacte bestandsnaam. |
 | "'aplay' niet gevonden" | `alsa-utils` ontbreekt in image — rebuild met `deploy-audio.sh`. |
 | Container ziet `/dev/snd` niet | Start met `--device=/dev/snd` (zit in deploy-audio.sh); voeg user toe aan `audio`-groep. |

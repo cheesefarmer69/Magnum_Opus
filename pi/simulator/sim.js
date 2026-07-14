@@ -122,6 +122,7 @@ const state = {
     verbonden: false,
     modus: "monitor",           // "monitor" of "sim"
     spelType: "plates_of_fate", // "plates_of_fate" | "klokslag" | "infected" (gesynct via retained spel/type)
+    testModus: false,           // testronde: alles telt, maar wordt teruggedraaid zodra de test uit gaat (retained sim/test-modus)
     avondModus: false,          // avondspel-modus (checkbox in Spelinstellingen; retained sim/avond-modus)
     doodAnim: null,             // { paal, fase, speler, tot } — cirkelende paarsrode LED van de onmiddellijke dood
     klokslagPalen: {},          // { <paal>: {P,H,controller,eigenaar,modus} } (uit klokslag/palen)
@@ -189,7 +190,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/dood-anim", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "pof/doelstatus", "sim/modus"]);
+        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/dood-anim", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "pof/doelstatus", "sim/modus", "sim/test-modus"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
         publishUitgeslotenEvents();   // synchroniseer de event-checkboxes (retained)
         publishMiddernachtConfig();   // synchroniseer de middernacht-aan/uit-checkbox (retained)
@@ -284,6 +285,16 @@ function verwerkBericht(topic, raw) {
             log("info", "Modus (van dashboard): " + state.modus);
             renderSpelers();
         }
+    } else if (topic === "sim/test-modus") {
+        // Retained: bij (her)openen van de simulator staat de checkbox meteen goed. Enkel de UI
+        // bijwerken — NIET herpubliceren, anders zou een tweede tab de snapshot kunnen omgooien.
+        const aan = !!(data && data.test);
+        if (aan !== state.testModus) {
+            state.testModus = aan;
+            renderTestModus();
+            log("info", aan ? "TEST-MODUS aan — niets van deze ronde telt mee."
+                            : "Test-modus uit — de testronde is teruggedraaid.");
+        }
     } else if (topic === "audio/afspelen") {
         log("audio", `[${data.fase || "?"}] ${data.tekst || ""}`);
     } else if (topic === "pof/controle") {
@@ -309,6 +320,7 @@ function verwerkBericht(topic, raw) {
         });
         if (!overtredingen) log("info", `Controle OK${ev} — alle regels voldaan`);
     } else if (topic === "pof/status") {
+        renderWereld(data);   // wereld-toestanden (tijdreizen, polonaise, max/uur, ...) — 1x/s
         const timerEl = document.getElementById("pof-timer");
         const naamEl  = document.getElementById("pof-event-naam");
         const doelEl  = document.getElementById("pof-doelwit");
@@ -546,6 +558,53 @@ function renderZiekte() {
         div.innerHTML = `🤒 <b>${z.speler}</b> <span class="ziekte-rondes">nog ${z.rondesOver}</span>${hart}`;
         el.appendChild(div);
     }
+}
+
+// Sidebar: WERELD-toestanden — regelwijzigingen die op iedereen tegelijk slaan en dus niet aan
+// één uur of één speler hangen (tijdreizen, polonaise, max-per-uur, etenstijd, nuke, tornado).
+// Ze stonden tot nu toe enkel in een dashboard-tabel; hier zie je ze naast de uur- en
+// speler-toestanden. Bron: pof/status (1x per seconde).
+const WERELD_ICOON = {
+    tijdreizen: "⏳", polonaise: "💃", max_per_uur: "🚧", etenstijd: "🐺",
+    identiteitscrisis: "🎭", tweeling: "👯", events_sneller: "⚡",
+};
+
+function renderWereld(data) {
+    const el = document.getElementById("wereld-lijst");
+    if (!el) return;
+
+    const rijen = [];
+
+    // De wereldEffecten dragen de timer (resterende rondes) — dat is de bron van waarheid.
+    // LET OP de sentinels: de engine zet 9999 (permanent) of 999 (polonaise: telt niet op RONDES
+    // af maar op verplaatsings-events). Beide mogen niet als teller getoond worden.
+    for (const w of (data.wereld || [])) {
+        const icoon = WERELD_ICOON[w.effect] || "🌍";
+        let detail = "";
+        let toonRondes = true;
+        if (w.effect === "polonaise") {
+            // Echte teller staat los (polonaiseTeller); de effect-timer is hier betekenisloos.
+            detail = ` — nog ${data.polonaise || 0} verplaatsingen`;
+            toonRondes = false;
+        } else if (w.effect === "etenstijd" && data.etenstijd) {
+            detail = ` — nog ${data.etenstijd.over} schapen`;   // de wolf staat al in de naam
+        }
+        // max_per_uur heeft het getal al in zijn naam ("Max 5/uur") -> geen dubbele tekst.
+        const rondes = (toonRondes && w.rondes != null && w.rondes < 900)
+            ? ` <span class="toestand-rondes">(nog ${w.rondes})</span>` : "";
+        rijen.push(`${icoon} <b>${w.naam || w.effect}</b>${detail}${rondes}`);
+    }
+
+    // Nuke en tornado hangen niet aan wereldEffecten (ze zijn eenmalig, opgeruimd bij de controle),
+    // maar je wil ze wél zien zolang ze lopen.
+    if (data.nuke) rijen.push('☢️ <b>NUKE</b> — iedereen moet het veld af');
+    if (data.tornado) rijen.push(`🌪️ <b>Tornado</b> — ${data.tornado} actief`);
+
+    if (!rijen.length) {
+        el.innerHTML = '<div class="toestand-leeg">Geen wereld-toestanden.</div>';
+        return;
+    }
+    el.innerHTML = rijen.map(r => `<div class="toestand-groep">${r}</div>`).join("");
 }
 
 // Sidebar: tijdbom-spelers met aftelteller (analoog aan renderZiekte; countdown van 10 events).
@@ -789,6 +848,24 @@ function publishTiersConfig() {
 function publishTijdTerug() {
     if (!state.verbonden) return;
     state.client.publish("sim/tijd-terug", JSON.stringify({ t: Date.now() }));
+}
+
+// Test-modus: retained, zodat Node-RED hem ook kent na een herverbinding en de simulator hem
+// terugleest bij het openen. AAN = Node-RED maakt een momentopname; UIT = die wordt exact
+// teruggezet, waardoor de hele testronde ongedaan gemaakt wordt.
+function publishTestModus() {
+    if (!state.verbonden) return;
+    state.client.publish("sim/test-modus", JSON.stringify({ test: state.testModus }), { retain: true });
+}
+
+// Toont onmiskenbaar dat je in een testronde zit (niets telt) — je wil dit niet per ongeluk
+// aan laten staan tijdens het echte spel, en al helemaal niet per ongeluk uitzetten.
+function renderTestModus() {
+    const cb = document.getElementById("test-modus");
+    const st = document.getElementById("test-status");
+    if (cb) cb.checked = state.testModus;
+    if (st) st.textContent = state.testModus ? "telt niet mee" : "";
+    document.body.classList.toggle("test-actief", state.testModus);
 }
 
 // Een drukknop indrukken: publiceer {paal,knop:1} op plaatjes/data (zelfde format als de hardware
@@ -1575,6 +1652,27 @@ window.addEventListener("DOMContentLoaded", () => {
         publishAvondModus();
         renderEvents();
     });
+
+    // Test-modus. Uitzetten draait de HELE testronde terug (levensuren, toestanden, klassement),
+    // dus daar vragen we bevestiging voor — per ongeluk uitvinken is niet meer terug te draaien.
+    const _testCb = document.getElementById("test-modus");
+    if (_testCb) _testCb.addEventListener("change", (e) => {
+        const aan = e.target.checked;
+        if (!aan && state.testModus) {
+            const ok = window.confirm(
+                "Test-modus uitzetten?\n\n" +
+                "Alles wat tijdens de testronde gebeurd is wordt teruggedraaid:\n" +
+                "levensuren, ziektes, tijdbommen, portalen, sterftes en het klassement.\n\n" +
+                "Dit kan NIET ongedaan gemaakt worden.");
+            if (!ok) { e.target.checked = true; return; }
+        }
+        state.testModus = aan;
+        renderTestModus();
+        publishTestModus();
+        log("info", aan ? "TEST-MODUS aan — speel je testronde; niets telt mee."
+                        : "Test-modus uit — testronde teruggedraaid.");
+    });
+    renderTestModus();
 
     // Systeeminstellingen-paneel openen/sluiten + toggles.
     document.getElementById("btn-systeem").addEventListener("click", () => {

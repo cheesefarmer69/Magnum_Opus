@@ -64,8 +64,10 @@ De Pi stuurt een commando als JSON-regel:
 De master kent het commando een `cmd_seq` toe, zet het in de **per-slave FIFO** van die paal
 (diepte 4) en stuurt het head-item als `commando_message_v2` via ESP-NOW. Het commando geldt pas
 als **uitgevoerd** wanneer de slave een `MSG_CMD_ACK` terugstuurt (applicatie-ACK, ná uitvoering) —
-niet bij de MAC-laag-ACK. Komt er binnen ~1,5 s geen ACK, dan stuurt de master hetzelfde `cmd_seq`
-opnieuw (idempotent); na `MAX_POGINGEN` volgt `opgegeven` en gaat de FIFO verder met het volgende item.
+niet bij de MAC-laag-ACK. Retries zijn **phase-locked**: zodra de batch/heartbeat van die paal
+binnenkomt (= diens vrije radio-venster ná de BLE-scan) wordt het pending item direct herzonden;
+blinde fallback na 600 ms zonder ACK, zelfde `cmd_seq` (idempotent). Na `MAX_POGINGEN` (6, ~3,6 s)
+volgt `opgegeven` en gaat de FIFO verder met het volgende item. Zie `docs/protocol.md` §0/§2.
 
 > **Geen laatste-wint meer:** twee snel opeenvolgende, verschillende commando's naar dezelfde paal
 > (bv. buzzer-piep + portaal) blijven **allebei** in de FIFO en worden in volgorde afgeleverd. Stapelen

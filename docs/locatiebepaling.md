@@ -122,6 +122,12 @@ Een kortere scan verhoogt de **sample-rate** (versere detectie) én verkleint sc
 de locatie-parameters (venster/switch) strakker kunt zetten. Complementair vangt de **settle-grace** in
 de PoF-engine (controle op T+grace i.p.v. T) de resterende traagheid op — zie `docs/spel/event-systeem.md`.
 
+> **Commando-latentie is venster-gebonden (juli 2026).** De omgekeerde richting (master → paal, bv. de
+> LED/zoemer-test) is niet meer "cyclus + blinde 1500 ms-retry": de master herzendt **phase-locked** —
+> direct wanneer de batch van die paal binnenkomt en diens radio ~250 ms vrij is (zie
+> `docs/protocol.md` §0/§2). Typisch klik→uitvoering ~0,4–0,7 s; een kortere scan-duur (700 ms)
+> verkort ook dit pad, want de batch-cadans (= het retry-venster) stijgt mee.
+
 **Instellen (dashboard-group "Scan-duur (BLE)" op deze pagina):**
 
 | Regelaar | Effect |

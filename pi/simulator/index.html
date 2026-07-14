@@ -25,6 +25,12 @@
             <span>Spel:</span>
             <span id="spel-actief" class="spel-actief">🎲 Plates of Fate</span>
         </div>
+        <div class="hdr-group hdr-test">
+            <label title="Testronde: alles werkt gewoon, maar zodra je de test uitzet verdwijnt ALLES wat er gebeurd is — levensuren, ziektes, bommen, portalen, klassement. Events komen enkel handmatig in de cyclus (via 'Volgende event' of de wachtrij).">
+                <input type="checkbox" id="test-modus"> 🧪 Test
+            </label>
+            <span id="test-status" class="test-status"></span>
+        </div>
         <div class="hdr-group">
             <button id="btn-spel" title="Spelinstellingen openen/sluiten">🎲 Spelinstellingen</button>
             <button id="btn-systeem" title="Systeeminstellingen openen/sluiten">⚙ Systeeminstellingen</button>
@@ -117,6 +123,12 @@
                 </div>
                 <div id="tijdbom-lijst" class="ziekte-lijst">
                     <div class="ziekte-leeg">Geen tijdbommen.</div>
+                </div>
+            </div>
+            <div class="toestand-sectie">
+                <h4 class="toestand-sub">Wereld</h4>
+                <div id="wereld-lijst" class="wereld-lijst">
+                    <div class="toestand-leeg">Geen wereld-toestanden.</div>
                 </div>
             </div>
         </aside>

@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import queue
@@ -12,6 +13,14 @@ MQTT_PORT   = int(os.getenv("MQTT_PORT", "1883"))
 AUDIO_TOPIC = os.getenv("AUDIO_TOPIC", "audio/afspelen")
 AUDIO_DIR   = os.getenv("AUDIO_DIR", "/app/audio")
 AUDIO_DEV   = os.getenv("AUDIO_DEV", "default")   # ALSA-device, bv. "plughw:0,0"
+
+# ---- Volume (dashboard Admin -> retained topic audio/volume) ----
+# De container heeft alsa-utils (aplay EN amixer) en krijgt /dev/snd volledig doorgegeven --
+# dus ook controlC0, het mixer-device. ALSA-mixerstanden zijn kernel-globaal: wat we hier zetten
+# geldt meteen voor de hele Pi.
+VOLUME_TOPIC  = os.getenv("VOLUME_TOPIC", "audio/volume")
+MIXER_CARD    = os.getenv("MIXER_CARD", "Headphones")   # Pi 4 aux-jack; `aplay -l` toont de naam
+MIXER_CONTROL = os.getenv("MIXER_CONTROL", "")          # leeg = automatisch opsporen
 
 # Wachtrij van af te spelen segment-lijsten. Elke entry is een lijst van
 # bestandsnamen (relatief t.o.v. AUDIO_DIR), die sequentieel worden afgespeeld.
@@ -53,14 +62,61 @@ def afspeel_worker() -> None:
             afspeel_queue.task_done()
 
 
+def zoek_mixer_control() -> str:
+    """Vind de naam van de volume-control op MIXER_CARD.
+
+    De aux-jack heet op Raspberry Pi OS Bookworm meestal 'Headphone', op oudere images 'PCM'.
+    We zoeken hem op i.p.v. te gokken, zodat een ander image niet stilletjes het volume negeert.
+    """
+    if MIXER_CONTROL:
+        return MIXER_CONTROL
+    try:
+        uit = subprocess.run(["amixer", "-c", MIXER_CARD, "scontrols"],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        print(f"[VOLUME] amixer niet bruikbaar: {e}")
+        return ""
+    gevonden = re.findall(r"Simple mixer control '([^']+)'", uit)
+    for voorkeur in ("Headphone", "PCM", "Master", "Speaker"):
+        if voorkeur in gevonden:
+            return voorkeur
+    if gevonden:
+        return gevonden[0]
+    print(f"[VOLUME] Geen mixer-control gevonden op kaart {MIXER_CARD!r}")
+    return ""
+
+
+def zet_volume(procent: int) -> None:
+    """Zet het afspeelvolume (0-100 %). Werkt ook MIDDEN in een lopend segment."""
+    procent = max(0, min(100, int(procent)))
+    control = zoek_mixer_control()
+    if not control:
+        return
+    try:
+        # -M = 'mapped' volume: lineair voor het OOR. Zonder -M is de bcm2835-schaal in dB, en
+        # dan klinkt "80%" al bijna vol -- de slider zou dan nauwelijks iets doen in het onderste
+        # bereik. Met -M loopt de schuif zoals je verwacht.
+        subprocess.run(["amixer", "-q", "-M", "-c", MIXER_CARD, "sset", control, f"{procent}%"],
+                       check=True, timeout=5)
+        print(f"[VOLUME] {MIXER_CARD}/{control} -> {procent}%")
+    except subprocess.CalledProcessError as e:
+        print(f"[VOLUME] amixer-fout ({MIXER_CARD}/{control}): {e}")
+    except subprocess.TimeoutExpired:
+        print("[VOLUME] amixer reageerde niet binnen 5s")
+    except FileNotFoundError:
+        print("[VOLUME] 'amixer' niet gevonden - is alsa-utils geinstalleerd?")
+
+
 # ---- MQTT ----
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
 
 def on_connect(client, userdata, flags, rc, properties=None):
     print(f"MQTT verbonden (rc={rc})")
-    client.subscribe(AUDIO_TOPIC)
-    print(f"Geabonneerd op {AUDIO_TOPIC}")
+    client.subscribe([(AUDIO_TOPIC, 0), (VOLUME_TOPIC, 0)])
+    print(f"Geabonneerd op {AUDIO_TOPIC} en {VOLUME_TOPIC}")
+    # VOLUME_TOPIC is retained: de laatst ingestelde stand komt hier meteen binnen, dus het
+    # volume herstelt zichzelf na een container-herstart of een reboot van de Pi.
 
 
 def on_disconnect(client, userdata, flags, rc, properties=None):
@@ -72,6 +128,16 @@ def on_message(client, userdata, msg):
         data = json.loads(msg.payload.decode("utf-8"))
     except json.JSONDecodeError:
         print(f"[MQTT] Geen geldige JSON op {msg.topic}")
+        return
+
+    if msg.topic == VOLUME_TOPIC:
+        # Kaal getal (75) of {"volume": 75}. BEWUST niet via de afspeel-queue: het volume moet
+        # ook midden in een lopend segment meteen werken, niet pas als de wachtrij leeg is.
+        waarde = data.get("volume") if isinstance(data, dict) else data
+        try:
+            zet_volume(int(waarde))
+        except (TypeError, ValueError):
+            print(f"[VOLUME] Ongeldige waarde op {msg.topic}: {data!r}")
         return
 
     segmenten = data.get("segments")

@@ -189,11 +189,19 @@ void logRegel(const char *fmt, ...) {
 
 // Drijft de log-queue af: enige plek waar naar Serial geschreven wordt. Elke
 // regel gaat in één stuk naar de lijn → geen interleaving.
+// BUDGET-BEGRENSD: schrijf alleen wat in de TX-ringbuffer past (setTxBufferSize in
+// setup) en breek anders af tot de volgende tick. Een ongelimiteerde while blokkeerde
+// de loop ~150-200 ms op UART-backpressure onder batch-druk — precies wanneer een
+// phase-locked resend (M1) sub-ms moet vertrekken. Peek-dan-receive is race-vrij:
+// loop() is de enige consument.
 void verwerkLogQueue() {
   if (logQueue == nullptr) return;
   char buf[LOGREGEL_MAX];
-  while (xQueueReceive(logQueue, buf, 0) == pdTRUE) {
-    Serial.print(buf);
+  while (xQueuePeek(logQueue, buf, 0) == pdTRUE) {
+    size_t len = strlen(buf);
+    if ((size_t)Serial.availableForWrite() < len) break;   // geen ruimte -> volgende tick
+    xQueueReceive(logQueue, buf, 0);                        // nu pas echt consumeren
+    Serial.write((const uint8_t *)buf, len);
   }
 }
 
@@ -207,9 +215,15 @@ void verwerkLogQueue() {
 // Per-slave FIFO i.p.v. één slot: twee snel opeenvolgende, verschillende commando's naar
 // dezelfde paal (bv. buzzer-piep + portaal) worden NIET meer samengevoegd (geen laatste-wint),
 // maar in volgorde afgeleverd. Het HEAD-item is in-flight; afronding op de APPLICATIE-ACK
-// (MSG_CMD_ACK ná uitvoering), niet op de MAC-laag-ACK. Omdat de slave een commando pas aan
-// het einde van zijn ~1 s scan-cyclus verwerkt, is de ACK-round-trip ~1-1,3 s; de retry-timeout
-// staat daarom op ~1500 ms (niet de 250 ms MAC-interval).
+// (MSG_CMD_ACK ná uitvoering), niet op de MAC-laag-ACK.
+//
+// TIMING (niet-blokkerende slave-scan): de slave voert een ontvangen commando binnen ~5 ms
+// uit, maar zijn radio is tijdens de BLE-scan ~80% bezet — het betrouwbare RX-venster is de
+// ~250-400 ms ná de scan. Retries zijn daarom PHASE-LOCKED: elke MSG_BATCH/MSG_HEARTBEAT
+// markeert het begin van dat vrije venster (slaveVensterVlag) en triggert een directe resend.
+// APP_ACK_TIMEOUT (600 ms ≈ halve slave-cyclus) is enkel nog de blinde fallback; hem
+// "terugtunen" naar ~1500 ms is gebaseerd op de oude blokkerende-scan-aanname en maakt
+// commando's alleen maar trager.
 #define CMD_FIFO_DIEPTE 4
 struct SlaveCmd {
   uint8_t  actie_id;
@@ -224,9 +238,15 @@ struct SlaveCmdQueue {
 };
 SlaveCmdQueue cmdPerSlave[AANTAL_SLAVES] = {};   // index = paal - 1, zero-init
 
-static const uint8_t  MAX_POGINGEN     = 4;
-static const uint32_t APP_ACK_TIMEOUT  = 1500;  // ms wachten op MSG_CMD_ACK voor resend
+static const uint8_t  MAX_POGINGEN     = 6;     // blinde + phase-pogingen over >=2 slave-cycli
+static const uint32_t APP_ACK_TIMEOUT  = 600;   // ms; fallback — phase-lock is de hoofdroute
 static uint16_t       volgendeCmdSeq   = 1;     // monotone teller (0 = "geen")
+
+// Phase-lock: 1 zodra een MSG_BATCH/MSG_HEARTBEAT van deze slave binnenkwam (WiFi-task
+// schrijft, verwerkQueue consumeert per loop-tick). Direct na zo'n bericht is de slave-radio
+// ~250 ms vrij (post-scan luistervenster) -> hét moment voor een pending resend.
+volatile uint8_t slaveVensterVlag[AANTAL_SLAVES] = {0};
+static const uint32_t VENSTER_HERZEND_GUARD_MS = 50;   // dempt dubbeltrigger batch+heartbeat
 
 // ---- HULPFUNCTIES ----
 // True als deze MAC-rij alleen uit nullen bestaat (placeholder-slot).
@@ -279,16 +299,25 @@ static bool enqueueCommando(uint8_t paal, uint8_t actie) {
   return true;
 }
 
-// Drijft per slave het HEAD-item van zijn FIFO af: verstuurt het, retried als er binnen
-// APP_ACK_TIMEOUT geen MSG_CMD_ACK kwam, geeft op na MAX_POGINGEN (pop + volgende item).
+// Drijft per slave het HEAD-item van zijn FIFO af: verstuurt het, retried phase-locked
+// (direct na een batch/heartbeat van die slave = vrij radio-venster) of blind na
+// APP_ACK_TIMEOUT, geeft op na MAX_POGINGEN (pop + volgende item).
 // Retries hergebruiken hetzelfde cmd_seq (idempotent). Parallel per slave. Elke loop()-tick.
 void verwerkQueue() {
   uint32_t nu = millis();
   for (int i = 0; i < AANTAL_SLAVES; i++) {
     SlaveCmdQueue &q = cmdPerSlave[i];
+    // Vlag consume-once per tick, OOK zonder pending item — een stale vlag van een vorige
+    // cyclus zou een latere retry anders precies mid-scan triggeren (poging verspild).
+    bool venster = (slaveVensterVlag[i] != 0);
+    if (venster) slaveVensterVlag[i] = 0;
     if (q.count == 0) continue;
     SlaveCmd &h = q.items[q.head];   // in-flight = head
-    if (h.pogingen > 0 && (nu - h.laatstVerstuurd) < APP_ACK_TIMEOUT) continue;
+    if (h.pogingen > 0) {
+      bool timeoutOm = (nu - h.laatstVerstuurd) >= APP_ACK_TIMEOUT;
+      bool phaseNu   = venster && (nu - h.laatstVerstuurd) >= VENSTER_HERZEND_GUARD_MS;
+      if (!timeoutOm && !phaseNu) continue;
+    }
 
     if (h.pogingen >= MAX_POGINGEN) {
       logRegel("{\"status\":\"opgegeven\",\"paal\":%d,\"actie\":%d,\"seq\":%u,\"pogingen\":%d}\n",
@@ -345,9 +374,13 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
       }
       // Visuele ontvangst-indicator: alleen op een batch (HW4).
       ingebouwdeLedTot = millis() + RECV_KNIPPER_MS;
+      // Phase-lock: batch = begin van het vrije radio-venster van deze slave (M1).
+      slaveVensterVlag[paalIndex] = 1;
       memcpy(&inkomendeData, incomingData, (size_t)verwacht);   // accepteert ook volle 215-B frames
+#ifdef LOG_RECV_DEBUG
       logRegel("[RECV] Paal %d, %d spelers, batt %u mV\n",
         inkomendeData.paal_id, n, inkomendeData.batt_mv);
+#endif
       for (int i = 0; i < n; i++) {
         const uint8_t *m = inkomendeData.spelers[i].mac;
         logRegel("{\"paal\":%d,\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\",\"rssi\":%d}\n",
@@ -381,6 +414,8 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
       if (len < (int)sizeof(heartbeat_message)) return;
       heartbeat_message h;
       memcpy(&h, incomingData, sizeof(h));
+      // Phase-lock: heartbeat valt in hetzelfde vrije venster als de batch (M1).
+      slaveVensterVlag[paalIndex] = 1;
       logRegel("{\"paal\":%d,\"hb\":1,\"batt\":%.2f,\"uptime\":%u,\"fw\":%d}\n",
         h.paal_id, h.batt_mv / 1000.0, h.uptime_s, h.fw_versie);
       break;
@@ -593,6 +628,10 @@ void verwerkSerieel() {
 
 // ---- SETUP ----
 void setup() {
+  // TX-ringbuffer MOET vóór begin() (core 2.0.17 weigert hem erna). Maakt Serial.write
+  // niet-blokkerend zolang de ring vrij is en availableForWrite() = vrije ring-ruimte
+  // (i.p.v. enkel de 128-B HW-FIFO) — vereist voor de budget-drain in verwerkLogQueue.
+  Serial.setTxBufferSize(2048);
   Serial.begin(115200);
 
   // Log-queue vroeg aanmaken zodat alle output via één schrijver loopt.

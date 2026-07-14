@@ -369,8 +369,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   `epic` 8 · `legendary` 2 (default `common`). De engine kiest events **gewogen** (in "Bouw pof/status"
   voor de wachtrij en in "Kies event" als fallback), zodat ingrijpende events zeldzaam blijven en het spel
   niet wild heen en weer geslingerd wordt. Standaard (zoals in de `[CONFIG]`-injects): verplaatsing-events
-  `common`; portalen/happy_hour `uncommon`; ziekte/tijdbom/sneller/trager/bomaanslag/tijdreizen `rare`;
-  tornado/etenstijd/tweeling/identiteitscrisis `epic`; nuke `legendary`. Per event aanpasbaar
+  `common`; portalen/happy_hour `uncommon`; ziekte/tijdbom/sneller/trager/bomaanslag/max_per_uur/polonaise `rare`;
+  tornado/etenstijd/tweeling/identiteitscrisis/**tijdreizen** `epic`; nuke/onmiddellijke_dood `legendary`. Per event aanpasbaar
   via de **events-tab** in de simulator (`sim/tiers-config` → `global.eventTiers`).
 
 ### Slechte aura (geen event — een eigenschap van negatieve events)
@@ -487,7 +487,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Audio (weggaan):** `identiteitscrisis_voorbij.wav`
 
 ### Tijdreizen wordt toegestaan — "Tijdreizen zal worden toegestaan."
-- **Tier:** rare
+- **Tier:** epic
 - **Uitleg:** Zolang de toestand loopt (10–15 rondes) mag iedereen ook achteruit in de tijd zonder straf (behalve de middernacht-poort).
 - **Max:** 1
 - **Audio (opkomst):** `tijdreizen.wav` (nog opnemen)

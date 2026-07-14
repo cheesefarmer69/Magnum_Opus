@@ -188,6 +188,11 @@ const uint8_t ACTIE_REGENBOOG    = 19;
 const uint8_t ACTIE_KNOP_GOED    = 22;
 const uint8_t ACTIE_KNOP_FOUT    = 23;
 const unsigned long KNOP_FLITS_MS = 800;   // duur van de groen/rood-knop-flits; daarna auto-terug naar ACTIE_NIETS
+// 24 = ONTPLOFFING: een tijdbom gaat af (mislukte ontmanteling of de teller loopt af). Dalende
+// sirene-sweep + felle rode strobe, duidelijk anders dan de "foute keuze"-flits (23). Auto-terug
+// naar ACTIE_NIETS na ONTPLOF_MS. FIFO/ACK, gewone commando_message_v2 (geen wire-wijziging).
+const uint8_t ACTIE_ONTPLOFFING  = 24;
+const unsigned long ONTPLOF_MS   = 1600;   // duur van de ontploffings-strobe
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -236,6 +241,18 @@ static const Noot MELODIE_KNOP_GOED[] = {
 };
 static const Noot MELODIE_KNOP_FOUT[] = {
     {1600,120},{0,40},{1000,240},
+    {   0,   0}
+};
+
+// Ontploffing (actie 24): een tijdbom gaat af. Een dalende sirene-sweep (hoog -> laag, alsof er
+// iets naar beneden valt) gevolgd door drie lage, ruwe "dreunen". Bewust veel lager en langer dan
+// het korte foute-keuze-deuntje (23), zodat je van over het veld hoort dat er iemand ontploft is.
+// De passieve piezo geeft onder ~300 Hz weinig druk; de dreunen klinken daardoor rommelig/dof --
+// precies het gewenste effect. Einde = {0,0}.
+static const Noot MELODIE_ONTPLOFFING[] = {
+    {2500,60},{2100,60},{1750,60},{1450,60},{1200,70},{1000,70},{820,80},{660,90},{520,100},{400,120},{300,150},
+    {0,60},
+    {220,180},{0,50},{180,200},{0,50},{150,260},
     {   0,   0}
 };
 
@@ -392,6 +409,15 @@ volatile uint16_t cmdDrops = 0;  // commando's gedropt bij volle buffer
 uint16_t          gemeldeCmdDrops = 0;             // laatst gemelde drop-stand
 
 uint16_t          laatsteUitgevoerdeSeq = 0xFFFF;  // sentinel: nog niets uitgevoerd
+
+// Her-ACK ná de scan (S2): een ACK die mid-scan de lucht in ging (radio ~80% BLE-bezet)
+// gaat vaak verloren -> master retry't onnodig. Onthoud de laatste ACK en herhaal hem
+// éénmalig direct na pBLEScan->stop(), in schone lucht. Dubbele ACK is idempotent aan
+// master-kant (pop vereist exacte seq-match op het HEAD-item).
+volatile bool     scanLoopt      = false;   // true tussen pBLEScan->start() en ->stop()
+uint16_t          laatsteAckSeq  = 0;       // laatst verstuurde ACK
+uint8_t           laatsteAckStat = 0;
+bool              ackTijdensScan = false;   // ACK ging mid-scan de lucht in -> herhalen
 unsigned long     laatsteHeartbeat  = 0;           // millis() laatste heartbeat
 uint16_t          bleOverflowTeller = 0;           // >MAX_SPELERS in deze batch
 bool              vorigeBattKritiek = false;       // voor fout-transitie batterij-kritiek
@@ -498,6 +524,10 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 void stuurCmdAck(uint16_t seq, uint8_t status) {
   cmd_ack_message m = { MSG_CMD_ACK, (uint8_t)PAAL_ID, seq, status };
   esp_now_send(masterAddress, (uint8_t *)&m, sizeof(m));
+  // S2: onthoud voor de her-ACK ná de scan (zie loop) — een mid-scan ACK is coex-risico.
+  laatsteAckSeq  = seq;
+  laatsteAckStat = status;
+  if (scanLoopt) ackTijdensScan = true;
 }
 
 void stuurHeartbeat() {
@@ -642,6 +672,7 @@ static const Noot* getMelodieSequentie(uint8_t type) {
     case ACTIE_ZIEK_W1:      return MELODIE_ZIEK_W1;
     case ACTIE_KNOP_GOED:    return MELODIE_KNOP_GOED;
     case ACTIE_KNOP_FOUT:    return MELODIE_KNOP_FOUT;
+    case ACTIE_ONTPLOFFING:  return MELODIE_ONTPLOFFING;
     default:                 return nullptr;
   }
 }
@@ -708,8 +739,36 @@ void verwerkKlokslag() {
 // Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
 // vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
 void updateAnimatie() {
-  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT) return;
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT && huidigeActie != ACTIE_ONTPLOFFING) return;
   const unsigned long t = millis() - actieStartMs;
+
+  if (huidigeActie == ACTIE_ONTPLOFFING) {
+    // Ontploffing: felle witte flits die snel uitdooft naar rood, met een ruwe strobe erdoor.
+    // Na ONTPLOF_MS auto-terug naar ACTIE_NIETS -> de LED staat daarna weer op zijn rusttoestand
+    // (de ontmantelpaal is immers geen ontmantelpaal meer; Node-RED stuurt er geen actie 0 achteraan).
+    if (t >= ONTPLOF_MS) {
+      huidigeActie = ACTIE_NIETS;
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB::Black); FastLED.show(); xSemaphoreGive(xLedMutex); }
+      return;
+    }
+    // Eerste 150 ms: witte knal. Daarna: rood dat uitdooft, met een snelle strobe (~14 Hz).
+    CRGB kleur;
+    if (t < 150) {
+      kleur = CRGB(255, 240, 200);
+    } else {
+      const unsigned long tr = t - 150;
+      const unsigned long duur = ONTPLOF_MS - 150;
+      uint8_t val = (uint8_t)(255 - (tr * 235) / duur);        // 255 -> 20
+      bool aan = ((tr % 70) < 45);
+      kleur = aan ? CRGB(val, val / 6, 0) : CRGB(val / 5, 0, 0);
+    }
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      fill_solid(leds, NUM_LEDS, kleur);
+      FastLED.show();
+      xSemaphoreGive(xLedMutex);
+    }
+    return;
+  }
 
   if (huidigeActie == ACTIE_KNOP_GOED || huidigeActie == ACTIE_KNOP_FOUT) {
     // Knop-feedback: korte groen/rood-flits (~5 Hz). Na KNOP_FLITS_MS auto-terug naar ACTIE_NIETS (LEDs uit).
@@ -837,12 +896,13 @@ void voerActieUit(uint8_t actie) {
     return;
   }
 
-  // --- Knop-feedback (22/23): korte groen/rood-flits (auto-stop) + positief/negatief deuntje samen ---
-  if (actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT) {
+  // --- Knop-feedback (22/23) + ontploffing (24): LED-animatie én deuntje tegelijk (auto-stop) ---
+  if (actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT || actie == ACTIE_ONTPLOFFING) {
     const Noot* mel = getMelodieSequentie(actie);
     if (mel) { melodie.type = actie; melodie.noot = 0; melodie.startMs = millis(); if (mel[0].freq > 0) tone(BUZZER_PIN, mel[0].freq); }
     huidigeActie = actie; actieStartMs = millis();
-    Serial.printf("[ACTIE] Knop-feedback %d (flits + deuntje)\n", actie);
+    Serial.printf("[ACTIE] %s %d (animatie + deuntje)\n",
+                  actie == ACTIE_ONTPLOFFING ? "ONTPLOFFING" : "Knop-feedback", actie);
     updateAnimatie();   // teken meteen het eerste frame
     return;
   }
@@ -915,13 +975,16 @@ void verwerkCommandos() {
     uint16_t seq   = cmdBuf[cmdHead].seq;
     cmdHead = (cmdHead + 1) % CMD_BUF_SLOTS;
 
-    // Bekende commando-acties via deze FIFO: 0..15 (LED/anim/buzzer-melodie),
-    // 17/18 (knop arm/uit), 19 (regenboog-test) en 22/23 (knop-feedback groen/rood + deuntje).
+    // Bekende commando-acties via deze FIFO: 0..15 (LED/anim/buzzer-melodie), 17/18 (knop arm/uit),
+    // 19 (regenboog-test), 22/23 (knop-feedback groen/rood + deuntje) en 24 (ontploffing).
     // 12 (buzzer-toon), 16 (klokslag) en 20/21 (scan-/led-config) komen via een eigen msg_type, niet via deze FIFO.
+    // LET OP: een actie die hier NIET in de whitelist staat wordt geweigerd (ACK status 1) en NOOIT
+    // uitgevoerd -- vergeet dus nooit een nieuwe actie hier toe te voegen.
     uint8_t ackStatus = (actie <= ACTIE_TORNADO_RAND ||
                          actie == ACTIE_KNOP_ARM || actie == ACTIE_KNOP_UIT ||
                          actie == ACTIE_REGENBOOG ||
-                         actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT) ? 0 : 1;   // 1 = onbekende actie
+                         actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT ||
+                         actie == ACTIE_ONTPLOFFING) ? 0 : 1;   // 1 = onbekende actie
     if (seq != laatsteUitgevoerdeSeq) {
       Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
       if (ackStatus == 0) voerActieUit(actie);
@@ -930,6 +993,25 @@ void verwerkCommandos() {
       Serial.printf("[CMD] Seq %u al uitgevoerd, alleen her-ACK\n", seq);
     }
     stuurCmdAck(seq, ackStatus);
+  }
+}
+
+// Serviced wait (S1): wacht duurMs terwijl commando's én hardware geservicet blijven —
+// zelfde service-set als het luistervenster. Vervangt de kale delay() in de backoff en
+// de cyclus-staart: dat waren blinde plekken van tot ~150 ms waarin een al ontvangen
+// commando op uitvoering wachtte.
+static void servicedWait(unsigned long duurMs) {
+  unsigned long t0 = millis();
+  while (millis() - t0 < duurMs) {
+    checkBatterij();
+    serviceKnopVerzending();
+    updateIngebouwdeLed();
+    verwerkTestToon();
+    verwerkKlokslag();
+    updateMelodie();
+    updateAnimatie();
+    verwerkCommandos();
+    delay(1);
   }
 }
 
@@ -1123,6 +1205,7 @@ void loop() {
   // (NimBLE 1.4.2 kan enkel in hele seconden blokkeren). De BeaconZoeker-callback vult batchData
   // tijdens het venster, net als bij de oude blocking scan. Voordeel: commando's/melodie/animatie
   // worden nu OOK tijdens de scan geservicet (was ~1 s bevroren).
+  scanLoopt = true;                       // S2: ACK's vanaf hier zijn coex-risico
   pBLEScan->start(0, scanKlaar, false);   // 0 = continu tot stop()
   unsigned long tScan = millis();
   while (millis() - tScan < venster) {
@@ -1135,6 +1218,16 @@ void loop() {
   }
   pBLEScan->stop();
   pBLEScan->clearResults();
+  scanLoopt = false;                      // radio is weer vrij
+
+  // S2: her-ACK in schone lucht. Een ACK die mid-scan verzonden is (radio ~80% BLE-bezet)
+  // gaat vaak verloren -> de master zou onnodig retry'en. Herhaal hem éénmalig hier,
+  // VÓÓR de drain hieronder (een post-scan commando zet daardoor nooit de her-ACK-vlag
+  // en zijn eigen verse ACK blijft de laatste).
+  if (ackTijdensScan) {
+    ackTijdensScan = false;
+    stuurCmdAck(laatsteAckSeq, laatsteAckStat);
+  }
 
   verwerkCommandos();   // commando's die net vóór de stop binnenkwamen meteen afhandelen
 
@@ -1146,7 +1239,7 @@ void loop() {
   // een hardware-RNG, dus per bordje verschillend — geen randomSeed() nodig.
   uint32_t backoff = esp_random() % (MAX_BACKOFF_MS + 1);
   Serial.printf("[BACKOFF] %u ms\n", backoff);
-  delay(backoff);
+  servicedWait(backoff);   // S1: geen blinde plek — commando's blijven bediend
 
   // Altijd versturen, ook bij 0 spelers: zo weet de master (en het dashboard)
   // dat een leeg vak ook echt leeg is. Bij overslaan blijft de oude stand staan.
@@ -1182,18 +1275,7 @@ void loop() {
   verwerkCommandos();   // commando's die net binnen het zendmoment kwamen meteen afhandelen
 
   // Luistervenster: blijf de ring draineren én de hardware servicen tot de timeout.
-  unsigned long startWacht = millis();
-  while (millis() - startWacht < WACHT_TIMEOUT) {
-    checkBatterij();
-    serviceKnopVerzending();   // kogelvrije teller: herhaal-verzendingen afhandelen
-    updateIngebouwdeLed();
-    verwerkTestToon();
-    verwerkKlokslag();
-    updateMelodie();
-    updateAnimatie();
-    verwerkCommandos();
-    delay(1);
-  }
+  servicedWait(WACHT_TIMEOUT);
   verwerkCommandos();   // laatste keer ná het venster
 
   // Drop-teller van de ringbuffer melden zodra hij toeneemt (diagnose).
@@ -1202,5 +1284,5 @@ void loop() {
     gemeldeCmdDrops = cmdDrops;
   }
 
-  delay(50);
+  servicedWait(50);   // S1: cyclus-staart zonder blinde plek
 }

@@ -27,11 +27,34 @@ Handige knoppen:
 
 - **Manueel-modus** — jij bepaalt wanneer het event valt ("Volgende event") en wanneer de controle
   draait ("Controle"). Zonder tijdsdruk. Er is dan **geen** `grace`-fase.
+- **"Met timer"** (Bediening → Speltoestand) — alles loopt automatisch mét de echte reactietijd en
+  `grace`-fase, maar het **volgende** event start pas op jouw knop. Dit is de modus waarin je de
+  tijdsdruk realistisch test zonder dat de events over elkaar heen buitelen.
 - **"→ wachtrij"** op een event-kaart — dwingt dat event als eerstvolgende af. Zo test je een
   `legendary` event zonder honderd rondes te wachten.
 - **Tijd terug (↶)** — herstelt de vorige spelstaat. Handig om één scenario meermaals te draaien.
 - **Systeem-/Spelinstellingen** — middernacht uit, toestand-exclusiviteit uit, tempo, slechte aura,
   thuisbank.
+
+### 1c. Test-modus (echte spelers, op het veld, zonder gevolgen)
+
+De schakelaar **🧪 Test** in de simulator-topbalk is bedoeld voor een **oefenronde met de echte
+spelers** — bij de start van de dag, of nadat je een nieuw event hebt toegevoegd.
+
+- **Aan** → alles werkt **exact zoals in het echte spel**: levensuren tellen op, LED's branden, de
+  zoemer klinkt, de box roept af. Spelers leren zo het spel mét de echte prikkels.
+- Events komen er **enkel handmatig** in de cyclus (dezelfde `wacht`-fase als "Met timer", EV9). Jij
+  bepaalt dus welk event ze te zien krijgen — via de wachtrij-planner.
+- **Uit** → **alles wat er tijdens de testronde gebeurde verdwijnt**: levensuren, sterftes, ziektes,
+  tijdbommen, portalen, tweelingen, het klassement, de historiek én de doorgeschoven middernacht-klok.
+  Het spel staat weer exact zoals vóór de test. De simulator vraagt eerst bevestiging — dit is
+  **niet** terug te draaien.
+
+> **Wat NIET terugkomt:** waar de spelers fysiek staan (dat is geen toestand, en de bakens
+> overschrijven het toch binnen een seconde). Het herstel zorgt er wel voor dat die verplaatsingen
+> **geen** "vrij gewandeld"-straf (V10) opleveren.
+
+Zie invarianten **TM1–TM3**.
 
 ### 1b. AI-testharnas (regressie)
 

@@ -73,6 +73,11 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .toestand-rondes { color: #888; font-size: 0.9em; }
 .toestand-leeg { color: #888; padding: 4px 0; }
 
+/* Wereld-toestanden: regelwijzigingen die op iedereen tegelijk slaan (eigen kleur, zodat je ze
+   niet verwart met de uur-toestanden hierboven). */
+.wereld-lijst { font-size: 0.85em; color: #444; }
+.wereld-lijst .toestand-groep b { color: #00796b; }
+
 /* Ziekte-paneel */
 .ziekte-lijst { font-size: 0.85em; color: #444; }
 .ziekte-rij { padding: 3px 0; border-bottom: 1px solid #eee; }
@@ -283,6 +288,23 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .sys-rij input[type="checkbox"] { cursor: pointer; accent-color: #37474f; }
 .sys-rij.sys-slider { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; }
 .sys-rij.sys-slider input[type="range"] { width: 100%; }
+
+/* ============================================================
+   TEST-MODUS
+   ============================================================
+   Een testronde mag NOOIT verward worden met het echte spel: alles wat er gebeurt wordt
+   teruggedraaid. Daarom een opvallende amberkleurige markering in de header en een gestreepte
+   rand rond het hele scherm zolang de test loopt. */
+.hdr-test label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.test-status {
+    font-size: 0.78em; font-weight: 700; letter-spacing: 0.04em;
+    color: #7a4c00; background: #ffc247; padding: 2px 7px; border-radius: 3px;
+}
+body.test-actief header { background: #6b4a00; }
+body.test-actief {
+    outline: 4px solid #ffb300;
+    outline-offset: -4px;
+}
 
 /* ============================================================
    SPELTYPE-KEUZE + KLOKSLAG

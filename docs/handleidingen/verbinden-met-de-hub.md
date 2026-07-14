@@ -82,6 +82,40 @@ sudo nmcli connection add type ethernet ifname eth0 con-name Veld-eth autoconnec
 
 ## Probleemoplossing
 
+### "De volgende dag zijn dashboard en simulator weg — pas na een reboot werkt het weer"
+
+Dit is **bijna nooit** een container-probleem: alle vier de containers draaien met
+`restart: unless-stopped` en komen vanzelf terug. Draai daarom **eerst deze triage, vóór je
+reboot** — een reboot wist het bewijs:
+
+```bash
+uptime; ip -4 a | grep -E "inet .*(eth0|wlan0)"; nmcli device status; \
+docker ps -a --format "table {{.Names}}\t{{.Status}}"; \
+curl -sI -m5 http://127.0.0.1:1880/ | head -1; free -h; df -h /
+```
+
+Lees de uitslag zo:
+
+| Wat je ziet | Oorzaak | Definitieve fix |
+|---|---|---|
+| eth0 heeft **`192.168.51.1`**, of `Veld-eth` staat bij de actieve verbindingen | **Veruit het waarschijnlijkst.** De thuisrouter antwoordde even niet (nachtelijke herstart, verlopen lease) → NetworkManager geeft na 15 s / 2 pogingen op → het **veldprofiel `Veld-eth` kaapt eth0**. Alle containers draaien vrolijk door, maar de Pi is niet meer op `192.168.1.43` te vinden. Een reboot herstelt de prioriteit — vandaar het symptoom. | Zie hieronder |
+| `curl` op de Pi geeft **wél** een antwoord, maar van je laptop lukt het niet | Docker's iptables/nftables-regels zijn weg (firewall- of NetworkManager-reload) → poort 1880/1883/9001 is van buiten dood | `sudo systemctl restart docker` |
+| `curl` op de Pi **faalt** terwijl de container "Up" staat | Node-RED **hangt** (event-loop vast). Docker herstart een *hangende* container niet, enkel een *gecrashte*. | Sinds juli 2026 vangt de **healthcheck + autoheal** in `pi/node-red/docker-compose.yml` dit op (herstart binnen ~2 min). Nu meteen: `docker restart magnum-Opus` |
+| `df -h /` zit rond 100 %, of `/` is read-only | Volle SD-kaart | Zie `hub-noodherstel.md` (log-caps + opruimen) |
+
+**De fix voor het IP-probleem** (doe allebei):
+
+```bash
+# 1. Geef de Pi een VAST thuis-IP (of maak een DHCP-reservering op je router)
+sudo nmcli con mod "Wired connection 1" ipv4.method manual \
+     ipv4.addresses 192.168.1.43/24 ipv4.gateway 192.168.1.1 ipv4.dns 192.168.1.1
+
+# 2. Laat het veldprofiel eth0 niet meer kapen; op het veld start je het met de hand
+sudo nmcli con mod Veld-eth connection.autoconnect no
+```
+
+Op het veld daarna bewust activeren met `sudo nmcli con up Veld-eth` (of gewoon het AP gebruiken).
+
 **Gsm kan niet joinen op `MagnumOpus`**
 - Controleer op de Pi: `nmcli device status` → `wlan0` moet `connected` zijn op `MagnumOpus-AP`.
   Zo niet: `sudo nmcli connection up MagnumOpus-AP`.

@@ -20,6 +20,20 @@ services:
     image: nodered/node-red:4.1.7        # gepind (zie docs/versions.md); was 'latest'
     container_name: magnum-Opus
     restart: unless-stopped
+    labels:
+      # Laat de autoheal-container deze container bewaken (zie service 'autoheal' onderaan).
+      - "autoheal=true"
+    healthcheck:
+      # WAAROM: `restart: unless-stopped` herstart enkel een container die CRASHT. Een Node-RED die
+      # blijft draaien maar HANGT (event-loop vast, geheugendruk op de 1 GB-Pi) blijft "Up" en wordt
+      # door Docker met rust gelaten -- dan zijn dashboard en simulator onbereikbaar tot je reboot.
+      # Deze check haalt de UI echt op; faalt hij 3x na elkaar, dan wordt de container 'unhealthy'
+      # (meteen zichtbaar in `docker ps`) en herstart autoheal hem.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:1880/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s      # Node-RED heeft op een Pi 4 makkelijk 30-60 s nodig om te booten
     logging:
       # SD-bescherming: zonder cap groeit de json-file-log onbeperkt (volle SD = read-only fs).
       # Zelfde caps staan host-breed in /etc/docker/daemon.json (zie docs/hardware/hardware-info.md).
@@ -69,3 +83,30 @@ services:
     volumes:
       - ../../config/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ${MOSQUITTO_DATA:-/home/pi/mosquitto-data}:/mosquitto/data
+
+  autoheal:
+    # WAAROM DEZE CONTAINER BESTAAT: Docker herstart een 'unhealthy' container NIET vanzelf --
+    # een healthcheck alleen doet dus niets, hij zet enkel een vlaggetje. Autoheal kijkt elke 30 s
+    # naar containers met het label autoheal=true en herstart wat 'unhealthy' staat. Dat vangt een
+    # Node-RED die 's nachts vastloopt op, zodat je 's ochtends niet meer hoeft te rebooten.
+    # De spelstand overleeft zo'n herstart (contextStorage + retained spel/state).
+    #
+    # LET OP: haal dit image ÉÉN KEER binnen terwijl je nog internet hebt (thuis):
+    #     cd pi/node-red && docker compose pull
+    # Op het veld is er geen internet meer om het alsnog te downloaden.
+    image: willfarrell/autoheal:1.2.0
+    container_name: autoheal
+    restart: unless-stopped
+    network_mode: none          # heeft geen netwerk nodig, praat enkel met de docker-socket
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=120
+      - DOCKER_SOCK=/var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

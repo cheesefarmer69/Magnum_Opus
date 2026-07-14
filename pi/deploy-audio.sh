@@ -37,8 +37,15 @@ docker run -d \
   -e AUDIO_TOPIC=audio/afspelen \
   -e AUDIO_DIR=/app/audio \
   -e AUDIO_DEV=default \
+  -e VOLUME_TOPIC=audio/volume \
+  -e MIXER_CARD=Headphones \
   -v "$AUDIO_DIR/audio:/app/audio" \
   audio-player
+
+# MIXER_CONTROL is bewust NIET gezet: player.py spoort de control zelf op met `amixer scontrols`
+# (Bookworm: 'Headphone', oudere images: 'PCM'). Klopt MIXER_CARD niet op jouw Pi, controleer met:
+#   aplay -l                                   # kaartnaam opzoeken (zoek "Headphones")
+#   docker exec audio-player amixer -c Headphones scontrols
 
 echo "[deploy-audio] Dangling images opruimen (SD-bescherming)..."
 docker image prune -f >/dev/null

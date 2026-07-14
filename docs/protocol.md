@@ -173,9 +173,23 @@ terugstuurt — niet bij de MAC-laag-ACK van de radio (die zegt enkel "pakket on
   master-teller slaat daarom **0 én 0xFFFF** over bij het uitdelen — een vers geboote slave kan zo nooit een
   echt commando als "al uitgevoerd" wegfilteren.
 - De master koppelt de ACK aan het **head-item** van de per-slave FIFO via `cmd_seq` en popt het dan.
-- **Timing**: de slave verwerkt een commando pas aan het einde van zijn ~1 s blokkerende scan-cyclus. De
-  ACK-round-trip is daardoor ~1–1,3 s; de master-retry-timeout (`APP_ACK_TIMEOUT`) staat daarom op **~1500 ms**
-  (niet de 250 ms MAC-interval). Retries hergebruiken hetzelfde `cmd_seq`; na `MAX_POGINGEN` volgt `opgegeven`.
+  Een **dubbele ACK** (her-ACK, zie onder) op een al-gepopte seq matcht niets en is onschadelijk
+  (enkel een `[ACK] … stale`-logregel).
+- **Timing (niet-blokkerende scan)**: de slave draineert zijn commando-ring óók tijdens de BLE-scan
+  (elke ~5 ms) en voert een ontvangen commando dus vrijwel direct uit. De bottleneck is de **RF-capture**:
+  tijdens de scan is de C3-radio ~80 % met BLE bezet (window 64 / interval 80), zodat het betrouwbare
+  ESP-NOW-ontvangstvenster de ~250–400 ms ná de scan is. De werkelijke ACK-round-trip bij een geslaagde
+  capture is **10–250 ms**.
+- **Phase-locked retry (master)**: elke `MSG_BATCH`/`MSG_HEARTBEAT` markeert het begin van het vrije
+  radio-venster van die slave (`slaveVensterVlag`). Een pending commando wordt dan **direct** herzonden
+  (guard 50 ms tegen batch+heartbeat-dubbeltrigger) — de resend landt zo vrijwel altijd in het
+  luistervenster. `APP_ACK_TIMEOUT` (**600 ms** ≈ halve slave-cyclus) is enkel nog de blinde fallback
+  (batch richting master verloren / dode paal); **niet terugtunen naar ~1500 ms** — die oude waarde was
+  gekalibreerd op de verdwenen blokkerende scan. Retries hergebruiken hetzelfde `cmd_seq`; na
+  `MAX_POGINGEN` (**6**) volgt `opgegeven` (dode paal: ~3,6 s).
+- **Her-ACK ná de scan (slave)**: een ACK die mid-scan verzonden werd (coex-risico) wordt éénmalig
+  herhaald direct na `pBLEScan->stop()`, in schone lucht — dat dicht het "uitgevoerd maar master weet
+  het niet"-gat zonder heruitvoering (idempotent op `cmd_seq`).
 
 ## 1. Slave → Master (ESP-NOW)
 
@@ -280,7 +294,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 10 | `ACTIE_MN_DICHT`    | LED strip **rood** continu (middernacht-poort **dicht**) |
 | 11 | `ACTIE_OOGST`       | LED strip **geanimeerd** dramatische wit/rood-strobe (middernacht-oogst bij een 0 in pi) |
 | 12 | `ACTIE_BUZZER_TOON` | Buzzer-tuning: **continue** toon op een instelbare frequentie. **Geen `commando_message_v2`** — de master vertaalt dit naar een `MSG_BUZZER_TOON` (zie §0). Vereist het extra JSON-veld `toon` (Hz; `0` = stop). |
-| 13 | `ACTIE_TIJDBOM`     | LED strip **geanimeerd** tikkende rode flits (~2 Hz). Gezet op de **ontmantel-palen** van een actief tijdbom-event (paal met drukknop waar een bom ontmanteld kan worden). |
+| 13 | `ACTIE_TIJDBOM`     | LED strip **geanimeerd** tikkende rode flits (~2 Hz). Gezet op de **ontmantel-palen** van een actief tijdbom-event (paal met drukknop waar een bom ontmanteld kan worden). De paal wordt tegelijk **gearmd** met `ACTIE_KNOP_ARM` (17) — zonder dat negeert de slave elke druk. |
 | 14 | `ACTIE_TORNADO`     | LED strip **donkergrijs** continu (tornado-center; zuigt de aanliggende uren naar zich toe). Overschrijft tijdelijk een onderliggend effect; herstelt na het event. |
 | 15 | `ACTIE_TORNADO_RAND`| LED strip **geanimeerd** trage grijze pulse (aanliggend uur van een tornado). |
 | 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus`. |
@@ -291,6 +305,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 21 | `ACTIE_LED_CONFIG` | LED-helderheid (globale FastLED-brightness) instellen. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_LED_CONFIG`. Vereist het extra JSON-veld `helderheid` (0..255; slave clamp't 5..255). Fire-and-forget (geen FIFO/ACK). Componeert met Klokslag/animatie-kleuren (die schalen per-LED). |
 | 22 | `ACTIE_KNOP_GOED` | Knop-feedback **positief**: korte **groene** flits over de 7 LEDs (~800 ms, dan auto-terug naar `ACTIE_NIETS`) + kort **positief** zoemerdeuntje. Gewone `commando_message_v2` (FIFO/ACK). Voor drukknop-events (goede keuze) en de knoppendans-minigame. |
 | 23 | `ACTIE_KNOP_FOUT` | Knop-feedback **negatief**: korte **rode** flits over de 7 LEDs (~800 ms, dan auto-terug naar `ACTIE_NIETS`) + kort **negatief** zoemerdeuntje (dalend). Gewone `commando_message_v2` (FIFO/ACK). Voor drukknop-events (slechte keuze) en de knoppendans-minigame (fout/strike). |
+| 24 | `ACTIE_ONTPLOFFING` | **Tijdbom gaat af**: witte knal → uitdovende **rode strobe** (~1,6 s, `ONTPLOF_MS`, dan auto-terug naar `ACTIE_NIETS`) + een **dalende sirene-sweep** (2500 → 300 Hz) met drie lage dreunen. Bewust veel lager/langer dan de korte foute-keuze-flits (23) zodat je van over het veld hoort dat er iemand ontploft is. Gewone `commando_message_v2` (FIFO/ACK). Gestuurd bij een **mislukte ontmanteling** én bij een **afgelopen bom-teller**. |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -317,15 +332,22 @@ Afronding in v2 gebeurt op de **applicatie-ACK** (`MSG_CMD_ACK`), niet op de MAC
 - Het head-item wordt **gepopt** zodra een `MSG_CMD_ACK` met matchend `cmd_seq` binnenkomt. De master meldt
   dan `{"status":"uitgevoerd","paal":N,"seq":S}` (of `"geweigerd"` bij `status == 1`) en stuurt het volgende
   item.
-- Komt er binnen `APP_ACK_TIMEOUT` (~1500 ms, afgestemd op de ~1 s slave-scancyclus) geen ACK, dan
-  **resend** met **hetzelfde** `cmd_seq`. Na `MAX_POGINGEN` (~4) geeft de master het head-item op met
-  `{"status":"opgegeven",...}` en gaat verder met het volgende.
+- **Resend is phase-locked**: elke binnenkomende `MSG_BATCH`/`MSG_HEARTBEAT` van een slave markeert
+  het begin van diens vrije radio-venster (~250–400 ms post-scan, `slaveVensterVlag`); een pending
+  head-item wordt dan **direct** herzonden (guard 50 ms). Blinde fallback: geen ACK binnen
+  `APP_ACK_TIMEOUT` (**600 ms**) → resend met **hetzelfde** `cmd_seq`. Na `MAX_POGINGEN` (**6**)
+  geeft de master het head-item op met `{"status":"opgegeven",...}` (dode paal: ~3,6 s) en gaat
+  verder met het volgende.
 
 Eigenschappen van dit model:
 
 - **Volgorde-behoud (geen laatste-wint).** Twee snel opeenvolgende, verschillende commando's naar dezelfde
   paal (bv. buzzer-piep + portaal) worden **beide** in volgorde afgeleverd — vroeger overschreef het laatste
   het eerste, waardoor bv. de piep wegviel.
+- **Phase-locked retry.** Retries synchroniseren op het post-scan-venster van de slave i.p.v. op een
+  blinde timer — een resend landt daardoor vrijwel altijd wanneer de slave-radio vrij is. Samen met de
+  **her-ACK ná de scan** (slave herhaalt een mid-scan verzonden ACK éénmalig in schone lucht) is de
+  typische klik→uitvoering-latentie ~0,4–0,7 s.
 - **Geen head-of-line blocking tussen palen.** Een onbereikbare paal doorloopt zijn eigen retry-cyclus
   zonder de commando's naar andere palen te vertragen. (Binnen één paal is de FIFO wel ordelijk: het head-item
   blokkeert tot het ge-ACK't of opgegeven is.)
@@ -734,6 +756,17 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-07-13: **Commando-latency-optimalisatie (phase-locked retry + her-ACK)** — geen wire-format-
+  wijziging. Master: retries zijn nu **phase-locked** op de binnenkomende batch/heartbeat van de
+  slave (= begin van diens vrije radio-venster, `slaveVensterVlag`, guard 50 ms); `APP_ACK_TIMEOUT`
+  1500 → **600 ms** (blinde fallback; de oude waarde was gekalibreerd op de verdwenen blokkerende
+  scan) en `MAX_POGINGEN` 4 → **6** (opgeven ~3,6 s). Log-drain is **budget-begrensd**
+  (`Serial.setTxBufferSize(2048)` vóór `begin()` + alleen schrijven wat in de TX-ring past) zodat de
+  loop nooit meer ~150-200 ms stalt op UART-backpressure; `[RECV]`-debugregel achter `LOG_RECV_DEBUG`.
+  Slave: kale `delay()`s in backoff/cyclus-staart vervangen door `servicedWait()` (commando's blijven
+  bediend) en een mid-scan verzonden ACK wordt éénmalig **her-ACK't** direct na `pBLEScan->stop()`
+  (idempotent). Node-RED: commando-mqtt-out QoS 2 → 0. Typische klik→uitvoering: 2-5 s → ~0,4-0,7 s.
+  Vereist herflash van masters (fase 1) + slaves (fase 2).
 - 2026-07-05: **`MSG_LED_CONFIG` (0x0A) + actie 21 `ACTIE_LED_CONFIG`** — runtime-instelbare LED-helderheid
   (globale FastLED-brightness) voor daglicht-zichtbaarheid. Config via `{"paal":N,"actie":21,
   "helderheid":M}` op `commando/masterN`; de master vertaalt actie 21 → `MSG_LED_CONFIG` en stuurt direct

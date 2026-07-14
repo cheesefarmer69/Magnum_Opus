@@ -202,7 +202,7 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
   achteruit, dan is de zet fout (*PENDELEN*, 0 levensuren + valsspeelpunt).
 - **Uitzondering:** de **middernachtpoort achterwaarts** oversteken (1→24) blijft verboden, en een
   **dichte** poort blijft dicht.
-- **Duur & kans:** **10–15 events**; max 1; **rare**; afloop-audio *"tijdreizen voorbij"*.
+- **Duur & kans:** **10–15 events**; max 1; **epic**; afloop-audio *"tijdreizen voorbij"*.
 
 ---
 
