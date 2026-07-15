@@ -30,7 +30,8 @@ audio/
 │   ├── groep.wav / groepen.wav    (groep-doelwit)
 │   └── iedereen.wav               (Iedereen-event: vervangt de getal-prefix + naam-opsomming, O1)
 ├── woorden/       losse verbindingswoorden
-│   └── of.wav       ("of", connector bij twee getallen)
+│   ├── of.wav       ("of", connector bij twee getallen)
+│   └── een.wav      ("een", los tussenwoord voor toekomstige afroepen — nog niet gewired)
 ├── groepen/       ALLE groep-doelwit-clips, gebundeld (zie groepen/README.md)
 │   ├── kleur/    kleur.wav + rood/zwart/blauw.wav
 │   ├── jaar/     jaar.wav + eerste/tweede/derde.wav
@@ -41,9 +42,13 @@ audio/
 │   ├── voor.wav   ("De volgende doelwitten zijn gekozen:")
 │   └── na.wav     ("...dat waren de doelwitten.")
 ├── sound-effect/  geluidseffecten (countdown, per event-soort, reactietijd)
-│   ├── wereld-events/woosh.wav   "groot event komt aan"-sting: speelt ná het aftellen en
-│   │                             vóór de afroep, ENKEL bij categorie "wereld" (nog opnemen)
-│   └── (zie sound-effect/README.md — verzamelmap, nog niet auto-afgespeeld)
+│   ├── countdown/countdown.wav      speelt bij de 5s-aftelklok vóór elk event
+│   ├── wereld-events/woosh.wav       "groot event komt aan"-sting: speelt ná het aftellen en
+│   │                                 vóór de afroep, ENKEL bij categorie "wereld"
+│   ├── wereld-events/bomaanslag.wav  reactietijd-sfx (bang) bij het bomaanslag-event   (via sfxReactie)
+│   ├── toestanden/tornado.wav        reactietijd-sfx bij het tornado-event            (via sfxReactie)
+│   ├── toestanden/portalen.wav       reactietijd-sfx bij het portalen-event           (via sfxReactie)
+│   └── (zie sound-effect/README.md — reactietijd-sfx via het config-veld `sfxReactie`)
 └── muziek/        LANGE tracks voor het bestuurbare kanaal `audio/muziek` (pauze/hervat/stop)
     ├── reactie_pools.wav   Poolse song (event "De reactietijd wordt Pools")
     └── (de dood-cutscene-track staat in events/wereld-events/onmiddellijke_dood.wav)
@@ -149,28 +154,36 @@ Huidige mapping (config → bestand, per submap):
   leeg en is `uur_vooruit.wav` het na-stuk (de connector "of" zit in `woorden/of.wav`).
 - **`events/toestanden/`** (toestand-events): `worden_ziek.wav`, `worden_een_tijdbom.wav`,
   `worden_getroffen_door_een_tornado.wav`, `een_portaal_opent_tussen_twee_uren.wav`,
-  en (nog op te nemen) `worden_happy_hour.wav`, **`etenstijd.wav`** ("een wolf zal jagen op zijn
-  schaapjes"), **`tweeling.wav`** ("2 spelers worden een tweeling").
+  `worden_happy_hour.wav`, `etenstijd.wav` ("een wolf zal jagen op zijn schaapjes"),
+  `tweeling.wav` ("2 spelers worden een tweeling"), `body_swap.wav` ("twee spelers wisselen van plaats").
 - **`events/wereld-events/`** (wereld-events): `events_komen_sneller.wav`,
-  `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`,
-  en (nog op te nemen) `nuke.wav`, **`identiteitscrisis.wav`**, **`tijdreizen.wav`**
-  ("tijdreizen zal worden toegestaan").
-  De **bomaanslag** kiest per afvuring willekeurig één van **vier uur-duo's** (elk 25 %) en speelt de
-  bijhorende clip uit `audioVoorOpties`. Naast de bestaande `..._9_en_11.wav` zijn dus nog op te nemen:
-  **`een_bomaanslag_vind_plaats_op_uur_4_en_20.wav`**, **`..._6_en_7.wav`**, **`..._6_en_9.wav`**.
-  Die clip is meteen de gesproken waarschuwing vlak vóór de reactietijd van dat event.
-- **`events/afgelopen/`** (eind-cue `audioAfgelopen` bij afloop van de duratie, nog op te nemen):
-  `identiteitscrisis_voorbij.wav`, **`tijdreizen_voorbij.wav`** ("tijdreizen is afgelopen"),
-  **`etenstijd_voorbij.wav`** ("de wolf is voldaan"), en **`alle_zieken_gestorven.wav`**
-  ("Alle zieken zijn gestorven." — gespeeld door **Ziekte-beheer** wanneer er geen medicijn meer op
-  het bord staat terwijl er nog zieken zijn, invariant Z9; niet via `audioAfgelopen`).
-  Ook **`tijdbom_ontmanteld.wav`** ("de tijdbom is ontmanteld") en **`tijdbom_ontploft.wav`**
-  ("de tijdbom is ontploft") — gespeeld door **Knop-verwerking** / **Tijdbom-beheer** bij een
-  geslaagde resp. mislukte ontmanteling en bij een afgelopen bom-teller (invarianten T4/T5/T6).
-  *(Tweeling heeft geen eind-cue — die eindigt op een dood of op samenkomen, niet op duratie.)*
+  `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op.wav`, `nuke.wav`, `identiteitscrisis.wav`,
+  `tijdreizen.wav` ("tijdreizen zal worden toegestaan"), `polonaise.wav` ("de polonaise begint"),
+  `max_per_uur.wav` + `spelers_per_uur_staan.wav`.
+  De **bomaanslag** roept de gekozen uren af als getal-segmenten na `een_bomaanslag_vind_plaats_op.wav`;
+  die clip is meteen de gesproken waarschuwing vlak vóór de reactietijd van dat event.
+- **`events/afgelopen/`** (eind-cue `audioAfgelopen` bij afloop van de duratie):
+  `portaal_gesloten.wav`, `happy_hour_voorbij.wav`, `identiteitscrisis_voorbij.wav`,
+  `tijdreizen_voorbij.wav`, `max_per_uur_voorbij.wav`, `polonaise_voorbij.wav`, en (nog op te nemen)
+  `etenstijd_voorbij.wav` ("de wolf is voldaan").
+  Buiten het generieke `audioAfgelopen`-pad om spelen: **`alle_zieken_gestorven.wav`**
+  ("Alle zieken zijn gestorven." — **Ziekte-beheer**, geen medicijn meer terwijl er zieken zijn,
+  invariant Z9), **`tijdbom_ontmanteld.wav`** / **`tijdbom_ontploft.wav`** (**Knop-verwerking** /
+  **Tijdbom-beheer**, T4/T5/T6, nog op te nemen), en **`tweeling_verbroken.wav`** ("de tweelingen
+  zijn verbroken" — gespeeld bij **elke** tweeling-verbreking: hereniging TW6 én dood-propagatie,
+  via de vlag `global.tweelingVerbrokenCue` die "Verouder effecten" op de afgelopen-emissie oppikt;
+  tweeling eindigt immers niet op duratie).
 
 > Ontbrekende WAV's zijn **niet fataal**: `player.py` slaat een onbestaand bestand over
 > (`[AUDIO] Bestand ontbreekt, overgeslagen`). De **zoemer op de paal** klinkt sowieso.
+
+**Reactietijd-sfx (`sfxReactie`).** Een event kan een sfeer-effect krijgen dat **tijdens de
+reactietijd** klinkt (zodra het event valt). Zet in de `[CONFIG]`-inject het veld
+`"sfxReactie": "<bestand>.wav"`; "Kies event" hangt dan `sound-effect/<categorie>/<bestand>`
+**achteraan de afroep-segmenten**. Huidige koppelingen: bomaanslag → `wereld-events/bomaanslag.wav`
+(bang), tornado → `toestanden/tornado.wav`, portalen → `toestanden/portalen.wav`. Een wereld-event
+krijgt daarnaast altijd de generieke `sound-effect/wereld-events/woosh.wav` vooraan. Zie
+`sound-effect/README.md`.
 
 De ziekte-waarschuwing (ziekenhuis-monitor + hartslag) speelt op de **slave-buzzer**
 (acties 5/6/7), niet via de audio-player. Dat geldt ook voor de **ontploffing** (actie 24:
@@ -178,7 +191,8 @@ dalende sirene-sweep + rode strobe) en de **ontmantel-feedback** (actie 22: groe
 positief deuntje).
 
 De aantal-prefix (`speler`/`spelers`/`uur`/`uren`/`groep`/`groepen`) staat in `prefix/`
-(zie `prefix/README.md`); de connector `of.wav` staat in `woorden/`.
+(zie `prefix/README.md`); de losse tussenwoorden `of.wav` en `een.wav` staan in `woorden/`
+(`een.wav` is nog niet in een afroep gewired — reserve voor een toekomstig event).
 
 **Alle groep-audio** (de aanroep "groep/groepen" + kleur/jaar/maand/seizoen met hun
 waarden) staat gebundeld in `groepen/` — zie **`groepen/README.md`** voor de volledige

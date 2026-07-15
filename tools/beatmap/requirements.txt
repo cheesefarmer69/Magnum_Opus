@@ -1,0 +1,4 @@
+# Dev-only (draait op de PC, NIET op de Pi / niet in een container).
+# Bewust numpy-only: de analyse gebruikt de stdlib `wave`-module + numpy-FFT,
+# geen zware librosa/numba/scipy-stack.
+numpy>=1.24

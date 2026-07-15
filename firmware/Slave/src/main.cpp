@@ -282,13 +282,32 @@ volatile uint8_t klokslagHelderheid = 0;
 volatile uint8_t klokslagModus = 3;        // default rust
 volatile bool    klokslagDirty = false;
 
-// Bom-animatie (MSG_BOM): OnDataRecv zet enkel deze volatile waarden; verwerkBom() start de animatie
-// en updateAnimatie() rendert de oplaad-ramp -> hold -> pinken -> uit lokaal (vloeiend, RF-onafhankelijk).
-volatile uint16_t bomLaadMs = 0;           // oplaad-ramp 0 -> max
-volatile uint16_t bomHoldMs = 0;           // vasthouden op max (voor groeps-bommen die wachten)
-volatile uint16_t bomPinkMs = 0;           // knipperduur op zijn felst
-volatile uint16_t bomPinkHz = 2;           // knipperfrequentie
-volatile bool     bomDirty  = false;
+// Bom-animatie (MSG_BOM, v2 met geplande bommen): OnDataRecv pusht enkel in een kleine SPSC-ring
+// (producent; zelfde model als cmdBuf); verwerkBom() (loop = consument) draineert de ring naar een
+// schema en vuurt elke bom exact op zijn geplande dueMs, met actieStartMs = dueMs als ANKER — een
+// te laat bezorgde cue kort automatisch zijn oplaad-ramp in en het doofmoment (de beat) blijft
+// staan. updateAnimatie() rendert de actieve bom (ramp -> hold -> pinken -> uit) lokaal.
+#define BOM_BUF_SLOTS 4
+struct BomRxItem { int32_t wacht; uint16_t laad, hold, pink, hz; uint8_t seq; };
+volatile BomRxItem bomBuf[BOM_BUF_SLOTS];
+volatile uint8_t  bomRxHead = 0;           // alleen loop schrijft (consument)
+volatile uint8_t  bomRxTail = 0;           // alleen OnDataRecv schrijft (producent)
+volatile uint16_t bomDrops  = 0;           // gedropt bij volle ring
+
+#define BOM_SCHED_SLOTS 4
+struct BomSched { uint32_t dueMs; uint16_t laad, hold, pink, hz; uint8_t seq; bool actief; };
+BomSched bomSchedule[BOM_SCHED_SLOTS] = {};   // alleen loop-task raakt dit aan (geen lock nodig)
+// Time-boxed seq-dedupe: de master herzendt tot hij zeker is (geen ACK-machinerie) — een duplicaat
+// dat ná het vuren nog binnenvalt wordt hier herkend. Entries verlopen zelf (geldig tot due+anim+3 s),
+// zodat een master-reboot (seq-teller herstart) nooit een verse bom wegfiltert. seq 0 = v1 = geen dedupe.
+struct BomRecent { uint8_t seq; uint32_t totMs; };
+BomRecent bomRecent[BOM_SCHED_SLOTS] = {};
+
+// Parameters van de ACTIEVE bom-animatie (alleen loop-task; gevuld door verwerkBom bij het vuren).
+uint16_t bomLaadMs = 0;                    // oplaad-ramp 0 -> max
+uint16_t bomHoldMs = 0;                    // vasthouden op max (voor groeps-bommen die wachten)
+uint16_t bomPinkMs = 0;                    // knipperduur op zijn felst
+uint16_t bomPinkHz = 2;                    // knipperfrequentie
 
 // Huidige LED-actie + starttijd, voor de geanimeerde acties (8 = nuke, 11 = oogst).
 // updateAnimatie() leest deze en blijft tekenen tot een nieuwe actie binnenkomt.
@@ -401,7 +420,10 @@ typedef struct __attribute__((packed)) bom_message {
   uint16_t hold_ms;         // vasthouden op max vóór het knipperen
   uint16_t pink_ms;         // knipperduur op zijn felst; daarna dooft de LED (= ontploft)
   uint16_t pink_hz;         // knipperfrequentie (bv. 2)
-} bom_message;
+  int32_t  wacht_ms;        // v2: ms tot vuren (SIGNED: negatief = al zoveel ms geleden verschuldigd
+                            //     -> anker in het verleden, ramp wordt ingekort); 0 = direct (v1)
+  uint8_t  seq;             // v2: dedupe-teller van de master (0 = v1-frame, geen dedupe)
+} bom_message;              // 15 B; v1-frames (10 B) worden geaccepteerd en nul-aangevuld
 
 typedef struct __attribute__((packed)) scan_config_message {
   uint8_t  msg_type;        // = MSG_SCAN_CONFIG
@@ -448,9 +470,22 @@ bool              ackTijdensScan = false;   // ACK ging mid-scan de lucht in -> 
 // helemaal niets latcht. Renderers vullen de buffer gewoon (puur CPU, geen RMT); de
 // show zelf wordt uitgesteld en direct na pBLEScan->stop() in schone lucht gedaan
 // (zelfde patroon als de her-ACK hierboven). Buiten de scan toont toonLeds() meteen.
+//
+// UITZONDERING (S3b, beat-sync "Bommen vermijden"): voor ACTIE_BOM en ACTIE_KLOKSLAG (de golf)
+// latchen we WÉL tijdens de scan — anders bevriest de strip tot een volledige scan-duur (300 ms
+// in-game) en landt precies het doofmoment (de beat) te laat. Beide zijn continu her-getekende
+// animaties (updateAnimatie elke ~1-5 ms): een zeldzaam door BLE-interrupts corrupt frame wordt
+// binnen één tick overschreven (self-healing; de IDF-RMT-driver FASTLED_RMT_BUILTIN_DRIVER=1
+// vangt de oude underrun al af). Revert zonder code-edit: -DBOM_SHOW_TIJDENS_SCAN=0 in
+// platformio.ini -> exact het oude gedrag.
+#ifndef BOM_SHOW_TIJDENS_SCAN
+#define BOM_SHOW_TIJDENS_SCAN 1
+#endif
 volatile bool     ledShowPending = false;   // buffer gerenderd tijdens scan -> flushen na stop()
 static inline void toonLeds() {             // aanroepen mét xLedMutex vast (zoals FastLED.show())
-  if (scanLoopt) { ledShowPending = true; return; }
+  bool latchTochTijdensScan = BOM_SHOW_TIJDENS_SCAN &&
+                              (huidigeActie == ACTIE_BOM || huidigeActie == ACTIE_KLOKSLAG);
+  if (scanLoopt && !latchTochTijdensScan) { ledShowPending = true; return; }
   FastLED.show();
   ledShowPending = false;
 }
@@ -508,15 +543,24 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     return;
   }
 
-  // Bom-animatie (minigame): zet de parameters; de loop start via verwerkBom() en updateAnimatie()
-  // rendert de oplaad-ramp -> hold -> pinken -> uit lokaal. Geen FIFO/ACK.
+  // Bom-animatie (minigame, v2 gepland): push in de SPSC-ring; verwerkBom() (loop) plant en vuurt.
+  // Geen FIFO/ACK. Lengte-uitzondering: v1-frames (10 B, zonder wacht_ms/seq) worden geaccepteerd
+  // en nul-aangevuld (wacht 0 = direct vuren, seq 0 = geen dedupe) — mixed-flash-tolerantie.
   if (incomingData[0] == MSG_BOM) {
-    if (len < (int)sizeof(bom_message)) return;
+    if (len < (int)offsetof(bom_message, wacht_ms)) return;   // = v1-grootte (10 B)
     bom_message bm;
-    memcpy(&bm, incomingData, sizeof(bm));
+    memset(&bm, 0, sizeof(bm));
+    memcpy(&bm, incomingData, (len < (int)sizeof(bm)) ? len : (int)sizeof(bm));
     if (bm.paal_id != PAAL_ID) return;
-    bomLaadMs = bm.laad_ms; bomHoldMs = bm.hold_ms; bomPinkMs = bm.pink_ms; bomPinkHz = bm.pink_hz;
-    bomDirty = true;
+    uint8_t volgend = (uint8_t)((bomRxTail + 1) % BOM_BUF_SLOTS);
+    if (volgend == bomRxHead) { bomDrops = bomDrops + 1; return; }   // ring vol -> drop (teller)
+    bomBuf[bomRxTail].wacht = bm.wacht_ms;
+    bomBuf[bomRxTail].laad  = bm.laad_ms;
+    bomBuf[bomRxTail].hold  = bm.hold_ms;
+    bomBuf[bomRxTail].pink  = bm.pink_ms;
+    bomBuf[bomRxTail].hz    = bm.pink_hz;
+    bomBuf[bomRxTail].seq   = bm.seq;
+    bomRxTail = volgend;                                       // publiceer als laatste (SPSC)
     return;
   }
 
@@ -783,12 +827,92 @@ void verwerkKlokslag() {
 
 // Bom-animatie: pas een nieuw MSG_BOM toe. Zet de actie op ACTIE_BOM zodat updateAnimatie() de
 // oplaad-ramp -> hold -> pinken -> uit lokaal rendert (aangeroepen naast verwerkKlokslag()).
+// Onthoud een gevuurde/verworpen seq time-boxed (dedupe van master-herzendingen).
+static void bomOnthoudSeq(uint8_t seq, uint32_t totMs) {
+  if (seq == 0) return;                          // v1-frame: geen dedupe
+  int oudste = 0;
+  for (int i = 0; i < BOM_SCHED_SLOTS; i++) {
+    if (bomRecent[i].seq == 0) { oudste = i; break; }
+    if ((int32_t)(bomRecent[i].totMs - bomRecent[oudste].totMs) < 0) oudste = i;
+  }
+  bomRecent[oudste].seq = seq; bomRecent[oudste].totMs = totMs;
+}
+
+static bool bomSeqGezien(uint8_t seq, uint32_t nu) {
+  if (seq == 0) return false;                    // v1: nooit dedupen
+  for (int i = 0; i < BOM_SCHED_SLOTS; i++) {
+    if (bomSchedule[i].actief && bomSchedule[i].seq == seq) return true;
+    if (bomRecent[i].seq == seq && (int32_t)(nu - bomRecent[i].totMs) < 0) return true;
+  }
+  return false;
+}
+
+// Geplande bommen: drain de RX-ring naar het schema en vuur wat due is. Wordt vanuit de loop,
+// de scan-lus én servicedWait() aangeroepen (cadans ~1-5 ms), dus het vuren zit hooguit enkele
+// ms naast dueMs. actieStartMs = dueMs is het ANKER: een te laat bezorgde/gevuurde bom kort
+// automatisch zijn oplaad-ramp in en het doofmoment (dueMs + laad+hold+pink) blijft op de beat.
 void verwerkBom() {
-  if (!bomDirty) return;
-  bomDirty = false;
+  const uint32_t nu = millis();
+
+  // 1) RX-ring -> schema (consument; OnDataRecv is de producent, zelfde SPSC-model als cmdBuf).
+  while (bomRxHead != bomRxTail) {
+    BomRxItem it;
+    it.wacht = bomBuf[bomRxHead].wacht; it.laad = bomBuf[bomRxHead].laad;
+    it.hold  = bomBuf[bomRxHead].hold;  it.pink = bomBuf[bomRxHead].pink;
+    it.hz    = bomBuf[bomRxHead].hz;    it.seq  = bomBuf[bomRxHead].seq;
+    bomRxHead = (uint8_t)((bomRxHead + 1) % BOM_BUF_SLOTS);
+
+    if (bomSeqGezien(it.seq, nu)) continue;      // duplicaat van een master-herzending
+    const uint32_t anim = (uint32_t)it.laad + it.hold + it.pink;
+    if (it.wacht <= -(int32_t)anim) {            // al volledig verstreken -> niets meer te tonen
+      bomOnthoudSeq(it.seq, nu + 3000);
+      continue;
+    }
+    int vrij = -1;
+    for (int i = 0; i < BOM_SCHED_SLOTS; i++) if (!bomSchedule[i].actief) { vrij = i; break; }
+    if (vrij < 0) {                              // schema vol (hoort niet: tijdlijn-max is 2)
+      Serial.println("[BOM] schema vol - cue gedropt");
+      continue;
+    }
+    bomSchedule[vrij].dueMs = nu + it.wacht;     // signed add: negatief = anker in het verleden
+    bomSchedule[vrij].laad = it.laad; bomSchedule[vrij].hold = it.hold;
+    bomSchedule[vrij].pink = it.pink; bomSchedule[vrij].hz = it.hz;
+    bomSchedule[vrij].seq = it.seq;  bomSchedule[vrij].actief = true;
+  }
+
+  // 2) Vuur wat due is. Meerdere tegelijk due -> enkel de LAATSTE (grootste dueMs) wint
+  //    (replace-on-fire, deterministisch); de oudere gaan als "gevuurd" de dedupe in.
+  int winnaar = -1;
+  for (int i = 0; i < BOM_SCHED_SLOTS; i++) {
+    if (!bomSchedule[i].actief) continue;
+    if ((int32_t)(nu - bomSchedule[i].dueMs) < 0) continue;   // nog niet due
+    if (winnaar < 0 || (int32_t)(bomSchedule[i].dueMs - bomSchedule[winnaar].dueMs) > 0) winnaar = i;
+  }
+  if (winnaar < 0) return;
+
+  for (int i = 0; i < BOM_SCHED_SLOTS; i++) {    // oudere due-slots opruimen zonder te vuren
+    if (i == winnaar || !bomSchedule[i].actief) continue;
+    if ((int32_t)(nu - bomSchedule[i].dueMs) >= 0) {
+      bomOnthoudSeq(bomSchedule[i].seq, nu + 3000);
+      bomSchedule[i].actief = false;
+    }
+  }
+
+  BomSched &b = bomSchedule[winnaar];
+  const uint32_t anim = (uint32_t)b.laad + b.hold + b.pink;
+  bomOnthoudSeq(b.seq, b.dueMs + anim + 3000);
+  const int32_t delta = (int32_t)(nu - b.dueMs); // vuur-latentie t.o.v. plan (bench-metriek)
+  if ((uint32_t)delta >= anim) {                 // te laat om nog iets te tonen
+    b.actief = false;
+    return;
+  }
+  bomLaadMs = b.laad; bomHoldMs = b.hold; bomPinkMs = b.pink; bomPinkHz = b.hz;
   huidigeActie = ACTIE_BOM;
-  actieStartMs = millis();
-  updateAnimatie();   // teken meteen het eerste frame (start van de ramp)
+  actieStartMs = b.dueMs;                        // het anker: t loopt vanaf het GEPLANDE moment
+  b.actief = false;
+  Serial.printf("[BOM] vuur seq=%u delta=%ldms laad=%u hold=%u pink=%u\n",
+                b.seq, (long)delta, b.laad, b.hold, b.pink);
+  updateAnimatie();                              // teken meteen het eerste frame
 }
 
 // ====================================================================
@@ -807,21 +931,36 @@ void updateAnimatie() {
     const unsigned long laad = bomLaadMs;
     const unsigned long tHold = laad + bomHoldMs;
     const unsigned long tEind = tHold + bomPinkMs;
+    const uint16_t periode = (bomPinkHz > 0) ? (1000 / bomPinkHz) : 500;
     CRGB kleur;
+    uint8_t fase;                                    // 0=ramp 1=hold 2=pink-aan 3=pink-uit 4=einde
     if (t < laad) {                                  // 1) vloeiende oplaad-ramp
       uint8_t val = (laad > 0) ? (uint8_t)((uint32_t)t * 255 / laad) : 255;
       kleur = CRGB(255, 0, 0); kleur.nscale8_video(val);
+      fase = 0;
     } else if (t < tHold) {                          // 2) vasthouden op max
-      kleur = CRGB(255, 0, 0);
+      kleur = CRGB(255, 0, 0); fase = 1;
     } else if (t < tEind) {                          // 3) knipperen op zijn felst
       const unsigned long tp = t - tHold;
-      const uint16_t periode = (bomPinkHz > 0) ? (1000 / bomPinkHz) : 500;
       bool aan = (tp % periode) < (periode / 2);
       kleur = aan ? CRGB(255, 0, 0) : CRGB(0, 0, 0);
-    } else {                                         // 4) ontploft -> uit (auto-terug)
-      huidigeActie = ACTIE_NIETS; kleur = CRGB::Black;
+      fase = aan ? 2 : 3;
+    } else {                                         // 4) ontploft -> uit
+      kleur = CRGB::Black; fase = 4;
     }
+    // Frame-throttle: met de S3b-latch (tonen tijdens de scan) rendert dit pad op ~1 ms-cadans;
+    // beperk RMT-transfers tot fase-randen (beat-accuraat: knipper-flanken + het doofmoment) en
+    // anders ~66 fps. Statisch over bommen heen is oké: een nieuwe bom begint met een andere fase.
+    static uint8_t bomVorigeFase = 255;
+    static unsigned long bomVorigeFrame = 0;
+    const unsigned long nuMs = millis();
+    if (fase == bomVorigeFase && (nuMs - bomVorigeFrame) < 15) return;
+    bomVorigeFase = fase; bomVorigeFrame = nuMs;
+    // F2: het doofframe (fase 4) wordt getekend+GETOOND terwijl huidigeActie nog ACTIE_BOM is —
+    // de S3b-latch in toonLeds() kijkt daarnaar. Pas daarná auto-terug naar ACTIE_NIETS; anders
+    // bleef juist de ontploffing (dé beat) tot een scan-einde hangen.
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, kleur); toonLeds(); xSemaphoreGive(xLedMutex); }
+    if (fase == 4) huidigeActie = ACTIE_NIETS;
     return;
   }
 
@@ -1048,6 +1187,15 @@ void voerActieUit(uint8_t actie) {
   Serial.printf("[ACTIE] LED %d\n", actie);
 
   if (actie == ACTIE_NIETS) {
+    // Actie 0 dooft ook GEPLANDE bommen (minigame-stop): schema leeg + RX-ring gedraind.
+    // De gewiste seqs gaan de time-boxed dedupe in, zodat een herzending die op dit moment al
+    // in de lucht hing niet alsnog een gewiste bom vuurt (de master wist zijn eigen bom-queue
+    // vóór hij actie 0 enqueue't, dus méér herzendingen komen er niet).
+    for (int i = 0; i < BOM_SCHED_SLOTS; i++) {
+      if (bomSchedule[i].actief) bomOnthoudSeq(bomSchedule[i].seq, millis() + 3000);
+      bomSchedule[i].actief = false;
+    }
+    bomRxHead = bomRxTail;                     // consument-kant: ring in één keer leeg
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
       fill_solid(leds, NUM_LEDS, CRGB::Black);
       toonLeds();

@@ -31,7 +31,7 @@ Dit voorkomt dat componenten uit sync raken.
 | `0x08` | `MSG_KLOKSLAG`  | master → slave (Klokslag-LED) | `klokslag_message` | 7 B |
 | `0x09` | `MSG_SCAN_CONFIG` | master → slave (BLE-scan-duur) | `scan_config_message` | 4 B |
 | `0x0A` | `MSG_LED_CONFIG` | master → slave (LED-helderheid) | `led_config_message` | 3 B |
-| `0x0B` | `MSG_BOM`       | master → slave (bom-animatie, minigame) | `bom_message` | 10 B |
+| `0x0B` | `MSG_BOM`       | master → slave (bom-animatie, minigame) | `bom_message` | 15 B (v2; 10 B-v1 wordt nog geaccepteerd) |
 
 ```cpp
 #define MSG_BATCH        0x01
@@ -131,7 +131,12 @@ typedef struct __attribute__((packed)) {        // 0x0B — master → slave, bo
   uint16_t hold_ms;         // vasthouden op max vóór het knipperen
   uint16_t pink_ms;         // knipperduur op zijn felst; daarna dooft de LED (= ontploft)
   uint16_t pink_hz;         // knipperfrequentie (bv. 2)
-} bom_message;
+  int32_t  wacht_ms;        // v2: ms tot vuren (SIGNED — negatief = "was X ms geleden verschuldigd",
+                            //     laat een láát bezorgde resend het anker in het verleden leggen);
+                            //     0 = direct vuren (v1-gedrag)
+  uint8_t  seq;             // v2: per-slave dedupe-teller van de master (slaat 0 over);
+                            //     0 = geen dedupe (v1-frame)
+} bom_message;              // 15 B; een 10 B-v1-frame wordt geaccepteerd (v2-velden nul-aangevuld)
 ```
 
 > **`MSG_KLOKSLAG` (Klokslag-minigame).** De Klokslag-engine kleurt elke paal in de **teamkleur**
@@ -147,12 +152,33 @@ typedef struct __attribute__((packed)) {        // 0x0B — master → slave, bo
 > `laad_ms`), houdt zijn **felst** even vast (`hold_ms`), **knippert** dan op zijn felst (`pink_ms` @
 > `pink_hz`), en **dooft** (= ontploft). De ramp bereikt 255 **exact** bij `t==laad_ms`, dus de piek
 > valt structureel vóór het knipperen. De slave rendert dit **lokaal** (`updateAnimatie()`), zodat de
-> animatie vloeiend blijft ongeacht RF-jitter; enkel de trigger + de tijden komen over de lucht. Net
-> als `MSG_KLOKSLAG` fire-and-forget (geen FIFO/ACK). JSON van Node-RED:
-> `{"paal":N,"actie":25,"laad_ms":..,"hold_ms":..,"pink_ms":..,"pink_hz":..}` (de master vertaalt actie
-> 25 naar `MSG_BOM`). De **scoring** (−10 levensuren voor wie bij het doven op de paal staat) gebeurt in
-> Node-RED op de ontplof-tijd, niet in de firmware. Tip: zet tijdens de minigame de scan-duur kort
-> (`scan_ms:300`, actie 20) zodat de show-gate de ramp niet te lang bevriest (zie §slave/BLE-scan).
+> animatie vloeiend blijft ongeacht RF-jitter; enkel de trigger + de tijden komen over de lucht.
+> JSON van Node-RED: `{"paal":N,"actie":25,"laad_ms":..,"hold_ms":..,"pink_ms":..,"pink_hz":..,"wacht_ms":W}`
+> (de master vertaalt actie 25 naar `MSG_BOM`). De **scoring** (−10 levensuren voor wie bij het doven
+> op de paal staat) gebeurt in Node-RED op de ontplof-tijd, niet in de firmware.
+>
+> **Geplande bommen (v2, juli 2026) — beat-vast ondanks RF-jitter.** Met `wacht_ms > 0` stuurt
+> Node-RED de cue **vooraf** (LEAD ~1,2 s) en wordt de bezorging losgekoppeld van de timing:
+> - **Master**: actie 25 met `wacht_ms>0` gaat níét blind de lucht in maar in een **per-slave
+>   bom-wachtrij** (diepte 4, loop-task-privé — géén lock nodig; enqueue via `verwerkRegel`,
+>   verzenden via `verwerkBomQueue()`). Herzenden gebeurt **phase-locked** (in het vrije
+>   radio-venster na een batch/heartbeat, spacing 40 ms) plus een blinde 150 ms-cadans, telkens
+>   met een **vers herberekende signed `wacht_ms = uitvoerOp − nu`**; een entry vervalt op
+>   `uitvoerOp + laad+hold+pink` of na 30 pogingen (`{"status":"bom_verlopen"}`). Duplicaat-
+>   bezorging is onschadelijk (seq-dedupe op de slave) — bewust géén ACK-machinerie.
+> - **Slave**: zet het bericht in een klein **schema** (`bomSchedule[4]`) met `dueMs =
+>   millis() + wacht_ms` en vuurt zodra due, met **`actieStartMs = dueMs`** als anker: een te
+>   laat bezorgde cue kort automatisch zijn ramp in en het **doofmoment blijft op de geplande
+>   tijd** (de beat). Bij meerdere due-slots tegelijk vuurt enkel de laatste (replace-on-fire).
+>   Dedupe is **time-boxed** (`seq` onthouden tot due+anim+3 s; `seq 0` = v1 = geen dedupe).
+>   **Actie 0** (`ACTIE_NIETS`) wist schema + pending ring (én de master-wachtrij van die slave).
+> - `wacht_ms == 0` (of een 10 B-v1-frame) = het oude gedrag: direct blind verzenden / direct vuren.
+>
+> **Show-gate-uitzondering (S3b).** Tijdens de BLE-scan onderdrukt de slave normaal `FastLED.show()`
+> (S3, RMT-corruptierisico) — maar voor **`ACTIE_BOM` en `ACTIE_KLOKSLAG`** (beide continu
+> her-getekende animaties; een zeldzaam corrupt frame heelt in één tick) wordt er wél gelatcht,
+> anders bevriest de ramp ~50 % van de tijd en latcht het doofmoment tot een scan-duur te laat.
+> Revert-switch: build-flag `BOM_SHOW_TIJDENS_SCAN=0` in `firmware/Slave/platformio.ini`.
 
 > **`MSG_BUZZER_TOON` (buzzer-tuning).** Een passieve piezo is het luidst rond zijn
 > eigen resonantiefrequentie; die verschilt per bordje (productiespreiding). Dit
@@ -177,10 +203,13 @@ typedef struct __attribute__((packed)) {        // 0x0B — master → slave, bo
   lengte** (`len >= sizeof(<struct>)`) vóór `memcpy`. Onbekend `msg_type` of verkeerde lengte → log + drop.
   De sender-MAC-gate (`vindSlaveIndex` tegen `slaveAdressen[]`) blijft als eerste filter staan.
 - **Slave `OnDataRecv`**: accepteert `MSG_COMMANDO` (`incomingData[0] == 0x02` + lengtecheck),
-  `MSG_BUZZER_TOON` (`0x07`, buzzer-tuning), `MSG_KLOKSLAG` (`0x08`, Klokslag-LED) en `MSG_SCAN_CONFIG`
-  (`0x09`, scan-duur); al het andere wordt genegeerd. Buzzer-toon, Klokslag en scan-config zetten enkel
-  `volatile` doelwaarden (geen `tone()`/`FastLED.show()` in de WiFi-callback); de loop past ze toe
-  (`verwerkTestToon()`/`verwerkKlokslag()` / de scan-lus die `scanDuurMs` snapshot).
+  `MSG_BUZZER_TOON` (`0x07`, buzzer-tuning), `MSG_KLOKSLAG` (`0x08`, Klokslag-LED), `MSG_SCAN_CONFIG`
+  (`0x09`, scan-duur) en `MSG_BOM` (`0x0B`); al het andere wordt genegeerd. Buzzer-toon, Klokslag en
+  scan-config zetten enkel `volatile` doelwaarden (geen `tone()`/`FastLED.show()` in de WiFi-callback);
+  de loop past ze toe (`verwerkTestToon()`/`verwerkKlokslag()` / de scan-lus die `scanDuurMs` snapshot).
+  **Lengte-uitzondering `MSG_BOM`**: geaccepteerd vanaf `len ≥ 10` (= v1-grootte,
+  `offsetof(bom_message, wacht_ms)`); een korter v1-frame wordt nul-aangevuld (`wacht_ms 0`, `seq 0`)
+  en gedraagt zich als vanouds. MSG_BOM gaat in een eigen SPSC-ring (4 slots) → `verwerkBom()`.
 
 ### Applicatie-ACK (afronding ná uitvoering)
 
@@ -328,7 +357,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 22 | `ACTIE_KNOP_GOED` | Knop-feedback **positief**: korte **groene** flits over de 7 LEDs (~800 ms, dan auto-terug naar `ACTIE_NIETS`) + kort **positief** zoemerdeuntje. Gewone `commando_message_v2` (FIFO/ACK). Voor drukknop-events (goede keuze) en de knoppendans-minigame. |
 | 23 | `ACTIE_KNOP_FOUT` | Knop-feedback **negatief**: korte **rode** flits over de 7 LEDs (~800 ms, dan auto-terug naar `ACTIE_NIETS`) + kort **negatief** zoemerdeuntje (dalend). Gewone `commando_message_v2` (FIFO/ACK). Voor drukknop-events (slechte keuze) en de knoppendans-minigame (fout/strike). |
 | 24 | `ACTIE_ONTPLOFFING` | **Tijdbom gaat af**: witte knal → uitdovende **rode strobe** (~1,6 s, `ONTPLOF_MS`, dan auto-terug naar `ACTIE_NIETS`) + een **dalende sirene-sweep** (2500 → 300 Hz) met drie lage dreunen. Bewust veel lager/langer dan de korte foute-keuze-flits (23) zodat je van over het veld hoort dat er iemand ontploft is. Gewone `commando_message_v2` (FIFO/ACK). Gestuurd bij een **mislukte ontmanteling** én bij een **afgelopen bom-teller**. |
-| 25 | `ACTIE_BOM` | **Bom-animatie** (minigame "Bommen vermijden"): LED gloeit **vloeiend rood op** (`laad_ms`) → houdt zijn **felst** vast (`hold_ms`) → **knippert** op zijn felst (`pink_ms` @ `pink_hz`) → **dooft** (= ontploft). **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_BOM` (zie §0). Vereist de extra JSON-velden `laad_ms`, `hold_ms`, `pink_ms`, `pink_hz`. Fire-and-forget; de slave rendert lokaal (piek altijd vóór het knipperen). De −10-scoring gebeurt in Node-RED op de ontplof-tijd. |
+| 25 | `ACTIE_BOM` | **Bom-animatie** (minigame "Bommen vermijden"): LED gloeit **vloeiend rood op** (`laad_ms`) → houdt zijn **felst** vast (`hold_ms`) → **knippert** op zijn felst (`pink_ms` @ `pink_hz`) → **dooft** (= ontploft). **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_BOM` (zie §0). JSON-velden: `laad_ms`, `hold_ms`, `pink_ms`, `pink_hz` + optioneel **`wacht_ms`** (>0 = **geplande bom**: master-wachtrij met phase-locked herzendingen, slave vuurt op `dueMs` met `actieStartMs = dueMs` als anker — doofmoment beat-vast; 0/afwezig = direct, fire-and-forget). De slave rendert lokaal (piek altijd vóór het knipperen). De −10-scoring gebeurt in Node-RED op de ontplof-tijd. |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -576,7 +605,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1\|2\|3` | Node-RED → Pi | `{"paal":1,"actie":1}` — Node-RED routeert per paal-bereik (1–8/9–16/17–24); de bridge levert bij de juiste master |
 | `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["getallen/3.wav","woorden/spelers.wav","events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` — de event-fase begint met de aantal-prefix (`getallen/<aantal>` + `woorden/<speler\|spelers\|uur\|uren>`) |
-| `audio/muziek`     | Node-RED → audio-player | `{"cmd":"play\|pause\|resume\|stop","track":"muziek/reactie_pools.wav"}` — **bestuurbaar kanaal** los van de segment-queue: een lange track die pauzeert/hervat-op-positie (`pause`/`resume`) of hard stopt mid-track (`stop`). `play` = vanaf 0 (reset positie). Gebruikt door het Poolse-reactietijd-event (muziek tijdens de reactietijd) en de onmiddellijke-dood-cutscene (24 s-track afgekapt bij de landing). `player.py` streamt de PCM via `wave.setpos` naar `aplay` (positie via wandklok) |
+| `audio/muziek`     | Node-RED → audio-player | `{"cmd":"play\|pause\|resume\|stop","track":"muziek/reactie_pools.wav"}` — **bestuurbaar kanaal** los van de segment-queue: een lange track die pauzeert/hervat-op-positie (`pause`/`resume`) of hard stopt mid-track (`stop`). `play` = vanaf 0 (reset positie), maar **idempotent**: speelt exact dezelfde track al actief, dan wordt een herhaald `play` genegeerd (geen herstart-sprong) — zo kan een producent het commando veilig her-bevestigen. Gebruikt door het Poolse-reactietijd-event (muziek tijdens de reactietijd), de onmiddellijke-dood-cutscene (24 s-track afgekapt bij de landing) en de bommen-minigame (die het `play` ~800 ms na de start eenmalig herhaalt tegen een verloren/te-late eerste publish). `player.py` streamt de PCM via `wave.setpos` naar `aplay` (positie via wandklok) |
 | `locatie/spelers`  | Node-RED → browser | `{"Lilou":5,"Maud":12}` — opgeloste paal per speler (algoritme-uitkomst) |
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
 | `spel/state`       | Node-RED ↔ Node-RED | `{"ts":..,"spelerStats":{..},"globaleStats":{..},"spelHistorie":[..],"spelToestand":..,"spelNummer":..,"midnight":{"midnightIndex":..,"midnightOpen":..,"midnightRemaining":..,"piDigits":".."}}` (retained, qos 1) — **compacte state-snapshot** die Flow 04 elke 30 s dumpt; node `Rehydrate spel-state` leest hem bij (her)start terug, maar enkel als de global nog leeg is. Vangnet naast `contextStorage` (zie invariant NR8) |
@@ -655,7 +684,9 @@ afregeling staan in `docs/locatiebepaling.md`:
 - **Server**: `192.168.1.43` (NIET `127.0.0.1` — Node-RED draait in bridge-netwerk)
 - **Port**: 1883
 - **Protocol**: MQTT V3.1.1
-- **QoS**: 2 voor commando's (exactly-once), 0 of 1 voor data acceptabel
+- **QoS**: 0 voor commando's én data (fire-and-forget — laagste latentie; de master-FIFO/retries
+  maken commando's idempotent-betrouwbaar, zie §2). Géén QoS 2 gebruiken: dat kost twee extra
+  broker-round-trips per commando en de flows/bridge staan bewust op 0.
 
 ### MQTT-config in bridge.py (serial-bridge container)
 

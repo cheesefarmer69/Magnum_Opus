@@ -155,7 +155,10 @@ typedef struct __attribute__((packed)) bom_message {
   uint16_t hold_ms;         // vasthouden op max vóór het knipperen
   uint16_t pink_ms;         // knipperduur; daarna dooft de LED (= ontploft)
   uint16_t pink_hz;         // knipperfrequentie
-} bom_message;
+  int32_t  wacht_ms;        // v2: ms tot vuren op de slave (SIGNED; per zendpoging VERS herberekend
+                            //     als uitvoerOp - nu, mag negatief = "al zoveel ms geleden"); 0 = direct
+  uint8_t  seq;             // v2: per-slave dedupe-teller (slaat 0 over; 0 = v1/geen dedupe)
+} bom_message;              // 15 B; oude slaves (10 B-check) accepteren dit frame ook
 
 // ---- SLAVES REGISTREREN ----
 // De MAC->PAAL_ID-tabel staat gedeeld in firmware/shared/paal_macs.h (ÉÉN bron van waarheid
@@ -269,6 +272,39 @@ static uint16_t       volgendeCmdSeq   = 1;     // monotone teller (0 = "geen")
 volatile uint8_t slaveVensterVlag[AANTAL_SLAVES] = {0};
 static const uint32_t VENSTER_HERZEND_GUARD_MS = 50;   // dempt dubbeltrigger batch+heartbeat
 
+// De vlag heeft sinds de geplande bommen TWEE consumenten (verwerkQueue + verwerkBomQueue).
+// loop() leest+wist hem daarom één keer per tick naar vensterTick[] (FIFO: byte-identieke
+// one-shot-semantiek) en zet tegelijk bomVensterTot[] (bommen: venster blijft ~200 ms "open",
+// zodat meerdere pending bommen binnen hetzelfde vrije radio-venster de lucht in kunnen).
+static uint8_t  vensterTick[AANTAL_SLAVES]  = {0};
+static uint32_t bomVensterTot[AANTAL_SLAVES] = {0};
+static const uint32_t BOM_VENSTER_OPEN_MS = 200;
+
+// ---- GEPLANDE BOMMEN (minigame "Bommen vermijden", beat-sync) ----
+// Per-slave wachtrij voor actie 25-cues met wacht_ms > 0. Node-RED stuurt elke cue LEAD
+// (~1,2 s) vooraf; wij herzenden hem phase-locked (vrij radio-venster) + blind (150 ms-cadans)
+// met per poging een VERS herberekende signed rest-wacht, tot het verval op uitvoerOp + de
+// animatieduur. Bewust GEEN ACK-machinerie: duplicaat-bezorging is onschadelijk (de slave
+// dedupet op seq) en zo blijft deze hele administratie LOOP-TASK-PRIVÉ — enqueue gebeurt via
+// verwerkSerieel->verwerkRegel en verzenden via verwerkBomQueue, allebei op de loop-task,
+// dus (anders dan de cmdMux-FIFO's hierboven) is hier géén lock nodig.
+#define BOM_QUEUE_DIEPTE 4
+struct BomItem {
+  uint16_t laad, hold, pink, hz;
+  uint32_t uitvoerOpMs;      // millis() waarop de slave moet vuren
+  uint32_t vervaltOpMs;      // uitvoerOp + laad+hold+pink (+marge): daarna niet meer zenden
+  uint32_t laatstePogingMs;  // 0 = nog nooit verzonden
+  uint8_t  seq;
+  uint8_t  pogingen;
+};
+struct BomQueue { BomItem items[BOM_QUEUE_DIEPTE]; uint8_t head; uint8_t count; };
+static BomQueue bomPerSlave[AANTAL_SLAVES] = {};
+static uint8_t  bomSeqTeller[AANTAL_SLAVES] = {0};
+static const uint8_t  BOM_MAX_POGINGEN       = 30;
+static const uint32_t BOM_RETRY_MS           = 150;  // blinde cadans (venster is de hoofdroute)
+static const uint32_t BOM_VENSTER_SPACING_MS = 40;   // min. afstand tussen pogingen ín het venster
+static const uint32_t BOM_VERVAL_MARGE_MS    = 200;
+
 // ---- HULPFUNCTIES ----
 // True als deze MAC-rij alleen uit nullen bestaat (placeholder-slot).
 static bool isPlaceholderMac(const uint8_t *mac) {
@@ -335,10 +371,9 @@ void verwerkQueue() {
   uint32_t nu = millis();
   for (int i = 0; i < AANTAL_SLAVES; i++) {
     SlaveCmdQueue &q = cmdPerSlave[i];
-    // Vlag consume-once per tick, OOK zonder pending item — een stale vlag van een vorige
-    // cyclus zou een latere retry anders precies mid-scan triggeren (poging verspild).
-    bool venster = (slaveVensterVlag[i] != 0);
-    if (venster) slaveVensterVlag[i] = 0;
+    // Venster-vlag: sinds de geplande bommen ge-hoist naar loop() (twee consumenten) —
+    // vensterTick[] draagt dezelfde consume-once-per-tick-semantiek, ook zonder pending item.
+    bool venster = (vensterTick[i] != 0);
 
     // Besluit + index-mutatie onder de lock; zenden/loggen erbuiten (zie cmdMux).
     bool     doeSend = false, doeOpgegeven = false;
@@ -603,10 +638,108 @@ static void stuurBom(int paal, uint16_t laad_ms, uint16_t hold_ms, uint16_t pink
     logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
     return;
   }
-  bom_message bm = { MSG_BOM, (uint8_t)paal, laad_ms, hold_ms, pink_ms, pink_hz };
+  // v2-frame met wacht 0 (= direct vuren) + verse seq: gedrag identiek aan v1, maar een
+  // dubbel bezorgde herhaling zou op een nieuwe slave netjes gededuped worden.
+  uint8_t s = ++bomSeqTeller[i]; if (s == 0) s = ++bomSeqTeller[i];   // seq 0 = gereserveerd (v1)
+  bom_message bm = { MSG_BOM, (uint8_t)paal, laad_ms, hold_ms, pink_ms, pink_hz, 0, s };
   esp_err_t res = esp_now_send(slaveAdressen[i], (uint8_t *)&bm, sizeof(bm));
   logRegel("{\"status\":\"%s\",\"paal\":%d,\"actie\":25}\n",
            (res == ESP_OK) ? "bom" : "send_err", paal);
+}
+
+// ---- GEPLANDE BOMMEN (wacht_ms > 0): wachtrij + phase-locked herzendingen ----
+// Alles hier draait op de loop-task (enqueue via verwerkRegel, zenden via verwerkBomQueue),
+// dus zonder lock — zie de toelichting bij BomQueue.
+
+// Wis de bom-wachtrij van één slave (bij actie 0 = stop/einde minigame): er mogen daarna
+// géén herzendingen meer vertrekken, anders vuurt een net-gewiste bom alsnog op de slave.
+static void bomWisSlave(int i) {
+  if (i < 0 || i >= AANTAL_SLAVES) return;
+  if (bomPerSlave[i].count > 0) {
+    logRegel("{\"status\":\"bom_gewist\",\"paal\":%d,\"n\":%d}\n", PAAL_MIN + i, bomPerSlave[i].count);
+  }
+  bomPerSlave[i].head = 0;
+  bomPerSlave[i].count = 0;
+}
+
+// Plan een bom: uitvoerOp = nu + wacht. Vol (hoort niet: tijdlijn-max is 2 pending/paal) ->
+// drop-NEWEST + log (afwijking van enqueueCommando's drop-oldest: het oudste item is hier
+// het eerst due en dus het belangrijkst).
+static void enqueueBom(int paal, uint16_t laad, uint16_t hold, uint16_t pink, uint16_t hz, uint32_t wacht) {
+  int i = paalNaarIndex(paal);
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    return;
+  }
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return;
+  }
+  BomQueue &q = bomPerSlave[i];
+  if (q.count >= BOM_QUEUE_DIEPTE) {
+    logRegel("{\"status\":\"bom_vol\",\"paal\":%d}\n", paal);
+    return;
+  }
+  uint8_t s = ++bomSeqTeller[i]; if (s == 0) s = ++bomSeqTeller[i];
+  uint32_t nu = millis();
+  BomItem &it = q.items[(q.head + q.count) % BOM_QUEUE_DIEPTE];
+  it.laad = laad; it.hold = hold; it.pink = pink; it.hz = hz;
+  it.uitvoerOpMs     = nu + wacht;
+  it.vervaltOpMs     = it.uitvoerOpMs + (uint32_t)laad + hold + pink + BOM_VERVAL_MARGE_MS;
+  it.laatstePogingMs = 0;
+  it.seq             = s;
+  it.pogingen        = 0;
+  q.count++;
+  logRegel("{\"status\":\"bom_gepland\",\"paal\":%d,\"wacht\":%lu,\"seq\":%u}\n",
+           paal, (unsigned long)wacht, s);
+}
+
+// Zend pending bommen: éérste gelegenheid direct, daarna phase-locked in het vrije
+// radio-venster (spacing 40 ms) en blind op de 150 ms-cadans. Elke poging draagt een VERS
+// herberekende signed rest-wacht, zodat de slave altijd op hetzelfde absolute moment vuurt,
+// hoe laat het frame ook landt. Max één send per slave per loop-tick (airtime-vriendelijk).
+static void verwerkBomQueue() {
+  uint32_t nu = millis();
+  for (int i = 0; i < AANTAL_SLAVES; i++) {
+    BomQueue &q = bomPerSlave[i];
+    if (q.count == 0) continue;
+
+    // 1) Verval: head-items die voorbij hun animatie-einde zijn (of uitgeput) poppen.
+    while (q.count > 0) {
+      BomItem &h = q.items[q.head];
+      bool voorbij  = ((int32_t)(nu - h.vervaltOpMs) >= 0);
+      bool uitgeput = (h.pogingen >= BOM_MAX_POGINGEN);
+      if (!voorbij && !uitgeput) break;
+      logRegel("{\"status\":\"bom_verlopen\",\"paal\":%d,\"seq\":%u,\"pogingen\":%u}\n",
+               PAAL_MIN + i, h.seq, h.pogingen);
+      q.head = (uint8_t)((q.head + 1) % BOM_QUEUE_DIEPTE);
+      q.count--;
+    }
+    if (q.count == 0) continue;
+
+    // 2) Zend-kandidaat: het eerste item (in enqueue-volgorde) dat aan de beurt is.
+    bool vensterOpen = ((int32_t)(bomVensterTot[i] - nu) > 0);
+    for (uint8_t k = 0; k < q.count; k++) {
+      BomItem &it = q.items[(q.head + k) % BOM_QUEUE_DIEPTE];
+      bool nooitVerstuurd = (it.laatstePogingMs == 0);
+      uint32_t sindsPoging = nu - it.laatstePogingMs;
+      bool mag = nooitVerstuurd ||
+                 (vensterOpen && sindsPoging >= BOM_VENSTER_SPACING_MS) ||
+                 (sindsPoging >= BOM_RETRY_MS);
+      if (!mag) continue;
+
+      bom_message bm = { MSG_BOM, (uint8_t)(PAAL_MIN + i), it.laad, it.hold, it.pink, it.hz,
+                         (int32_t)(it.uitvoerOpMs - nu), it.seq };
+      esp_err_t res = esp_now_send(slaveAdressen[i], (uint8_t *)&bm, sizeof(bm));
+      it.laatstePogingMs = nu;
+      it.pogingen++;
+      if (it.pogingen == 1) {   // enkel de eerste poging loggen (logRegel-budget)
+        logRegel("{\"status\":\"%s\",\"paal\":%d,\"actie\":25,\"seq\":%u}\n",
+                 (res == ESP_OK) ? "bom" : "send_err", PAAL_MIN + i, it.seq);
+      }
+      break;   // max één send per slave per tick
+    }
+  }
 }
 
 // ---- SERIEEL COMMANDO VAN RASPBERRY PI ----
@@ -801,8 +934,24 @@ void setup() {
 
 // ---- LOOP ----
 void loop() {
+  // Venster-vlaggen één keer per tick lezen+wissen (twee consumenten: FIFO + bommen).
+  // vensterTick[] = one-shot voor verwerkQueue (byte-identiek aan het oude gedrag);
+  // bomVensterTot[] laat verwerkBomQueue het vrije radio-venster ~200 ms benutten.
+  {
+    uint32_t nu0 = millis();
+    for (int i = 0; i < AANTAL_SLAVES; i++) {
+      if (slaveVensterVlag[i]) {
+        slaveVensterVlag[i] = 0;
+        vensterTick[i] = 1;
+        bomVensterTot[i] = nu0 + BOM_VENSTER_OPEN_MS;
+      } else {
+        vensterTick[i] = 0;
+      }
+    }
+  }
   verwerkSerieel();
   verwerkQueue();
+  verwerkBomQueue();
 
   // Verlies in de log-queue (pieklast) hooguit ~1×/s melden.
   static uint32_t laatsteDropCheck = 0;

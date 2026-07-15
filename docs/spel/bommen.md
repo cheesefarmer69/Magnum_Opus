@@ -2,7 +2,9 @@
 
 Een **nacht**-minigame die op het fysieke veld wordt gespeeld: er vormen zich **bommen** op de palen,
 en de spelers moeten die ontwijken. Het hele spel is een **gescripte tijdlijn** die synchroon loopt met
-één muziektrack (*"MAKI VS THE HEI"*, `audio/muziek/maki_vs_the_hei.wav`, ~83,5 s).
+één muziektrack. De **actieve track** is *"YouSeeBIGGIRL" (Attack on Titan / Hiroyuki Sawano, hardstyle)*,
+`audio/muziek/aot_youseebiggirl.wav`, ~122 s. (De oude *"MAKI VS THE HEI"*-choreografie is gearchiveerd
+in `tools/beatmap/out/maki_vs_the_hei_handmatig.json` — terug te zetten via de inject; zie onderaan.)
 
 ## Hoe een bom eruitziet
 
@@ -29,40 +31,67 @@ oogt én de locaties vers genoeg blijven om ontwijkers te volgen.
 
 Selecteer op **Bediening → Speltoestand** het speltype **"Bommen vermijden"** en zet **Spel** aan. De
 engine:
-- start de **muziek** en plant de **hele tijdlijn** (~66 bom-cues + 15 explosies + de sfeer-golven),
+- start de **muziek** en plant de **hele tijdlijn** (AoT: ~93 bom-cues + 63 explosies + de sfeer-golven),
 - zet de scan kort (300 ms) voor gladde animaties,
 - ruimt bij **Stop** of op het **einde van de track** alles op (LED's uit, scan hersteld, muziek stop).
 
 De **muziek-offset** (dashboard-slider "Muziek-offset (ms)", default 150) compenseert de audio-
 opstartlatentie: verhoog/verlaag hem op gehoor tot de LED-sequentie precies op de muziek valt.
 
-## De tijdlijn (samengevat)
+## De tijdlijn (AoT — YouSeeBIGGIRL)
 
-Tijden in `[mm:]ss:centiseconden`. **Scorende** bommen (ontploffen → −10):
+Deze tijdlijn is **automatisch uit de MIDI gegenereerd** (noot-exact) met
+`tools/beatmap/genereer_uit_midi.py` en volgt de intensiteitsboog van het nummer:
 
-| tijd | palen | bom |
+| sectie | ~tijd | wat |
 |---|---|---|
-| 7,11 / 13,40 / 15,24 / 17,00 / 20,50 / 22,11 / 23,57 | 7 / 18 / 3 / 14 / 1 / 10 / 21 | bom1 (3,83 s laad + 3,33 s pink) |
-| 25,00 | 4&5,15&16,9&10,19&20,2,11,3 (0,23 s versprongen) | bom2-chase → samen pinken 26,30, ontplof 29,94 |
-| 26,58 | 11,12,13 | ontplof 29,81 |
-| 29,96 | 1,24,23 | ontplof 32,79 |
-| 33,68 | oneven-nacht (19,21,23,1,3,5) → **shift +1** → 20,22,24,2,4,6 | ontplof 39,09 (op de verschoven palen) |
-| 40,09 | alle palen met cijfer 1/3/6/9 (16 palen) | ontplof 46,27 |
-| 66,50 / 68,00 | 1-3 / 6-9 | bom1 |
-| 72,75 | willekeurige cluster (onregelmatig pinken) | ontplof 79,05 |
+| intro | 0–20 s | dun, losse bommen (2 per 10 s) |
+| opbouw | 20–40 s | dichter (6–8 per 10 s) + eerste accenten |
+| **drop** | 40–70 s | strakke, dichte bommen (7–8 per 10 s) |
+| **breakdown** | 70–82 s | **sfeer-golven** (strings-swell), geen bommen |
+| **finale** | 82–120 s | climax, dichte bommen + accenten |
 
-**Sfeer-golven** (geen scoring, best-effort): ~46,9-66 s een zachte, reizende rode golf over alle palen
-(actie 16). Puur visueel; de scorende bommen bezitten de LED's buiten dat venster.
+- **Losse bommen** komen uit de drijvende beat (drum-noot 38, uitgedund met sectie-geschaalde min-gap);
+  palen roteren rond de 24-ring zodat spelers moeten blijven bewegen. Bom-vorm: 1,8 s laad + 1,2 s pink
+  (~3 s, punchy).
+- **Groeps-explosies** (10×) komen uit de accent-noten (drum-noot 36): 4 palen tegelijk, gespreid rond
+  de ring — de "oh shit"-momenten (3,6 s bom).
+- **Sfeer-golven** (geen scoring, best-effort): een zachte, reizende rode golf over alle palen (actie 16)
+  in de vensters uit **`tl.sfeer`** (voor AoT: 70–82 s). Ontbreekt `tl.sfeer`, dan valt de engine terug
+  op het oude vaste venster 46,9–66 s.
 
 De volledige data staat in de Node-RED-inject **`[CONFIG] Bommen-tijdlijn`** (`global.bommenTijdlijn`:
-`cmds` = MSG_BOM-sends, `expl` = explosies). Wijzig de tijdlijn daar en draai `deploy-flows`.
+`cmds` = MSG_BOM-sends, `expl` = explosies, `sfeer` = golf-vensters). Wijzig de tijdlijn daar en draai
+`deploy-flows`.
+
+**Ander nummer?** `python tools/beatmap/genereer_uit_midi.py <nummer.mid>` (of `genereer_tijdlijn.py`
+voor een WAV zonder MIDI) → plak de JSON in de inject, zet de WAV in `audio/muziek/`, en pas
+`const muziekTrack` in de engine aan. De **maki-choreografie terugzetten** = de inhoud van
+`tools/beatmap/out/maki_vs_the_hei_handmatig.json` in de inject plakken + `muziekTrack` terug op
+`muziek/maki_vs_the_hei.wav`.
 
 ## Techniek
 
-- **Firmware:** `MSG_BOM` (0x0B) / `ACTIE_BOM` (25), velden `laad_ms/hold_ms/pink_ms/pink_hz`. Slaves +
-  masters herflashen. Zie `docs/protocol.md`.
+- **Firmware:** `MSG_BOM` (0x0B) / `ACTIE_BOM` (25), velden `laad_ms/hold_ms/pink_ms/pink_hz` +
+  **`wacht_ms`/`seq`** (v2). Slaves + masters herflashen (volgorde: **eerst slaves, dan masters**,
+  dan flows — elke tussenstand gedraagt zich als vanouds). Zie `docs/protocol.md`.
+- **Beat-vast (juli 2026):** de engine stuurt elke cue **`LEAD` (1,2 s) vooraf** met `wacht_ms`;
+  de master herzendt hem phase-locked (vrij radio-venster) met per poging een **vers herberekende**
+  signed rest-wacht tot hij zeker bezorgd is; de slave plant lokaal en ankert de animatie op de
+  geplande tijd (`actieStartMs = dueMs`) — een te late bezorging kort de ramp in en het
+  **doofmoment blijft op de beat** (±10–30 ms i.p.v. ±300+ ms). Tijdens de scan latcht de slave de
+  bom- én golf-animatie gewoon door (show-gate-uitzondering S3b, revert via build-flag
+  `BOM_SHOW_TIJDENS_SCAN=0`). De scan blijft op 300 ms draaien — de scoring-verslocatie verandert
+  niet. De **Muziek-offset**-slider compenseert nu enkel nog de constante audio-opstartlatentie.
+- **Sfeer-golf-wis:** de golf-afsluiting op 66,0 s stuurt **geen actie 0** (dat zou de geplande
+  66,5 s-cues wissen) maar `actie 16` met helderheid 0 (zwart). Stop en het 84 s-einde gebruiken
+  wél actie 0 — daar is het wissen van geplande bommen precies de bedoeling.
 - **Node-RED:** speltype `"bommen"`; de **"Bommen engine"** (tab 07, op de 250 ms-tick) start/stopt
   zichzelf zoals Klokslag/Infected en plant de tijdlijn met `pofGeneration`-gated `setTimeout`-cues (een
-  Stop verhoogt `pofGeneration` → alle cues bailen). Status op retained `bommen/status`.
+  Stop verhoogt `pofGeneration` → alle cues bailen). Status op retained `bommen/status`. De tracknaam
+  staat in één `const muziekTrack` in de engine. Het `play`-commando wordt bij de start **eenmalig
+  ~800 ms later her-bevestigd** (gated met `gOk()`) voor het geval de eerste publish verloren ging of de
+  audio-container net (her)verbond; de player negeert dat als de track al speelt (idempotente `play`),
+  dus geen hoorbare herstart. Zie `docs/protocol.md` §5 (`audio/muziek`).
 - **Simulator:** kies "Bommen vermijden" (retained `spel/type`) → het bommen-paneel toont de afteltimer +
   per-speler levensuren (negatief in het rood); de palen tonen de bom-animatie.

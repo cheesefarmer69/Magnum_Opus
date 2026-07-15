@@ -40,6 +40,10 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
   spelers worden nooit gekozen.
 - **Reactietijd** (`reactietijd_s`): tijd waarin spelers mogen reageren vóór de
   controle. Wereld-effect `events_sneller` halveert deze.
+- **Reactietijd-sfx** (`sfxReactie`): optioneel config-veld met **enkel de bestandsnaam** van een
+  sfeer-effect dat **tijdens de reactietijd** speelt (zodra het event valt). "Kies event" hangt
+  `sound-effect/<categorie>/<sfxReactie>` achteraan de afroep-segmenten. Gekoppeld: bomaanslag
+  (`bang`), tornado, portalen. Zie `pi/audio-player/audio/sound-effect/README.md`.
 - **Afroep**: raakt een event spelers of uren, dan wordt vóór de event-tekst eerst het
   **aantal** doelwitten + het zelfstandig naamwoord afgeroepen (bv. "3 spelers …",
   "1 speler …", "2 uren …"); daarna de event-tekst en ten slotte de doelwitten één voor
@@ -177,6 +181,7 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Max:** 2
 - **Audio (opkomst):** `een_portaal_opent_tussen_twee_uren.wav`
 - **Audio (weggaan):** `portaal_gesloten.wav`
+- **Sfeer (reactietijd):** `sound-effect/toestanden/portalen.wav` (`sfxReactie`)
 
 ### Happy Hour — "worden Happy Hour."
 - **Tier:** uncommon
@@ -205,6 +210,7 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Max:** 1
 - **Audio (opkomst):** `worden_getroffen_door_een_tornado.wav`
 - **Audio (weggaan):** —
+- **Sfeer (reactietijd):** `sound-effect/toestanden/tornado.wav` (`sfxReactie`)
 
 ### Etenstijd — "Een wolf zal jagen op zijn schaapjes."
 - **Tier:** epic
@@ -217,8 +223,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Tier:** epic
 - **Uitleg:** Koppelt 2 spelers; je verdient enkel levensuren als je partner deze ronde óók legaal bewoog. Sterft er één, dan sterft de ander mee (behalve bij een nuke). Samen op hetzelfde uur eindigen heft de vloek op.
 - **Max:** 4
-- **Audio (opkomst):** `tweeling.wav` (nog opnemen)
-- **Audio (weggaan):** — (eindigt op een dood, geen afloop-cue)
+- **Audio (opkomst):** `tweeling.wav`
+- **Audio (weggaan):** `tweeling_verbroken.wav` — bij **elke** verbreking (hereniging TW6 én dood-propagatie), niet op duratie
 
 ## Huidige events
 
@@ -342,8 +348,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Toestand**: `global.etenstijd = {wolf, schapen[], gevangen[], over}`; een `wereldEffecten`-effect telt de
   15 rondes af. Bij afloop ("Verouder effecten") en bij Stop/Herstart → `global.etenstijd = null`. De wolf
   staat zichtbaar in de wereld-effecten-tabel (`Etenstijd (wolf: <naam>)`).
-- **Audio**: `events/toestanden/etenstijd.wav` (afroep) + `events/afgelopen/etenstijd_voorbij.wav`
-  ("de wolf is voldaan", bij afloop) — beide WAV's nog **opnemen**.
+- **Audio**: `events/toestanden/etenstijd.wav` (afroep, geplaatst) + `events/afgelopen/etenstijd_voorbij.wav`
+  ("de wolf is voldaan", bij afloop) — die laatste nog **opnemen**.
 
 ### Tweeling — "2 spelers worden een tweeling." (gekoppeld bewegen)
 - **Werking (TW2)**: koppelt **2 spelers**. Vanaf dan verdien je **enkel levensuren als je tweeling deze ronde
@@ -368,8 +374,12 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Toestand**: `global.tweelingen = [{a, b, inst}, …]`. Gereset bij Stop/Herstart. De controle-tabel toont
   `… | TWEELING (geen winst: <partner> bewoog niet legaal mee, -N uur)`, `… | TWEELING STERFT MEE` of
   `… | TWEELING VERBROKEN (samen op uur N)`.
-- **Audio**: `events/toestanden/tweeling.wav` (afroep "2 spelers …") — nog **opnemen**. Geen afloop-cue
-  (eindigt op een dood, niet op duratie).
+- **Audio**: `events/toestanden/tweeling.wav` (afroep "2 spelers …"). **Afloop-cue**
+  `events/afgelopen/tweeling_verbroken.wav` ("de tweelingen zijn verbroken"): speelt bij **elke**
+  verbreking van een tweelingband — de TW6-hereniging (`Verifieer beweging`) én de dood-propagatie
+  (`tweelingDood` in `settings.js`) zetten `global.tweelingVerbrokenCue`, en `Verouder effecten` roept de
+  cue af op de gewone afgelopen-emissie (net vóór het volgende event). Dus **niet** via `audioAfgelopen`
+  (tweeling loopt niet op duratie af).
 
 ### Tempo-events — "Sneller" / "Trager" (wereld)
 - **Werking**: `sneller_events` en `trager_events` (wereld, `doelwit: geen`) stappen `global.spelTempoFactor`,
@@ -489,8 +499,9 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Tier:** rare
 - **Uitleg:** Gelokaliseerde bom op één van **vier** vaste uur-duo's (elk 25 %): **9+11**, **4+20**, **6+7**, **6+9**. Wie er bij de controle staat verliest `uur` levensuren (vluchten mag).
 - **Max:** —
-- **Audio (opkomst):** één clip per duo (`audioVoorOpties`): `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav` (bestaat) + `..._4_en_20.wav`, `..._6_en_7.wav`, `..._6_en_9.wav` (nog opnemen)
+- **Audio (opkomst):** `een_bomaanslag_vind_plaats_op.wav` + de gekozen uren als getal-segmenten
 - **Audio (weggaan):** —
+- **Sfeer (reactietijd):** `sound-effect/wereld-events/bomaanslag.wav` (bang, `sfxReactie`) — bovenop de generieke wereld-`woosh.wav`
 
 ### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis."
 - **Tier:** epic
@@ -503,8 +514,8 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Tier:** epic
 - **Uitleg:** Zolang de toestand loopt (10–15 rondes) mag iedereen ook achteruit in de tijd zonder straf (behalve de middernacht-poort).
 - **Max:** 1
-- **Audio (opkomst):** `tijdreizen.wav` (nog opnemen)
-- **Audio (weggaan):** `tijdreizen_voorbij.wav` (nog opnemen)
+- **Audio (opkomst):** `tijdreizen.wav`
+- **Audio (weggaan):** `tijdreizen_voorbij.wav`
 
 ## Huidige events
 
@@ -560,9 +571,11 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Lichtshow**: bij de ontploffing een **korte witte flikker** (OOGST-strobe, actie 11) op de twee uren;
   het venster is **~1,2 s** (juli 2026, was 3 s) zodat de LED's **niet de volgende event-ronde in blijven
   branden** — een bom is één event, daarna gaan de LED's uit (via de Sync-rebuild, actie 0).
-- **Audio**: **één afroep-clip per duo**, parallel aan `vastOpties` in `audioVoorOpties`. Bestaat al:
-  `events/wereld-events/een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`. Nog **opnemen**:
-  `..._4_en_20.wav`, `..._6_en_7.wav`, `..._6_en_9.wav`.
+- **Audio (afroep)**: `events/wereld-events/een_bomaanslag_vind_plaats_op.wav` (`audioVoor`), gevolgd
+  door de twee gekozen uren als getal-segmenten (`getallen/<a>.wav` + `woorden/en.wav` + `getallen/<b>.wav`,
+  al naargelang wat gewired is). Dit is meteen de gesproken waarschuwing vlak vóór de reactietijd.
+- **Sfeer (reactietijd)**: `sound-effect/wereld-events/bomaanslag.wav` (**bang**, via `sfxReactie`),
+  bovenop de generieke wereld-`woosh.wav` die "Kies event" vóór elk wereld-event zet.
 
 ### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis." (luisternamen verschuiven)
 - **Werking**: schuift de **luisternamen** (`global.luisterNaam`) één **alfabetische** stap door,
@@ -618,7 +631,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **LED-cue**: tijdens de reactietijd laat "Doelwit reveal" de **twee (start)palen oranje kaarsvlammen**
   (actie 16 modus 1, `r255 g140 b0`), zodat spelers zien **tussen welke twee palen** de wissel loopt. Bij de
   controle zet "Verifieer beweging" `paalLedForceRebuild` → Sync wist de flikkering weer.
-- **Audio**: `body_swap.wav` (afroep) — **nog opnemen**.
+- **Audio**: `events/toestanden/body_swap.wav` (afroep "twee spelers wisselen van plaats").
 
 ### Verplaatsing (iedereen) — "Iedereen maximum 5 uur vooruit." (verplaatsing)
 - **Werking**: `doelwit:{type:"speler",selectie:"alle"}`, `voorwaarde:"max"`, `getal:[1,5]` — de engine rolt
@@ -642,7 +655,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   `Verifieer beweging` (aangeroepen in de normale controle én de tornado-tak); gezet in `Voer gevolg uit`
   (gevolg `max_per_uur`), opgeruimd in `Verouder effecten`. (De oude zachte "geen winst volgende ronde"-vlag
   is vervangen door dit directe verlies.) `tier:"rare"`.
-- **Audio**: `max_per_uur.wav` + `max_per_uur_voorbij.wav` — **nog opnemen**.
+- **Audio**: `max_per_uur.wav` + `spelers_per_uur_staan.wav` (afroep) + `max_per_uur_voorbij.wav` (afloop).
 
 ### Polonaise — "De polonaise begint." (wereld)
 - **Werking**: duurt **10 verplaatsings-events** (eigen teller `global.polonaiseTeller`, afgeteld in
@@ -650,7 +663,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   spelers van hetzelfde uur → gewone beweging **+ 1 levensuur per medevertrekker boven 3** (`+ (M − 3)`, dus
   4 vertrekkers = +1).
   Vertrek met **< 3** = **foute zet** (`TE WEINIG SAMEN` → valsspeelpunt + aura). `max:1`, `tier:"rare"`.
-- **Audio**: `polonaise.wav` + `polonaise_voorbij.wav` — **nog opnemen** (afloop-cue nog niet gewired).
+- **Audio**: `polonaise.wav` (afroep "de polonaise begint") + `polonaise_voorbij.wav` (afloop, `audioAfgelopen`).
 
 ### De reactietijd wordt Pools — "De reactietijd wordt Pools." (wereld)
 - **Werking**: `duratie:7`, `max:1`, `tier:"epic"`, `gevolg:{type:"reactie_pools"}`. Zolang de toestand

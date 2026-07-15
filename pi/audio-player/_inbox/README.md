@@ -19,40 +19,33 @@ Bron: de `[CONFIG]`-injects in `pi/node-red/flows.json`. De config is al bekabel
 bestanden ontbreken nog.
 
 ### `events/toestanden/` — event-afroep (audioVoor)
-- ✓ `een_portaal_opent_tussen_twee_uren.wav`
-- ✓ `worden_ziek.wav`
-- ✓ `worden_een_tijdbom.wav`
-- ✓ `worden_getroffen_door_een_tornado.wav`
-- ✗ `worden_happy_hour.wav`  *(Happy Hour)*
-- ✗ `etenstijd.wav`  *(Etenstijd — "een wolf zal jagen op zijn schaapjes")*
-- ✗ `tweeling.wav`  *(Tweeling)*
-- ✗ `body_swap.wav`  *(Body-swap — "twee spelers wisselen van plaats")*
+- ✓ `een_portaal_opent_tussen_twee_uren.wav`, `worden_ziek.wav`, `worden_een_tijdbom.wav`,
+  `worden_getroffen_door_een_tornado.wav`
+- ✓ `worden_happy_hour.wav`, `etenstijd.wav`, `tweeling.wav`, `body_swap.wav`
 
 ### `events/wereld-events/` — event-afroep (audioVoor)
-- ✓ `events_komen_sneller.wav`, `events_komen_trager.wav`
-- ✓ `een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`
-- ✗ `een_bomaanslag_vind_plaats_op_uur_4_en_20.wav`
-- ✗ `een_bomaanslag_vind_plaats_op_uur_6_en_7.wav`
-- ✗ `een_bomaanslag_vind_plaats_op_uur_6_en_9.wav`
-- ✗ `nuke.wav`
-- ✗ `identiteitscrisis.wav`
-- ✗ `tijdreizen.wav`  *("tijdreizen zal worden toegestaan")*
-- ✗ `onmiddellijke_dood.wav`  *("een speler zal onmiddellijk sterven")*
-- ✗ `max_per_uur.wav`  *("vanaf nu mogen er maximaal x spelers per uur staan")*
-- ✗ `polonaise.wav`  *("de polonaise begint")*
+- ✓ `events_komen_sneller.wav`, `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op.wav`
+- ✓ `nuke.wav`, `identiteitscrisis.wav`, `tijdreizen.wav`, `onmiddellijke_dood.wav`,
+  `max_per_uur.wav` + `spelers_per_uur_staan.wav`, `polonaise.wav`
 
 ### `events/afgelopen/` — "toestand voorbij"-cue (audioAfgelopen)
 Speelt automatisch, vlak vóór het volgende event, wanneer de toestand afloopt.
-- ✗ `portaal_gesloten.wav`
-- ✗ `happy_hour_voorbij.wav`
+- ✓ `portaal_gesloten.wav`, `happy_hour_voorbij.wav`, `identiteitscrisis_voorbij.wav`,
+  `tijdreizen_voorbij.wav`, `max_per_uur_voorbij.wav`, `polonaise_voorbij.wav`
+- ✓ `tweeling_verbroken.wav` *(niet op duratie — gespeeld bij elke tweeling-verbreking via
+  `global.tweelingVerbrokenCue`)*
 - ✗ `etenstijd_voorbij.wav`  *("de wolf is voldaan")*
-- ✗ `identiteitscrisis_voorbij.wav`
-- ✗ `tijdreizen_voorbij.wav`
-- ✗ `max_per_uur_voorbij.wav`
-- ✗ `polonaise_voorbij.wav`
 
-> **Geen afgelopen-cue nodig** voor tornado/bodyswap (één-shot) en ziekte/tijdbom/tweeling
+### `sound-effect/` — reactietijd-sfx (`sfxReactie`) + woosh
+- ✓ `wereld-events/woosh.wav` (elk wereld-event), `wereld-events/bomaanslag.wav` (bang),
+  `toestanden/tornado.wav`, `toestanden/portalen.wav`
+
+### `woorden/`
+- ✓ `een.wav` *(los tussenwoord — nog niet in een afroep gewired)*
+
+> **Geen afgelopen-cue nodig** voor tornado/bodyswap (één-shot) en ziekte/tijdbom
 > (eindigen op een dood, niet op duratie). Verplaatsing-events gebruiken `maximum.wav` +
-> `uur_vooruit.wav` (staan al klaar).
+> `uur_vooruit.wav`. **Tweeling** heeft nu wél een cue (`tweeling_verbroken.wav`), maar niet via
+> `audioAfgelopen` — zie boven.
 
 Volledige naamregels en afspeel-volgorde: zie [`../audio/README.md`](../audio/README.md).

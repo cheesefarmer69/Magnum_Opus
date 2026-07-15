@@ -142,6 +142,14 @@ class KanaalSpeler:
     def play(self, track):
         """Start een track vanaf het begin (offset 0)."""
         with self._lock:
+            # Idempotent: speelt exact dezelfde track al actief, dan negeren we het herhaalde
+            # play-commando. Zo veroorzaakt de her-bevestiging vanuit de bommen-engine (die het
+            # play-commando kort na de start nog eens stuurt, voor het geval de eerste verloren ging)
+            # geen hoorbare herstart-sprong. Een gestopte/afgelopen track (thread dood) speelt gewoon.
+            if (track == self._track and self._thread is not None
+                    and self._thread.is_alive() and not self._stop_evt.is_set()):
+                print(f"[MUZIEK] play genegeerd: {track} speelt al")
+                return
             self._stop_intern()
             try:
                 self._laad(track)

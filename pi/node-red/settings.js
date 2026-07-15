@@ -78,7 +78,7 @@ module.exports = {
             global.set("bordStaat", {}); global.set("spelerEffecten", {}); global.set("wereldEffecten", []);
             global.set("ziekeSpelers", {}); global.set("pofGenezen", []); global.set("dienaars", {}); global.set("luisterNaam", {});
             global.set("tijdbomSpelers", {}); global.set("tijdbomOntmantelPalen", []);
-            global.set("tijdreizenActief", false); global.set("etenstijd", null); global.set("tweelingen", []);
+            global.set("tijdreizenActief", false); global.set("etenstijd", null); global.set("tweelingen", []); global.set("tweelingVerbrokenCue", false);
             global.set("polonaiseActief", false); global.set("polonaiseTeller", 0); global.set("polonaiseAfloop", false); global.set("maxPerUur", null); global.set("geenWinstVolgende", {});
             global.set("poolsActief", false); global.set("poolsGestart", false);   // Poolse-reactietijd-muziek: tick stuurt bij stop een audio/muziek stop
             global.set("infectedActief", false); global.set("infected", null); global.set("infectedLed", {}); global.set("infectedLaatstePalen", []); global.set("infectedStatusSig", "");
@@ -119,6 +119,7 @@ module.exports = {
             global.set("spelerStats", stats);
             global.set("tweelingen", paren.filter(p => !verbroken.has(p.inst)));
             global.set("wereldEffecten", (global.get("wereldEffecten") || []).filter(e => !(e.effect === "tweeling" && verbroken.has(e.instId))));
+            global.set("tweelingVerbrokenCue", true);   // eind-afroep "de tweelingen zijn verbroken": bij ELKE verbreking (hier: dood-propagatie). Opgepikt door "Verouder effecten" op de afgelopen-emissie.
             return meeGestorven;
         },
 

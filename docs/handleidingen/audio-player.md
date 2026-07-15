@@ -99,6 +99,16 @@ Node-RED bouwt dan automatisch (submap uit `categorie`, hier `speler` → `verpl
 Voor de doelwitten gebeurt dit altijd automatisch: `doelwit/voor.wav` → per
 doelwit `spelers/<naam>.wav` (speler) of `getallen/<n>.wav` (uur/paal) → `doelwit/na.wav`.
 
+## Sfeer-effecten tijdens de reactietijd (`sfxReactie`)
+
+Naast de gesproken afroep kan een event een **geluidseffect** krijgen dat **tijdens de reactietijd**
+speelt (zodra het event valt). Zet in de `[CONFIG]`-inject het veld `"sfxReactie": "<bestand>.wav"`;
+Node-RED (`Kies event`) hangt dan `sound-effect/<categorie>/<bestand>` **achteraan** de afroep-segmenten.
+Huidige koppelingen: bomaanslag → `sound-effect/wereld-events/bomaanslag.wav` (bang), tornado →
+`sound-effect/toestanden/tornado.wav`, portalen → `sound-effect/toestanden/portalen.wav`. Elk
+**wereld-event** krijgt daarnaast automatisch de generieke sting `sound-effect/wereld-events/woosh.wav`
+vooraan. Details: `pi/audio-player/audio/sound-effect/README.md`.
+
 ## Installeren / deployen
 
 ```bash
