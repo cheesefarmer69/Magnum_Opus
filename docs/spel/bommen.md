@@ -2,9 +2,14 @@
 
 Een **nacht**-minigame die op het fysieke veld wordt gespeeld: er vormen zich **bommen** op de palen,
 en de spelers moeten die ontwijken. Het hele spel is een **gescripte tijdlijn** die synchroon loopt met
-één muziektrack. De **actieve track** is *"YouSeeBIGGIRL" (Attack on Titan / Hiroyuki Sawano, hardstyle)*,
-`audio/muziek/aot_youseebiggirl.wav`, ~122 s. (De oude *"MAKI VS THE HEI"*-choreografie is gearchiveerd
-in `tools/beatmap/out/maki_vs_the_hei_handmatig.json` — terug te zetten via de inject; zie onderaan.)
+één muziektrack. Je kiest de track op het dashboard (bommen-groep, dropdown **"Track"**) tussen twee
+choreografieën:
+- *"YouSeeBIGGIRL" (Attack on Titan / Hiroyuki Sawano, hardstyle)* — `audio/muziek/aot_youseebiggirl.wav`, ~122 s (default);
+- *"MAKI VS THE HEI"* — `audio/muziek/maki_vs_the_hei.wav`, ~84 s.
+
+De keuze is **retained** (`bommen/keuze`, waarden `aot`/`maki`) en overleeft dus een herstart. Kies vóór
+je het spel start; de engine laadt de bijhorende tijdlijn (`global.bommenTijdlijn`) en WAV
+(`global.bommenTrack`) op dat moment.
 
 ## Hoe een bom eruitziet
 
@@ -60,15 +65,16 @@ Deze tijdlijn is **automatisch uit de MIDI gegenereerd** (noot-exact) met
   in de vensters uit **`tl.sfeer`** (voor AoT: 70–82 s). Ontbreekt `tl.sfeer`, dan valt de engine terug
   op het oude vaste venster 46,9–66 s.
 
-De volledige data staat in de Node-RED-inject **`[CONFIG] Bommen-tijdlijn`** (`global.bommenTijdlijn`:
-`cmds` = MSG_BOM-sends, `expl` = explosies, `sfeer` = golf-vensters). Wijzig de tijdlijn daar en draai
-`deploy-flows`.
+**Beide** tijdlijnen (aot + maki) staan in de Node-RED-inject **`[CONFIG] Bommen-tracks`**
+(`global.bommenTracks = { aot:{label,track,tijdlijn}, maki:{label,track,tijdlijn} }`; per tijdlijn:
+`cmds` = MSG_BOM-sends, `expl` = explosies, optioneel `sfeer` = golf-vensters). De dropdown
+**"Track"** zet `global.bommenKeuze` (retained `bommen/keuze`) en de engine past `bommenTijdlijn` +
+`bommenTrack` toe. Wijzig een tijdlijn daar en draai `deploy-flows`.
 
-**Ander nummer?** `python tools/beatmap/genereer_uit_midi.py <nummer.mid>` (of `genereer_tijdlijn.py`
-voor een WAV zonder MIDI) → plak de JSON in de inject, zet de WAV in `audio/muziek/`, en pas
-`const muziekTrack` in de engine aan. De **maki-choreografie terugzetten** = de inhoud van
-`tools/beatmap/out/maki_vs_the_hei_handmatig.json` in de inject plakken + `muziekTrack` terug op
-`muziek/maki_vs_the_hei.wav`.
+**Nog een nummer toevoegen?** `python tools/beatmap/genereer_uit_midi.py <nummer.mid>` (of
+`genereer_tijdlijn.py` voor een WAV zonder MIDI) → voeg een sleutel `{label,track,tijdlijn}` toe aan de
+`[CONFIG] Bommen-tracks`-map, zet de WAV in `audio/muziek/`, en voeg de optie toe aan de dropdown
+`bommen_track_dd`. De generatoren en de maki-bron staan in `tools/beatmap/`.
 
 ## Techniek
 
