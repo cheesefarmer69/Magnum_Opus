@@ -330,17 +330,30 @@ body.test-actief {
 /* Panelen wisselen per speltype: toon enkel het relevante blok */
 #klokslag-blok { display: none; flex-direction: column; }
 #infected-blok { display: none; flex-direction: column; }
+#bommen-blok { display: none; flex-direction: column; }
 body.spel-klokslag #pof-blok { display: none; }
 body.spel-klokslag #klokslag-blok { display: flex; }
 body.spel-infected #pof-blok { display: none; }
 body.spel-infected #infected-blok { display: flex; }
-/* PoF-only zijpanelen verbergen tijdens Klokslag/Infected (niet relevant) */
+body.spel-bommen #pof-blok { display: none; }
+body.spel-bommen #bommen-blok { display: flex; }
+/* PoF-only zijpanelen verbergen tijdens Klokslag/Infected/Bommen (niet relevant) */
 body.spel-klokslag #middernacht-paneel,
 body.spel-klokslag #events-paneel,
 body.spel-klokslag #histo-paneel,
 body.spel-infected #middernacht-paneel,
 body.spel-infected #events-paneel,
-body.spel-infected #histo-paneel { display: none; }
+body.spel-infected #histo-paneel,
+body.spel-bommen #middernacht-paneel,
+body.spel-bommen #events-paneel,
+body.spel-bommen #histo-paneel { display: none; }
+
+/* Bommen-statuspaneel: rij per speler; negatieve levensuren rood */
+.bommen-rij { display: flex; justify-content: space-between; gap: 6px; padding: 2px 4px; font-size: 0.92em; }
+.bommen-rij .bommen-paal { color: #888; font-size: 0.85em; }
+.bommen-rij .bommen-uren { font-variant-numeric: tabular-nums; }
+.bommen-rij.bommen-neg { background: rgba(224, 36, 36, 0.15); border-radius: 3px; }
+.bommen-rij.bommen-neg .bommen-uren { color: #e02424; font-weight: 700; }
 
 /* Infected-statuspaneel */
 .inf-status { display: flex; flex-direction: column; gap: 4px; font-size: 0.92em; }

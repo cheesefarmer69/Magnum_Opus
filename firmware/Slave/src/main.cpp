@@ -53,6 +53,7 @@ const uint16_t BUZZER_FREQ_TABEL[25] = {
 #define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
 #define MSG_SCAN_CONFIG  0x09   // master -> slave, BLE-scan-vensterduur (ms) instellen
 #define MSG_LED_CONFIG   0x0A   // master -> slave, LED-helderheid (0..255) instellen
+#define MSG_BOM          0x0B   // master -> slave, bom-animatie (opladen -> hold -> pinken -> uit), minigame "Bommen vermijden"
 
 const uint8_t       FW_VERSIE            = 2;
 const unsigned long HEARTBEAT_INTERVAL_S = 10;   // "ik leef"-interval
@@ -193,6 +194,11 @@ const unsigned long KNOP_FLITS_MS = 800;   // duur van de groen/rood-knop-flits;
 // naar ACTIE_NIETS na ONTPLOF_MS. FIFO/ACK, gewone commando_message_v2 (geen wire-wijziging).
 const uint8_t ACTIE_ONTPLOFFING  = 24;
 const unsigned long ONTPLOF_MS   = 1600;   // duur van de ontploffings-strobe
+// 25 = BOM (minigame "Bommen vermijden"): een paal-LED gloeit vloeiend rood op (oplaad-ramp), houdt
+// zijn felst even vast (hold), knippert dan op zijn felst, en dooft (= ontploft). Komt via een eigen
+// MSG_BOM (geen commando_message_v2/FIFO) met de parameters laad_ms/hold_ms/pink_ms/pink_hz. De
+// ramp bereikt 255 EXACT bij t==laad_ms -> de piek valt structureel vóór het knipperen begint.
+const uint8_t ACTIE_BOM          = 25;
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -275,6 +281,14 @@ volatile uint8_t klokslagR = 0, klokslagG = 0, klokslagB = 0;
 volatile uint8_t klokslagHelderheid = 0;
 volatile uint8_t klokslagModus = 3;        // default rust
 volatile bool    klokslagDirty = false;
+
+// Bom-animatie (MSG_BOM): OnDataRecv zet enkel deze volatile waarden; verwerkBom() start de animatie
+// en updateAnimatie() rendert de oplaad-ramp -> hold -> pinken -> uit lokaal (vloeiend, RF-onafhankelijk).
+volatile uint16_t bomLaadMs = 0;           // oplaad-ramp 0 -> max
+volatile uint16_t bomHoldMs = 0;           // vasthouden op max (voor groeps-bommen die wachten)
+volatile uint16_t bomPinkMs = 0;           // knipperduur op zijn felst
+volatile uint16_t bomPinkHz = 2;           // knipperfrequentie
+volatile bool     bomDirty  = false;
 
 // Huidige LED-actie + starttijd, voor de geanimeerde acties (8 = nuke, 11 = oogst).
 // updateAnimatie() leest deze en blijft tekenen tot een nieuwe actie binnenkomt.
@@ -380,6 +394,15 @@ typedef struct __attribute__((packed)) klokslag_message {
   uint8_t  modus;           // 0=owned/solid, 1=capturing/flikker, 2=frozen, 3=rust-ademend
 } klokslag_message;
 
+typedef struct __attribute__((packed)) bom_message {
+  uint8_t  msg_type;        // = MSG_BOM
+  uint8_t  paal_id;
+  uint16_t laad_ms;         // oplaad-ramp 0 -> max (bereikt 255 exact bij t==laad_ms)
+  uint16_t hold_ms;         // vasthouden op max vóór het knipperen
+  uint16_t pink_ms;         // knipperduur op zijn felst; daarna dooft de LED (= ontploft)
+  uint16_t pink_hz;         // knipperfrequentie (bv. 2)
+} bom_message;
+
 typedef struct __attribute__((packed)) scan_config_message {
   uint8_t  msg_type;        // = MSG_SCAN_CONFIG
   uint8_t  paal_id;
@@ -482,6 +505,18 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     klokslagR = km.r; klokslagG = km.g; klokslagB = km.b;
     klokslagHelderheid = km.helderheid; klokslagModus = km.modus;
     klokslagDirty = true;
+    return;
+  }
+
+  // Bom-animatie (minigame): zet de parameters; de loop start via verwerkBom() en updateAnimatie()
+  // rendert de oplaad-ramp -> hold -> pinken -> uit lokaal. Geen FIFO/ACK.
+  if (incomingData[0] == MSG_BOM) {
+    if (len < (int)sizeof(bom_message)) return;
+    bom_message bm;
+    memcpy(&bm, incomingData, sizeof(bm));
+    if (bm.paal_id != PAAL_ID) return;
+    bomLaadMs = bm.laad_ms; bomHoldMs = bm.hold_ms; bomPinkMs = bm.pink_ms; bomPinkHz = bm.pink_hz;
+    bomDirty = true;
     return;
   }
 
@@ -746,14 +781,49 @@ void verwerkKlokslag() {
   updateAnimatie();   // teken meteen het eerste frame
 }
 
+// Bom-animatie: pas een nieuw MSG_BOM toe. Zet de actie op ACTIE_BOM zodat updateAnimatie() de
+// oplaad-ramp -> hold -> pinken -> uit lokaal rendert (aangeroepen naast verwerkKlokslag()).
+void verwerkBom() {
+  if (!bomDirty) return;
+  bomDirty = false;
+  huidigeActie = ACTIE_BOM;
+  actieStartMs = millis();
+  updateAnimatie();   // teken meteen het eerste frame (start van de ramp)
+}
+
 // ====================================================================
 // LED-ANIMATIES (millis-gebaseerd, geen aparte task)
 // ====================================================================
 // Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
 // vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
 void updateAnimatie() {
-  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT && huidigeActie != ACTIE_ONTPLOFFING) return;
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT && huidigeActie != ACTIE_ONTPLOFFING && huidigeActie != ACTIE_BOM) return;
   const unsigned long t = millis() - actieStartMs;
+
+  if (huidigeActie == ACTIE_BOM) {
+    // Bom (minigame): 1) oplaad-ramp 0->255 rood, 2) hold op max, 3) knipperen op zijn felst, 4) uit.
+    // De ramp bereikt 255 EXACT bij t==laad_ms, dus de piek valt structureel vóór het knipperen.
+    // nscale8_video schaalt de helderheid (composeert met de globale FastLED-brightness, actie 21).
+    const unsigned long laad = bomLaadMs;
+    const unsigned long tHold = laad + bomHoldMs;
+    const unsigned long tEind = tHold + bomPinkMs;
+    CRGB kleur;
+    if (t < laad) {                                  // 1) vloeiende oplaad-ramp
+      uint8_t val = (laad > 0) ? (uint8_t)((uint32_t)t * 255 / laad) : 255;
+      kleur = CRGB(255, 0, 0); kleur.nscale8_video(val);
+    } else if (t < tHold) {                          // 2) vasthouden op max
+      kleur = CRGB(255, 0, 0);
+    } else if (t < tEind) {                          // 3) knipperen op zijn felst
+      const unsigned long tp = t - tHold;
+      const uint16_t periode = (bomPinkHz > 0) ? (1000 / bomPinkHz) : 500;
+      bool aan = (tp % periode) < (periode / 2);
+      kleur = aan ? CRGB(255, 0, 0) : CRGB(0, 0, 0);
+    } else {                                         // 4) ontploft -> uit (auto-terug)
+      huidigeActie = ACTIE_NIETS; kleur = CRGB::Black;
+    }
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, kleur); toonLeds(); xSemaphoreGive(xLedMutex); }
+    return;
+  }
 
   if (huidigeActie == ACTIE_ONTPLOFFING) {
     // Ontploffing: felle witte flits die snel uitdooft naar rood, met een ruwe strobe erdoor.
@@ -1021,6 +1091,7 @@ static void servicedWait(unsigned long duurMs) {
     updateIngebouwdeLed();
     verwerkTestToon();
     verwerkKlokslag();
+    verwerkBom();
     updateMelodie();
     updateAnimatie();
     verwerkCommandos();
@@ -1206,6 +1277,7 @@ void loop() {
   }
   verwerkTestToon(); // buzzer-tuning: continue toon toepassen indien gewijzigd
   verwerkKlokslag(); // Klokslag-LED toepassen indien gewijzigd
+  verwerkBom();      // bom-animatie (minigame) toepassen indien gewijzigd
   updateMelodie();   // nootovergangen bijhouden voor BLE-scan start
   updateAnimatie();
 
@@ -1251,6 +1323,7 @@ void loop() {
     verwerkCommandos();
     verwerkTestToon();
     verwerkKlokslag();
+    verwerkBom();
     updateMelodie();
     updateAnimatie();
     delay(5);

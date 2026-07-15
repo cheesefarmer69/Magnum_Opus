@@ -33,10 +33,12 @@ Simpel: **elke verplaatsing kost 1 levensuur per uur** (24 uur = 1 levensdag). V
 Bij het begin van de avond valt een dramatisch event: er wordt afgeroepen **"Een speler zal onmiddellijk
 sterven"**, en een **paarsrode LED** loopt vloeiend van paal naar paal (lijkt rond het veld te cirkelen)
 en **stopt op de paal van het gekozen slachtoffer**, dat ook wordt afgeroepen. Dat slachtoffer verliest
-**alles** (uren + dagen → 0) en wordt **`gestorven`**.
+**alles** (uren + dagen → 0).
 
-- **`gestorven`-effect:** een gestorven speler kan door **verplaatsing** niet negatief gaan (beweging
-  floort op 0) — alleen **events** kunnen hem verder omlaag duwen. Hij doet gewoon verder mee.
+- **0 dan negatief, doorspelen (juli 2026):** onmiddellijk sterven zet je op **0** en telt een sterfte,
+  maar zet **niet** langer de `gestorven`-vlag. Daardoor blijft de avond-vloer uit en kun je daarna
+  gewoon **negatief** zakken (door verplaatsing/events) — je blijft doorspelen, er is geen eliminatie.
+  Doven/ontploffen in de minigame *Bommen vermijden* werkt identiek (−10, negatief). Zie `bommen.md`.
 - **Loterij (karma):** het slachtoffer wordt **geloot** onder de nog niet-gestorven spelers; het aantal
   lootjes per speler = **`sterftes + valsspeelpunten`** (uit het middagspel). Wie veel stierf of vals
   speelde, heeft dus meer kans. **0 lootjes = immuun** (schone spelers zijn veilig); is de som 0 (iedereen

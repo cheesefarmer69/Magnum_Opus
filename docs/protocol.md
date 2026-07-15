@@ -31,6 +31,7 @@ Dit voorkomt dat componenten uit sync raken.
 | `0x08` | `MSG_KLOKSLAG`  | master → slave (Klokslag-LED) | `klokslag_message` | 7 B |
 | `0x09` | `MSG_SCAN_CONFIG` | master → slave (BLE-scan-duur) | `scan_config_message` | 4 B |
 | `0x0A` | `MSG_LED_CONFIG` | master → slave (LED-helderheid) | `led_config_message` | 3 B |
+| `0x0B` | `MSG_BOM`       | master → slave (bom-animatie, minigame) | `bom_message` | 10 B |
 
 ```cpp
 #define MSG_BATCH        0x01
@@ -43,6 +44,7 @@ Dit voorkomt dat componenten uit sync raken.
 #define MSG_KLOKSLAG     0x08
 #define MSG_SCAN_CONFIG  0x09
 #define MSG_LED_CONFIG   0x0A
+#define MSG_BOM          0x0B
 
 typedef struct __attribute__((packed)) {        // 0x01 — slave → master
   uint8_t  msg_type;        // = MSG_BATCH
@@ -121,6 +123,15 @@ typedef struct __attribute__((packed)) {        // 0x0A — master → slave, LE
   uint8_t  paal_id;         // doel-slave (1..24)
   uint8_t  helderheid;      // gewenste FastLED-helderheid 0..255 (slave clamp't 5..255)
 } led_config_message;
+
+typedef struct __attribute__((packed)) {        // 0x0B — master → slave, bom-animatie (minigame)
+  uint8_t  msg_type;        // = MSG_BOM
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint16_t laad_ms;         // oplaad-ramp 0 -> max (bereikt 255 exact bij t==laad_ms)
+  uint16_t hold_ms;         // vasthouden op max vóór het knipperen
+  uint16_t pink_ms;         // knipperduur op zijn felst; daarna dooft de LED (= ontploft)
+  uint16_t pink_hz;         // knipperfrequentie (bv. 2)
+} bom_message;
 ```
 
 > **`MSG_KLOKSLAG` (Klokslag-minigame).** De Klokslag-engine kleurt elke paal in de **teamkleur**
@@ -131,6 +142,17 @@ typedef struct __attribute__((packed)) {        // 0x0A — master → slave, LE
 > rendert continu (`updateAnimatie()`) tot een volgend `MSG_KLOKSLAG` of een gewone `MSG_COMMANDO`
 > binnenkomt. JSON van Node-RED: `{"paal":N,"actie":16,"r":R,"g":G,"b":B,"helderheid":H,"modus":M}`
 > (de master vertaalt actie 16 naar `MSG_KLOKSLAG`, zoals actie 12 → `MSG_BUZZER_TOON`).
+
+> **`MSG_BOM` (minigame "Bommen vermijden").** Een paal-LED gloeit **vloeiend rood op** (oplaad-ramp
+> `laad_ms`), houdt zijn **felst** even vast (`hold_ms`), **knippert** dan op zijn felst (`pink_ms` @
+> `pink_hz`), en **dooft** (= ontploft). De ramp bereikt 255 **exact** bij `t==laad_ms`, dus de piek
+> valt structureel vóór het knipperen. De slave rendert dit **lokaal** (`updateAnimatie()`), zodat de
+> animatie vloeiend blijft ongeacht RF-jitter; enkel de trigger + de tijden komen over de lucht. Net
+> als `MSG_KLOKSLAG` fire-and-forget (geen FIFO/ACK). JSON van Node-RED:
+> `{"paal":N,"actie":25,"laad_ms":..,"hold_ms":..,"pink_ms":..,"pink_hz":..}` (de master vertaalt actie
+> 25 naar `MSG_BOM`). De **scoring** (−10 levensuren voor wie bij het doven op de paal staat) gebeurt in
+> Node-RED op de ontplof-tijd, niet in de firmware. Tip: zet tijdens de minigame de scan-duur kort
+> (`scan_ms:300`, actie 20) zodat de show-gate de ramp niet te lang bevriest (zie §slave/BLE-scan).
 
 > **`MSG_BUZZER_TOON` (buzzer-tuning).** Een passieve piezo is het luidst rond zijn
 > eigen resonantiefrequentie; die verschilt per bordje (productiespreiding). Dit
@@ -306,6 +328,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 22 | `ACTIE_KNOP_GOED` | Knop-feedback **positief**: korte **groene** flits over de 7 LEDs (~800 ms, dan auto-terug naar `ACTIE_NIETS`) + kort **positief** zoemerdeuntje. Gewone `commando_message_v2` (FIFO/ACK). Voor drukknop-events (goede keuze) en de knoppendans-minigame. |
 | 23 | `ACTIE_KNOP_FOUT` | Knop-feedback **negatief**: korte **rode** flits over de 7 LEDs (~800 ms, dan auto-terug naar `ACTIE_NIETS`) + kort **negatief** zoemerdeuntje (dalend). Gewone `commando_message_v2` (FIFO/ACK). Voor drukknop-events (slechte keuze) en de knoppendans-minigame (fout/strike). |
 | 24 | `ACTIE_ONTPLOFFING` | **Tijdbom gaat af**: witte knal → uitdovende **rode strobe** (~1,6 s, `ONTPLOF_MS`, dan auto-terug naar `ACTIE_NIETS`) + een **dalende sirene-sweep** (2500 → 300 Hz) met drie lage dreunen. Bewust veel lager/langer dan de korte foute-keuze-flits (23) zodat je van over het veld hoort dat er iemand ontploft is. Gewone `commando_message_v2` (FIFO/ACK). Gestuurd bij een **mislukte ontmanteling** én bij een **afgelopen bom-teller**. |
+| 25 | `ACTIE_BOM` | **Bom-animatie** (minigame "Bommen vermijden"): LED gloeit **vloeiend rood op** (`laad_ms`) → houdt zijn **felst** vast (`hold_ms`) → **knippert** op zijn felst (`pink_ms` @ `pink_hz`) → **dooft** (= ontploft). **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_BOM` (zie §0). Vereist de extra JSON-velden `laad_ms`, `hold_ms`, `pink_ms`, `pink_hz`. Fire-and-forget; de slave rendert lokaal (piek altijd vóór het knipperen). De −10-scoring gebeurt in Node-RED op de ontplof-tijd. |
 
 De LED-toestanden (1/2/4/9/10) worden centraal door Node-RED gestuurd ("Sync toestanden + LEDs")
 op basis van de actieve effecten/poort-staat; loopt een effect af of stopt het spel, dan stuurt
@@ -553,6 +576,7 @@ Broker: Eclipse Mosquitto op `192.168.1.43:1883`, anonymous access toegestaan
 | `plaatjes/data`    | Pi → Node-RED      | `{"paal":1,"mac":"aa:bb:..","rssi":-67}`     |
 | `commando/master1\|2\|3` | Node-RED → Pi | `{"paal":1,"actie":1}` — Node-RED routeert per paal-bereik (1–8/9–16/17–24); de bridge levert bij de juiste master |
 | `audio/afspelen`   | Node-RED → audio-player | `{"fase":"event","tekst":"...","segments":["getallen/3.wav","woorden/spelers.wav","events/x_voor.wav","getallen/3.wav","events/x_na.wav"],"prioriteit":"normaal"}` — de event-fase begint met de aantal-prefix (`getallen/<aantal>` + `woorden/<speler\|spelers\|uur\|uren>`) |
+| `audio/muziek`     | Node-RED → audio-player | `{"cmd":"play\|pause\|resume\|stop","track":"muziek/reactie_pools.wav"}` — **bestuurbaar kanaal** los van de segment-queue: een lange track die pauzeert/hervat-op-positie (`pause`/`resume`) of hard stopt mid-track (`stop`). `play` = vanaf 0 (reset positie). Gebruikt door het Poolse-reactietijd-event (muziek tijdens de reactietijd) en de onmiddellijke-dood-cutscene (24 s-track afgekapt bij de landing). `player.py` streamt de PCM via `wave.setpos` naar `aplay` (positie via wandklok) |
 | `locatie/spelers`  | Node-RED → browser | `{"Lilou":5,"Maud":12}` — opgeloste paal per speler (algoritme-uitkomst) |
 | `spel/historie`    | Node-RED → browser | `{"actief":true,"start":"...","events":[{"nr":1,"tekst":"...","doelwit":["Lilou"]}]}` |
 | `spel/state`       | Node-RED ↔ Node-RED | `{"ts":..,"spelerStats":{..},"globaleStats":{..},"spelHistorie":[..],"spelToestand":..,"spelNummer":..,"midnight":{"midnightIndex":..,"midnightOpen":..,"midnightRemaining":..,"piDigits":".."}}` (retained, qos 1) — **compacte state-snapshot** die Flow 04 elke 30 s dumpt; node `Rehydrate spel-state` leest hem bij (her)start terug, maar enkel als de global nog leeg is. Vangnet naast `contextStorage` (zie invariant NR8) |

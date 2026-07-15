@@ -258,8 +258,17 @@ Aan/uit via de simulator (🎲 Spelinstellingen → "Thuisbank"), retained op `s
 | AV1 | **Avond is een modus** (`global.avondModus`, retained `sim/avond-modus`) op het lopende spel — géén verse start. De middag-`totaalUren` en -stats (`sterftes`, `valsspeelpunten`) blijven behouden (zet avond aan zonder eerst te stoppen). |
 | AV2 | In `avondModus` wordt in "Verifieer beweging" een **positieve** bewegingswinst een **kost** (`delta = -delta`), en `totaalUren` mag **negatief** worden (de 0-clamp-met-sterfte wordt overgeslagen). Legale verplaatsing veroorzaakt in de avond dus **geen** sterfte, enkel verlies. |
 | AV3 | Een **`gestorven`** speler (nieuw `spelerStats`-veld, default `false`) kan door **verplaatsing** niet negatief gaan (beweging floort op 0); enkel **events** duwen hem verder omlaag. `gestorven` reset in `zeroHuidig`/"Wis globale stats". |
-| AV4 | **Onmiddellijke dood** (gevolg `onmiddellijke_dood`, event `fase:"avond"`): het slachtoffer wordt **geloot** onder de niet-`gestorven`, actieve spelers met gewicht = **`sterftes + valsspeelpunten`**; 0 gewicht = immuun, som 0 → uniform. Het slachtoffer → `totaalUren=0`, `+1 sterfte`, `gestorven=true`. De cirkel-animatie (`pof/dood-anim`) is **Stop-veilig** via het `pofGeneration`-token (vuurt niet meer na een reset). |
+| AV4 | **Onmiddellijke dood** (gevolg `onmiddellijke_dood`, event `fase:"avond"`): het slachtoffer wordt **geloot** onder de actieve spelers met gewicht = **`sterftes + valsspeelpunten`**; 0 gewicht = immuun, som 0 → uniform. Het slachtoffer → `totaalUren=0`, `+1 sterfte`. **Juli 2026:** het zet **niet** langer `gestorven=true` — de speler komt op 0 en kan daarna gewoon **negatief** zakken (avond-vloer blijft uit, AV3), blijft doorspelen, en is dus geen aparte "dode" meer (geen eliminatie). De cirkel-animatie (`pof/dood-anim`) is **Stop-veilig** via het `pofGeneration`-token. |
 | AV5 | **`fase`-veld** op events (`middag` default / `avond` / `beide`): "Kies event" én de simulator filteren hierop volgens `avondModus`. In de avond verschijnen enkel `avond`/`beide`; in de middag verdwijnt `avond`. |
+
+## 4n. Bommen vermijden (minigame, nacht)
+
+| # | Invariant |
+|---|-----------|
+| BM1 | **Speltype `"bommen"`** (naast klokslag/infected). De PoF-engine houdt zich stil (guards in `Engine tick`/`Spel aan/uit`). De **"Bommen engine"** (tab 07, op de 250 ms-tick) start/stopt zichzelf: bij start speelt hij de muziek (`audio/muziek` → `muziek/maki_vs_the_hei.wav`), zet de scan op **300 ms** (gladde ramp) en plant de **hele tijdlijn** (`global.bommenTijdlijn`) via `pofGeneration`-gated `setTimeout`-cues. Bij Stop/einde: LED's uit, scan hersteld, muziek stop; `bommen*`-globals in `resetPartij`. |
+| BM2 | Een **bom** = `MSG_BOM`/actie 25 (`laad_ms/hold_ms/pink_ms/pink_hz`): oplaad-ramp → felst vasthouden → knipperen → doven. De slave rendert **lokaal**; de piek valt **structureel vóór** het knipperen (ramp bereikt 255 bij `t==laad_ms`). Firmware: slaves + masters herflashen. |
+| BM3 | **Scoring:** bij het **doven** (ontplof-tijd, in Node-RED gepland) verliest iedereen op de paal **−10 levensuren** — **geen vloer, geen sterfte** → mag **negatief** (zoals AV2/AV3). De getroffen palen worden op de ontplof-tijd uit `spelerLocaties` gelezen (locatie op het doof-moment telt). Herhaalde treffers stapelen. |
+| BM4 | **Sfeer-golven** (~46,9-66 s, `global.bommenTijdlijn` buiten beschouwing) zijn **niet-scorend** en best-effort (actie 16 rood + helderheid vanuit de engine-tick). Een **muziek-offset** (`global.bommenAudioOffset`, dashboard-slider, default 150 ms) verschuift alle cues t.o.v. de audio-opstartlatentie. |
 
 ---
 

@@ -160,6 +160,8 @@ const state = {
     klokslagScore: [],          // [{id,naam,kleur,score,somUren}] (uit klokslag/score)
     klokslagStatus: { actief: false, resterend_s: 0, winnaar: null },  // uit klokslag/status
     infected: { actief: false, fase: "", besmet: [], overlevenden: [], bestrijders: [], winnaars: [], palen: {} },  // uit infected/status
+    bommen: { actief: false, fase: "", resterend_s: 0, spelers: [] },  // uit bommen/status (minigame "Bommen vermijden")
+    bomPalen: {},               // { <paal>: {start, laad, hold, pink} } actieve bom-animaties (uit commando actie 25)
     doelStatus: { percent: 0, aantal: 0, totaal: 0, spelers: {}, doel: null },  // uit pof/doelstatus (PoF-doelen)
     spelers: [],                // {naam, mac, kleur, x, y, auto, drag, actief, gezien}
     aantalActief: 31,           // sim-modus: hoeveel van de 31 meedoen (slider); default allemaal — verlaag voor overzicht
@@ -221,7 +223,7 @@ function connecteer() {
         state.verbonden = true;
         zetStatus("online");
         log("info", "Verbonden.");
-        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/dood-anim", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "pof/doelstatus", "sim/modus", "sim/test-modus"]);
+        state.client.subscribe(["commando/master1", "commando/master2", "commando/master3", "audio/afspelen", "plaatjes/data", "pof/status", "pof/controle", "pof/portalen", "pof/toestanden", "pof/ziekte", "pof/middernacht", "pof/dienaars", "pof/events", "pof/tijdbom", "pof/knop", "pof/animatie", "pof/dood-anim", "pof/herstel-posities", "config/drukknoppen", "locatie/spelers", "spel/historie", "spel/type", "klokslag/status", "klokslag/palen", "klokslag/score", "infected/status", "bommen/status", "pof/doelstatus", "sim/modus", "sim/test-modus"]);
         publishModus();   // laat Node-RED weten of het 24-uur veld actief is
         publishUitgeslotenEvents();   // synchroniseer de event-checkboxes (retained)
         publishMiddernachtConfig();   // synchroniseer de middernacht-aan/uit-checkbox (retained)
@@ -255,7 +257,11 @@ function verwerkBericht(topic, raw) {
     if (topic.startsWith("commando/master")) {
         const paal = data.paal, actie = data.actie;
         if (paal >= 1 && paal <= AANTAL_PALEN) {
-            if (actie === ACTIE_BUZZER_PIEP) {
+            if (actie === 25) {
+                // Bom-animatie (minigame): onthoud de tijden zodat renderBommenLeds de paal rood laat
+                // opgloeien -> hold -> pinken -> uit. laad_ms/hold_ms/pink_ms/pink_hz uit het commando.
+                state.bomPalen[paal] = { start: Date.now(), laad: data.laad_ms || 0, hold: data.hold_ms || 0, pink: data.pink_ms || 0, hz: data.pink_hz || 2 };
+            } else if (actie === ACTIE_BUZZER_PIEP) {
                 // buzzer-piep: toon icoon voor de duur van de piep, laat paalActie ongemoeid
                 state.paalBuzzer[paal] = Date.now() + BUZZER_PIEP_MS;
             } else if (actie >= 5 && actie <= 7) {
@@ -269,14 +275,20 @@ function verwerkBericht(topic, raw) {
         log("cmd", `paal ${paal} → ${ACTIE_NAAM[actie] || "?"} (${actie})`);
     } else if (topic === "spel/type") {
         // Speltype-keuze (retained, één bron van waarheid): synct de header-radio's + de UI.
-        const t = (data.type === "klokslag" || data.type === "infected") ? data.type : "plates_of_fate";
+        const _geldig = ["klokslag", "infected", "bommen"];
+        const t = (_geldig.indexOf(data.type) >= 0) ? data.type : "plates_of_fate";
         if (t !== state.spelType) {
             state.spelType = t;
             const radio = document.querySelector(`input[name="speltype"][value="${t}"]`);
             if (radio) radio.checked = true;
-            log("info", "Speltype: " + (t === "klokslag" ? "Klokslag" : (t === "infected" ? "Infected" : "Plates of Fate")));
+            const _lbl = { klokslag: "Klokslag", infected: "Infected", bommen: "Bommen vermijden", plates_of_fate: "Plates of Fate" };
+            log("info", "Speltype: " + _lbl[t]);
             pasSpelTypeToe();
         }
+    } else if (topic === "bommen/status") {
+        state.bommen = data || { actief: false, spelers: [] };
+        renderBommen();
+        if (state.spelType === "bommen") renderLeds();
     } else if (topic === "klokslag/status") {
         state.klokslagStatus = data || { actief: false };
         renderKlokslag();
@@ -1032,9 +1044,11 @@ function renderKlokslagLeds() {
 function pasSpelTypeToe() {
     const ks = state.spelType === "klokslag";
     const inf = state.spelType === "infected";
-    const pof = !ks && !inf;
+    const bom = state.spelType === "bommen";
+    const pof = !ks && !inf && !bom;
     document.body.classList.toggle("spel-klokslag", ks);
     document.body.classList.toggle("spel-infected", inf);
+    document.body.classList.toggle("spel-bommen", bom);
     document.body.classList.toggle("spel-pof", pof);
     const banner = document.getElementById("spel-banner");
     const naam = document.getElementById("spel-banner-naam");
@@ -1042,17 +1056,60 @@ function pasSpelTypeToe() {
     if (banner) {
         banner.classList.toggle("spel-banner-klokslag", ks);
         banner.classList.toggle("spel-banner-infected", inf);
+        banner.classList.toggle("spel-banner-bommen", bom);
         banner.classList.toggle("spel-banner-pof", pof);
     }
-    const lbl = ks ? "Klokslag" : (inf ? "Infected" : "Plates of Fate");
-    const ico = ks ? "🕐" : (inf ? "🦠" : "🎲");
+    const lbl = ks ? "Klokslag" : (inf ? "Infected" : (bom ? "Bommen vermijden" : "Plates of Fate"));
+    const ico = ks ? "🕐" : (inf ? "🦠" : (bom ? "💣" : "🎲"));
     if (naam) naam.textContent = lbl;
     if (icoon) icoon.textContent = ico;
     const hdr = document.getElementById("spel-actief");
     if (hdr) hdr.textContent = ico + " " + lbl;
     renderKlokslag();
     renderInfected();
+    renderBommen();
     renderLeds();
+}
+
+// Bommen-paneel: afteltimer + per-speler levensuren (incl. NEGATIEF na een treffer).
+function renderBommen() {
+    const el = document.getElementById("bommen-status");
+    const tmr = document.getElementById("bommen-timer");
+    if (!el) return;
+    const b = state.bommen || {};
+    if (tmr) tmr.textContent = b.actief ? (b.resterend_s + "s") : (b.fase === "afgelopen" ? "klaar" : "—");
+    const sp = (b.spelers || []).slice().sort((a, z) => (z.Levensuren || 0) - (a.Levensuren || 0));
+    if (!b.actief && !sp.length) { el.innerHTML = '<div class="ks-leeg">Bommen-game niet gestart.</div>'; return; }
+    el.innerHTML = "";
+    for (const r of sp) {
+        const div = document.createElement("div");
+        const neg = (r.Levensuren || 0) < 0;
+        div.className = "bommen-rij" + (neg ? " bommen-neg" : "");
+        div.innerHTML = `<b>${r.Speler}</b> <span class="bommen-paal">paal ${r.Paal}</span> <span class="bommen-uren">${r.Levensuren} u</span>`;
+        el.appendChild(div);
+    }
+}
+
+// Bommen-LED's: teken elke actieve bom-paal (uit state.bomPalen) rood volgens zijn fase
+// (opladen -> hold -> pinken -> uit). Benadering van de slave-animatie voor de simulator.
+function renderBommenLeds() {
+    const nu = Date.now();
+    for (let n = 1; n <= AANTAL_PALEN; n++) {
+        const led = document.getElementById("led-paal-" + n);
+        if (!led) continue;
+        led.setAttribute("class", "led");
+        const b = state.bomPalen[n];
+        let fill = "rgb(20,20,22)";   // uit (donker)
+        if (b) {
+            const t = nu - b.start;
+            const tHold = b.laad + b.hold, tEind = tHold + b.pink;
+            if (t < b.laad) { const v = b.laad > 0 ? Math.round(t / b.laad * 255) : 255; fill = `rgb(${v},0,0)`; }
+            else if (t < tHold) { fill = "rgb(255,0,0)"; }
+            else if (t < tEind) { const per = 1000 / (b.hz || 2); fill = ((t - tHold) % per) < per / 2 ? "rgb(255,0,0)" : "rgb(20,0,0)"; }
+            else { delete state.bomPalen[n]; }
+        }
+        led.style.fill = fill;
+    }
 }
 
 // Rendert het Infected-paneel: fase, besmette, overlevenden, bestrijders, winnaars.
@@ -1155,6 +1212,7 @@ function renderKlokslag() {
 }
 
 function renderLeds() {
+    if (state.spelType === "bommen") { renderBommenLeds(); return; }
     if (state.spelType === "klokslag") { renderKlokslagLeds(); return; }
     if (state.spelType === "infected") { renderInfectedLeds(); return; }
     // De dramatische animaties (nuke/oogst/tornado) komen authoritatief uit het retained pof/animatie-

@@ -50,6 +50,7 @@ const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
 #define MSG_KLOKSLAG     0x08   // master -> slave, Klokslag-LED (teamkleur + helderheid + modus)
 #define MSG_SCAN_CONFIG  0x09   // master -> slave, BLE-scan-vensterduur (ms) instellen
 #define MSG_LED_CONFIG   0x0A   // master -> slave, LED-helderheid (0..255) instellen
+#define MSG_BOM          0x0B   // master -> slave, bom-animatie (minigame "Bommen vermijden")
 
 // JSON-actie 12 = buzzer-toon (tuning): geen commando_message_v2, maar een directe
 // MSG_BUZZER_TOON met de frequentie uit het extra JSON-veld "toon" (zie docs/protocol.md).
@@ -65,6 +66,9 @@ const unsigned long ANNOUNCE_INTERVAL_MS = 3000;
 // JSON-veld "helderheid". Geen FIFO/ACK, fire-and-forget. Zie docs/protocol.md.
 #define ACTIE_LED_CONFIG   21
 #define LED_HELDER_DEFAULT 150  // fallback wanneer "helderheid" ontbreekt in de JSON
+// JSON-actie 25 = bom-animatie (minigame): directe MSG_BOM met laad_ms/hold_ms/pink_ms/pink_hz uit
+// de extra JSON-velden. Geen FIFO/ACK, fire-and-forget zoals klokslag. Zie docs/protocol.md.
+#define ACTIE_BOM          25
 
 #define MAX_SPELERS 30
 
@@ -143,6 +147,15 @@ typedef struct __attribute__((packed)) led_config_message {
   uint8_t paal_id;          // doel-slave (1..24)
   uint8_t helderheid;       // gewenste FastLED-helderheid 0..255 (slave clamp't 5..255)
 } led_config_message;
+
+typedef struct __attribute__((packed)) bom_message {
+  uint8_t  msg_type;        // = MSG_BOM
+  uint8_t  paal_id;         // doel-slave (1..24)
+  uint16_t laad_ms;         // oplaad-ramp 0 -> max
+  uint16_t hold_ms;         // vasthouden op max vóór het knipperen
+  uint16_t pink_ms;         // knipperduur; daarna dooft de LED (= ontploft)
+  uint16_t pink_hz;         // knipperfrequentie
+} bom_message;
 
 // ---- SLAVES REGISTREREN ----
 // De MAC->PAAL_ID-tabel staat gedeeld in firmware/shared/paal_macs.h (ÉÉN bron van waarheid
@@ -578,6 +591,24 @@ static void stuurKlokslag(int paal, uint8_t r, uint8_t g, uint8_t b, uint8_t hel
            (res == ESP_OK) ? "klokslag" : "send_err", paal);
 }
 
+// Bom-animatie (minigame): stuur direct een MSG_BOM (geen FIFO/ACK, fire-and-forget). De slave rendert
+// de oplaad-ramp -> hold -> pinken -> uit lokaal met de meegegeven tijden.
+static void stuurBom(int paal, uint16_t laad_ms, uint16_t hold_ms, uint16_t pink_ms, uint16_t pink_hz) {
+  int i = paalNaarIndex(paal);
+  if (i < 0 || i >= AANTAL_SLAVES) {
+    logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    return;
+  }
+  if (isPlaceholderMac(slaveAdressen[i])) {
+    logRegel("{\"status\":\"geen_slave\",\"paal\":%d}\n", paal);
+    return;
+  }
+  bom_message bm = { MSG_BOM, (uint8_t)paal, laad_ms, hold_ms, pink_ms, pink_hz };
+  esp_err_t res = esp_now_send(slaveAdressen[i], (uint8_t *)&bm, sizeof(bm));
+  logRegel("{\"status\":\"%s\",\"paal\":%d,\"actie\":25}\n",
+           (res == ESP_OK) ? "bom" : "send_err", paal);
+}
+
 // ---- SERIEEL COMMANDO VAN RASPBERRY PI ----
 // Heap-vrije JSON-veld-parser: zoekt "sleutel": in de regel en parset het getal erna.
 // Vervangt de oude Arduino-String/substring-parsing die per commandoregel meerdere
@@ -594,6 +625,21 @@ void verwerkRegel(const char *regel) {
 
   int     paal  = (int)jsonVeld(regel, "\"paal\":", 0);
   uint8_t actie = (uint8_t)jsonVeld(regel, "\"actie\":", 0);
+
+  // Bom-animatie (actie 25): niet via de FIFO, maar direct als MSG_BOM met de tijden uit de extra
+  // velden laad_ms/hold_ms/pink_ms/pink_hz. Fire-and-forget zoals klokslag; de bridge blijft ongewijzigd.
+  if (actie == ACTIE_BOM) {
+    uint16_t laad = (uint16_t)jsonVeld(regel, "\"laad_ms\":", 0);
+    uint16_t hold = (uint16_t)jsonVeld(regel, "\"hold_ms\":", 0);
+    uint16_t pink = (uint16_t)jsonVeld(regel, "\"pink_ms\":", 0);
+    uint16_t hz   = (uint16_t)jsonVeld(regel, "\"pink_hz\":", 2);
+    if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+      stuurBom(paal, laad, hold, pink, hz);
+    } else {
+      logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
+    }
+    return;
+  }
 
   // Buzzer-tuning (actie 12): niet via de FIFO, maar direct als MSG_BUZZER_TOON met de
   // frequentie uit het extra veld "toon" (Hz; 0 = stop). Zo blijft de bridge ongewijzigd.
