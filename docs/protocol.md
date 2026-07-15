@@ -311,7 +311,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 5  | `ACTIE_ZIEK_W3`     | Zoemer: ziekenhuis-monitor-piep + **3** hartslagen (zieke speler, nog 3 events te gaan) |
 | 6  | `ACTIE_ZIEK_W2`     | Zoemer: ziekenhuis-monitor-piep + **2** hartslagen (nog 2 events) |
 | 7  | `ACTIE_ZIEK_W1`     | Zoemer: ziekenhuis-monitor-piep + **1** hartslag (nog 1 event) |
-| 8  | `ACTIE_NUKE`        | LED strip **geanimeerd** pulserend radioactief geel↔groen (NUKE-ring over alle palen) |
+| 8  | `ACTIE_NUKE`        | LED strip **geanimeerd** NUKE-ring over alle palen, **tijd-gefaseerd** vanaf `actieStartMs`: 0–16 s opbouwend radioactief geel↔groen (ademhaling versnelt richting de knal), 16–19 s de **ontploffing** (witte knal → felle wit/rood-strobe), ≥19 s smeulende rode nagloed. Node-RED houdt de ring op actie 8 tot het einde van de regroup (`nukeNaglow`) zodat de firmware-klok doorloopt en de escalatie zichtbaar is. |
 | 9  | `ACTIE_MN_OPEN`     | LED strip **zacht wit** continu (middernacht-poort **open**) |
 | 10 | `ACTIE_MN_DICHT`    | LED strip **rood** continu (middernacht-poort **dicht**) |
 | 11 | `ACTIE_OOGST`       | LED strip **geanimeerd** dramatische wit/rood-strobe (middernacht-oogst bij een 0 in pi) |
@@ -319,7 +319,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 13 | `ACTIE_TIJDBOM`     | LED strip **geanimeerd** tikkende rode flits (~2 Hz). Gezet op de **ontmantel-palen** van een actief tijdbom-event (paal met drukknop waar een bom ontmanteld kan worden). De paal wordt tegelijk **gearmd** met `ACTIE_KNOP_ARM` (17) — zonder dat negeert de slave elke druk. |
 | 14 | `ACTIE_TORNADO`     | LED strip **donkergrijs** continu (tornado-center; zuigt de aanliggende uren naar zich toe). Overschrijft tijdelijk een onderliggend effect; herstelt na het event. |
 | 15 | `ACTIE_TORNADO_RAND`| LED strip **geanimeerd** trage grijze pulse (aanliggend uur van een tornado). |
-| 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus` (`0` owned = **solid**, `1` capturing = kaarsflikker, `2` frozen = solid, `3` rust = ademend dim wit).<br>**Dubbel gebruik:** met `modus: 0` is dit in feite een **generiek "zet paal op een willekeurige RGB-kleur"**-commando. Het dashboard **Buzzer/LED test → Paaltest** gebruikt het zo voor de kleurtest (5 vaste kleuren), zonder dat daar een aparte actie voor nodig was. Voeg dus **geen** nieuwe "zet-kleur"-actie toe — die bestaat al. |
+| 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus` (`0` owned = **solid**, `1` capturing = kaarsflikker, `2` frozen = solid, `3` rust = ademend dim wit).<br>**Dubbel gebruik:** met `modus: 0` is dit in feite een **generiek "zet paal op een willekeurige RGB-kleur"**-commando. Het dashboard **Buzzer/LED test → Paaltest** gebruikt het zo voor de kleurtest (5 vaste kleuren), zonder dat daar een aparte actie voor nodig was. Voeg dus **geen** nieuwe "zet-kleur"-actie toe — die bestaat al.<br>Node-RED gebruikt `modus: 0` ook voor korte **event-flitsen**: **blauw** bij een geslaagde tijdbom-ontmanteling, een **witte** puls op de even/oneven-palen bij een pariteit-verplaatsing, en (met `modus: 1`) een **oranje kaarsflikker** op de twee body-swap-palen. Deze flitsen hebben **géén** firmware-timeout, dus Node-RED dooft ze zelf met een `ACTIE_NIETS` of een force-rebuild. |
 | 17 | `ACTIE_KNOP_ARM`    | Drukknop-paal **actief** zetten: GPIO6-feedback-LED **aan** (uit zolang de knop ingedrukt is) en de cumulatieve druk-teller op 0. Raakt de WS2812B-strip niet. |
 | 18 | `ACTIE_KNOP_UIT`    | Drukknop-paal **inactief** zetten: GPIO6-LED **uit**, geen tellen meer. |
 | 19 | `ACTIE_REGENBOOG`   | **Test**: roterende regenboog over de 7 LEDs (volledig spectrum, deltaHue 255/7). Puur voor kleur-/LED-controle; via de losse inject `[TEST] Regenboog (paal 1, actie 19)` op de "00 Configuratie"-flow (zelf naar een `commando/masterN` mqtt-out bedraden). Blijft tekenen tot een andere actie binnenkomt (bv. `ACTIE_NIETS`). |
@@ -727,6 +727,14 @@ sequentieel via `aplay` over de aux-jack speelt. Zie `docs/handleidingen/audio-p
   `woorden/<speler|spelers|uur|uren>`) gevolgd door begin + getal + eind van het event;
   de **doelwit-fase** is `doelwit/voor` + per doelwit een clip + `doelwit/na`.
 - `prioriteit`: vrije tekst voor latere afspeel-volgorde.
+
+Naast `event`/`doelwit` bestaat de **sfx-fase** voor niet-gesproken cues:
+`sound-effect/countdown/countdown.wav` (aftelklok, t−5 s) en
+`sound-effect/wereld-events/woosh.wav` — een **woosh-signatuur** die vlak vóór elke
+**wereld-event**-afroep speelt (na de countdown), zodat spelers meteen horen dat er een groot
+event aankomt zonder dat er doelwitten worden opgenoemd. Het **Iedereen**-event
+(`geenDoelwitAfroep`) roept géén 31 namen af maar één `prefix/iedereen.wav` (anders zoekt de
+telprefix `getallen/31.wav`, die niet bestaat, en duurt de namen-reveal ~25 s).
 
 Plates-of-Fate LED-toestanden worden centraal gestuurd. Node-RED **routeert** elk `{paal,actie}`-commando
 via de node **"Route commando"** naar `commando/master1|2|3` op basis van het paal-bereik (1–8/9–16/17–24)

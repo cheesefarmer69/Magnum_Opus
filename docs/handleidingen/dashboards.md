@@ -108,7 +108,7 @@ Dit is de pagina die openstaat zolang het spel loopt.
 | **Middernacht & Dienaren** | De π-klok: staat de poort **open** of **dicht**, en hoeveel events nog. Plus wie **dienaar** van wie is na een oogst. |
 | **Vals-spelen & God-punten** | Wie valsspeelde (en dus een slechtere aura heeft) en wie nog een **god-punt** als schild heeft. |
 | **Infected (minigame)** | Status van de Infected-minigame. |
-| **Spelbalans** | Twee schuiven die je **tijdens** het spel mag bijstellen:<br>**Doelwit-dichtheid** (10–50 %, default 25) — hoeveel spelers een gemiddeld event raakt. Voelt het veld leeg? Zet hoger.<br>**Reactietijd toestanden** (3–30 s, default 10) — hoeveel tijd spelers krijgen bij toestand-events. |
+| **Spelbalans** | Twee schuiven die je **tijdens** het spel mag bijstellen:<br>**Doelwit-dichtheid** (10–50 %, default 25) — hoeveel spelers een gemiddeld event raakt (met lichte variatie per event, jitter ±1). Voelt het veld leeg? Zet hoger.<br>**Reactietijd toestanden** (3–30 s, default 10) — hoeveel tijd spelers krijgen bij toestand-events. |
 
 ---
 

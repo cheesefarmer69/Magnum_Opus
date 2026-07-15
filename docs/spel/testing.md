@@ -151,7 +151,7 @@ Stilstaan is hier **fout** (0 ∉ {x,y}).
 
 | # | Opzet | Doe | Verwacht |
 |---|-------|-----|----------|
-| A | 31 spelers actief | Forceer het event | **2** gouden uren (`aantal: laag`, √N-curve — EV6) |
+| A | 31 spelers actief | Forceer het event | **≈ 2** gouden uren (`aantal: laag`, √N-curve + jitter ±1, dus 1–3 — EV6/O5) |
 | B | 8 spelers actief | Forceer het event | **1** goud uur |
 | C | Goud op uur 9 | Doelwit eindigt op uur 9 na 3 stappen | `OK (happy hour x2)`, **+6** |
 | D | idem | Doelwit **passeert** uur 9 en eindigt op 10 | **+3** — alleen de **eindpaal** telt |
@@ -244,7 +244,7 @@ Stilstaan is hier **fout** (0 ∉ {x,y}).
 | B | Sim | Sleep een speler het veld **uit** vóór de knal | `VEILIG (ontkomen)` |
 | C | Hardware | Loop ≥ 4 s (`escape_s`) buiten bereik | Idem; check `reactietijd_s ≥ escape_s + 2` |
 | D | Blijf staan | | `ONTPLOFT`: uren 0 + 1 sterfte |
-| E | Na de knal | Kijk naar de timer | `Regroup: 45s` |
+| E | Na de knal | Kijk naar de timer | `Regroup: 30s` |
 | F | **Tijdens de regroup** loop je terug het veld in | Volgende controle | `VRIJ GEWANDELD` (0 winst + valsspeelpunt) — regroup is **géén** vrije fase |
 | G | Ziekte + tijdbom + dienaars actief | Nuke | Alles gewist; `pof/ziekte` en `pof/dienaars` leeg |
 | H | Tweeling actief | Nuke | Band **blijft** (TW5/N8) |
@@ -311,8 +311,8 @@ Stilstaan is hier **fout** (0 ∉ {x,y}).
 
 | # | Opzet | Doe | Verwacht |
 |---|-------|-----|----------|
-| A | Actief, 5 spelers vertrekken van uur 3 | Verplaatsings-event | `OK (polonaise +1)`: `+voor + (5−4)` |
-| B | 2 spelers vertrekken samen | | `TE WEINIG SAMEN`, 0 + valsspeelpunt |
+| A | Actief, 5 spelers vertrekken van uur 3 | Verplaatsings-event | `OK (polonaise +2)`: `+voor + (5−3)` |
+| B | 2 spelers vertrekken samen (< 3) | | `TE WEINIG SAMEN`, 0 + valsspeelpunt |
 | C | 10 **verplaatsings**-events verder | | Polonaise stopt; toestand/wereld-events tellen **niet** mee in de teller |
 
 ### 4.9 Twee groepen tegelijk (WE3)
@@ -405,14 +405,16 @@ Stilstaan is hier **fout** (0 ∉ {x,y}).
 
 ### 5.8 Doelwit-dichtheid (EV6)
 
-Forceer `happy_hour` (`aantal: laag`) bij verschillende spelersaantallen, met de knob op 25 %:
+Forceer `happy_hour` (`aantal: laag`) bij verschillende spelersaantallen, met de knob op 25 %. Sinds O5 zit
+er een **jitter ±1** op (25 % −1, 25 % +1), dus de tabel geeft **richtwaarden** — test op "≈ N (± 1)", niet
+op een exact getal:
 
 | N | laag | midden | hoog |
 |---|------|--------|------|
-| 8 | 1 | 2 | 3 |
-| 16 | 1 | 2 | 4 |
-| 24 | 2 | 3 | 4 |
-| 31 | **2** | **3** | **5** |
+| 8 | ≈ 1 | ≈ 2 | ≈ 3 |
+| 16 | ≈ 1 | ≈ 2 | ≈ 4 |
+| 24 | ≈ 2 | ≈ 3 | ≈ 4 |
+| 31 | **≈ 2** (1–3) | **≈ 3** (2–4) | **≈ 5** (4–6) |
 
 Cap = **6**. Schuif de knob naar 50 % → de aantallen verdubbelen ruwweg. Vaste getallen
 (`portalen` 2, `tweeling` 2, `bodyswap` 2), `[min,max]`-arrays (`tornado`), `vastOpties`

@@ -933,11 +933,31 @@ void updateAnimatie() {
   }
 
   if (huidigeActie == ACTIE_NUKE) {
-    // Pulserend radioactief: geel<->groen, helderheid ademt via een sinus.
-    uint8_t hue = 64 + (uint8_t)(beatsin8(20, 0, 32));   // 64=groen .. 96 richting geel-groen
-    uint8_t val = beatsin8(40, 60, 255);                 // ademende helderheid
+    // Tijd-gefaseerde nuke-lichtshow. De ring wordt bij nuke-start op actie 8 gezet en (dankzij de
+    // nuke-nagloed in Node-RED) NIET opnieuw verstuurd, zodat 't' hier de tijd SINDS de nuke-start is.
+    //  Fase 1 (0..16s): opbouwende radioactieve dreiging (ademhaling versnelt richting de knal).
+    //  Fase 2 (16..19s): de ONTPLOFFING -- verblindende witte knal + felle wit/rood-strobe.
+    //  Fase 3 (>=19s): smeulende rode nagloed gedurende de regroup (tot Node-RED de ring opruimt).
+    CRGB kleur;
+    if (t < 16000) {
+      uint8_t hue = 64 + (uint8_t)(beatsin8(20, 0, 32));   // 64=groen .. 96 richting geel-groen
+      uint8_t bpm = 40 + (uint8_t)(t / 400);               // ademhaling versnelt naar 16s toe (oplopende spanning)
+      uint8_t val = beatsin8(bpm, 40, 255);
+      kleur = CHSV(hue, 255, val);
+    } else if (t < 19000) {
+      const unsigned long te = t - 16000;
+      if (te < 200) {
+        kleur = CRGB(255, 255, 245);                       // verblindende witte knal
+      } else {
+        bool wit = ((te / 60) % 2) == 0;                   // ~8 Hz felle wit/rood-strobe
+        kleur = wit ? CRGB(255, 255, 255) : CRGB(255, 20, 0);
+      }
+    } else {
+      uint8_t val = beatsin8(10, 15, 90);                  // trage smeulende rode gloed (aftermath)
+      kleur = CHSV(0, 255, val);
+    }
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
-      fill_solid(leds, NUM_LEDS, CHSV(hue, 255, val));
+      fill_solid(leds, NUM_LEDS, kleur);
       toonLeds();
       xSemaphoreGive(xLedMutex);
     }

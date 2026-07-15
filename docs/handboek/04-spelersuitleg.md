@@ -288,15 +288,17 @@ vaak voor, andere zelden (de zeldzame zijn meestal de spectaculairste).
 - **Wat doen:** **ren het hele veld af** binnen de aftelklok (±16 s), zo ver dat de palen je baken niet
   meer zien. Tijdens een nuke bestaat er géén bewegingsstraf.
 - **Gevolg:** nog gedetecteerd bij de knal = **ONTPLOFT** (alles kwijt + 1 sterfte). Ontkomen = **VEILIG**.
-- **Daarna:** ±45 s **regroup** om terug te keren. Let op: **ook daar is bewegen niet vrij** — terugkomen
+- **Daarna:** ±30 s **regroup** om terug te keren (daarna mag je terug naar je vorige toestand). Let op:
+  **ook daar is bewegen niet vrij** — terugkomen
   kost 0 winst + 1 valsspeelpunt (levensuren kost het niet, want je staat toch op 0).
 - **Extra:** een nuke **wist** lopende ziekte- en tijdbom-episodes en alle dienaars; tweelingbanden
-  blijven. Het hele veld pulseert **groen↔geel**.
+  blijven. Het veld bouwt op naar een **verblindende ontploffing** (radioactief groen↔geel dat sneller
+  ademt → witte flits → wit/rode strobe → uitdovende rode nagloed).
 
-**11. Events komen sneller — "events komen sneller."** *(zeldzaam)*
+**11. Events komen sneller — "events komen sneller."** *(episch, zeldzaam)*
 - Elke volgende reactietijd wordt **korter** (tot een ondergrens). Geen doelwit, geen kleur.
 
-**12. Events komen trager — "events komen trager."** *(zeldzaam)*
+**12. Events komen trager — "events komen trager."** *(episch, zeldzaam)*
 - Elke volgende reactietijd wordt **langer** (meer ademruimte).
 
 **13. Bomaanslag — "Een bomaanslag op uur a en b."** *(zeldzaam)*
@@ -310,7 +312,7 @@ vaak voor, andere zelden (de zeldzame zijn meestal de spectaculairste).
   speler ná Lilou bedoeld. Je neemt **de naam én de kleur** van die volgende speler over; je **jaar,
   maand, seizoen** en even/oneven blijven van jezelf (die groepen kloppen dus altijd).
 - **Wat doen:** onthoud wiens naam jij nu "draagt" en reageer dáárop. Reageer je op je échte naam, dan
-  beweeg je als niet-doelwit. Duur 7–15 events, dan keert alles terug.
+  beweeg je als niet-doelwit. Duur **10 events**, dan keert alles terug.
 
 **15. Tijdreizen — "Tijdreizen zal worden toegestaan."** *(zeldzaam)*
 - **Wat:** zolang het duurt mag **iedereen ook achteruit** lopen; achteruit-stappen tellen dan als

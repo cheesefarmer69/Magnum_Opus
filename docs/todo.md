@@ -85,9 +85,11 @@ De code verwijst al naar deze WAV's; ze moeten nog **opgenomen** en in `pi/audio
 geplaatst worden (paden relatief t.o.v. die map). Zonder bestand valt het segment gewoon stil weg.
 
 - [ ] **Body-swap**: `events/.../body_swap.wav` (afroep).
-- [ ] **Maximaal per uur**: `events/wereld-events/max_per_uur.wav` (afroep) + `events/afgelopen/max_per_uur_voorbij.wav`.
+- [ ] **Maximaal per uur**: `events/wereld-events/max_per_uur.wav` (afroep, "Vanaf nu maximaal x spelers per uur.") + `events/afgelopen/max_per_uur_voorbij.wav`.
 - [ ] **Polonaise**: `events/wereld-events/polonaise.wav` (afroep) + `events/afgelopen/polonaise_voorbij.wav`.
 - [ ] **Pariteit-verplaatsing**: `groepen/uur/even.wav` + `groepen/uur/oneven.wav`.
+- [ ] **Wereld-event woosh (signatuur)**: `sound-effect/wereld-events/woosh.wav` — sting die ná het aftellen en vóór de afroep speelt, enkel bij `categorie === "wereld"` (O1/nieuwe audio-signatuur).
+- [ ] **Iedereen-event (O1)**: `prefix/iedereen.wav` — vervangt bij het `verplaatsing_iedereen`-event de getal-prefix + de opsomming van 31 namen.
 - [ ] **Twee groepen (item 11)**: `prefix/groepen.wav` (meervoud "groepen") + `woorden/en.wav` (verbinding).
 - [ ] **Knop-feedback (firmware)**: de piezo-deuntjes zitten in de slave-firmware (acties 22/23) —
   geen WAV nodig. Wél nog: centrale zoemer/afroep-clips voor de drukknop-events-modus (komt met de catalogus).

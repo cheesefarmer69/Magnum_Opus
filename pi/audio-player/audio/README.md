@@ -27,20 +27,37 @@ audio/
 ├── prefix/        aantal-prefix vóór het event: enkel-/meervoud (zie prefix/README.md)
 │   ├── speler.wav / spelers.wav   (speler-doelwit, 1 / meer)
 │   ├── uur.wav / uren.wav         (uur-doelwit, 1 / meer)
-│   └── groep.wav / groepen.wav    (groep-doelwit)
+│   ├── groep.wav / groepen.wav    (groep-doelwit)
+│   └── iedereen.wav               (Iedereen-event: vervangt de getal-prefix + naam-opsomming, O1)
 ├── woorden/       losse verbindingswoorden
 │   └── of.wav       ("of", connector bij twee getallen)
 ├── groepen/       ALLE groep-doelwit-clips, gebundeld (zie groepen/README.md)
 │   ├── kleur/    kleur.wav + rood/zwart/blauw.wav
 │   ├── jaar/     jaar.wav + eerste/tweede/derde.wav
 │   ├── maand/    maand.wav + januari..december.wav
-│   └── seizoen/  seizoen.wav + lente/zomer/herfst/winter.wav
+│   ├── seizoen/  seizoen.wav + lente/zomer/herfst/winter.wav
+│   └── uur/      even.wav / oneven.wav (pariteit-verplaatsing)
 ├── doelwit/       vaste omkadering rond de doelwit-opsomming
 │   ├── voor.wav   ("De volgende doelwitten zijn gekozen:")
 │   └── na.wav     ("...dat waren de doelwitten.")
-└── sound-effect/  geluidseffecten (countdown, per event-soort, reactietijd)
-    └── (zie sound-effect/README.md — verzamelmap, nog niet auto-afgespeeld)
+├── sound-effect/  geluidseffecten (countdown, per event-soort, reactietijd)
+│   ├── wereld-events/woosh.wav   "groot event komt aan"-sting: speelt ná het aftellen en
+│   │                             vóór de afroep, ENKEL bij categorie "wereld" (nog opnemen)
+│   └── (zie sound-effect/README.md — verzamelmap, nog niet auto-afgespeeld)
+└── muziek/        LANGE tracks voor het bestuurbare kanaal `audio/muziek` (pauze/hervat/stop)
+    ├── reactie_pools.wav   Poolse song (event "De reactietijd wordt Pools")
+    └── (de dood-cutscene-track staat in events/wereld-events/onmiddellijke_dood.wav)
 ```
+
+## Twee afspeelwegen: segment-queue vs. bestuurbaar kanaal
+
+- **`audio/afspelen`** (segment-queue): korte segmenten die **sequentieel** en niet-onderbreekbaar
+  spelen (afroepen, getallen, doelwitten). Dit is het gros van de audio.
+- **`audio/muziek`** (bestuurbaar kanaal): één **lange** track die je kan **pauzeren/hervatten op
+  positie** of **hard stoppen** mid-track — `{"cmd":"play|pause|resume|stop","track":"muziek/…"}`.
+  Speelt naast de afroepen (ALSA `default`/dmix mixt). Gebruikt door het Poolse-reactietijd-event
+  (muziek tijdens de reactietijd) en de onmiddellijke-dood-cutscene (24 s-track, afgekapt bij de
+  landing van de rode lamp). Zie `docs/protocol.md` §5 en `docs/handleidingen/audio-player.md`.
 
 ## Naamregel voor `spelers/` en `groepen/` (belangrijk!)
 
@@ -95,6 +112,16 @@ Voorbeeld event `groep_of_verplaatsing` (groep — jaar: eerste), met x=2 en y=5
 Bij een **speler**-doelwit event (bv. ziekte) is de prefix het aantal + zelfstandig naamwoord:
 "drie" + "spelers" + "worden ziek." (enkelvoud: "één" + "speler" + …). Verplaatsing-events zelf
 zijn **groep-only** (geen individuele speler-doelwitten meer).
+
+**Wereld-events — woosh-signatuur:** bij een event met `categorie === "wereld"` speelt **direct ná het
+aftellen en vóór de afroep** de sting `sound-effect/wereld-events/woosh.wav` ("er komt een groot event aan").
+Andere categorieën krijgen die niet.
+
+**Iedereen-event (`geenDoelwitAfroep:true`, O1):** het `verplaatsing_iedereen`-event richt zich op **alle**
+spelers en somt de doelwitten daarom **niet** op. In plaats van de getal-prefix `getallen/<N>.wav` (die bij
+31 spelers naar het onbestaande `getallen/31.wav` zou zoeken) speelt één `prefix/iedereen.wav`, en de 31
+naam-clips worden **overgeslagen**. Afroep = `prefix/iedereen.wav` → `maximum.wav` → `getallen/<getal>.wav`
+→ `uur_vooruit.wav`.
 
 Bij de doelwitten (zoals voorheen, één voor één):
 `doelwit/voor.wav` → (`spelers/lilou.wav` voor een speler, of `getallen/7.wav` voor uur/paal 7) → `doelwit/na.wav`

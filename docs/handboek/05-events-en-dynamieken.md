@@ -151,11 +151,14 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
   niet meer zien (≥ 4 s buiten bereik). Tijdens een nuke bestaat er géén bewegingsstraf.
 - **Bij fout:** nog gedetecteerd bij de knal = **ONTPLOFT**: alles kwijt + 1 sterfte. Ontkomen =
   VEILIG.
-- **Duur & kans:** daarna **45 s regroup** (terugkomen, herpositioneren). Let op: **bewegen is ook daar
+- **Duur & kans:** daarna **30 s regroup** (terugkomen, herpositioneren); na die 30 s mag je terug naar je
+  vorige toestand. Let op: **bewegen is ook daar
   niet vrij** — wie terugloopt betaalt bij de volgende controle 0 winst + 1 valsspeelpunt. Levensuren
   kost het niet, want na de knal sta je toch op 0. Max 1; **legendary** (zeldzaamste event).
-- **LED/geluid:** het hele veld pulseert **groen↔geel** (poort-paal behoudt zijn kleur); daarna
-  alles netjes terug.
+- **LED/geluid:** het veld bouwt tijd-gefaseerd op: **~16 s** radioactief **groen↔geel** dat steeds sneller
+  ademt, dan **de ontploffing** (**verblindende witte flits → felle wit/rode strobe**, ~16–19 s), dan een
+  uitdovende **rode nagloed** die de hele regroup blijft branden (poort-paal behoudt zijn kleur); aan het
+  einde van de regroup gaat alles netjes terug.
 - **Operator:** een nuke **wist de wereld**: lopende ziekte- én tijdbom-episodes en alle dienaars
   verdwijnen. **Tweelingbanden blijven wél intact** en de wolf vangt niet in een nuke-controle.
   `escape_s` (4 s) en `regroup_s` zijn event-velden.
@@ -163,11 +166,11 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 ### 11. Sneller — `sneller_events`
 - **Afroep:** *"events komen sneller."*
 - **Effect:** het **spel-tempo** stapt −0,1 (ondergrens 0,6×): elke volgende reactietijd wordt
-  korter. **Rare**; geen doelwit, geen LED. Reset naar 1,0 bij Stop.
+  korter. **Epic**; geen doelwit, geen LED. Reset naar 1,0 bij Stop.
 
 ### 12. Trager — `trager_events`
 - **Afroep:** *"events komen trager."*
-- **Effect:** tempo +0,1 (bovengrens 1,3×) — meer ademruimte. **Rare**.
+- **Effect:** tempo +0,1 (bovengrens 1,3×) — meer ademruimte. **Epic**.
 
 ### 13. Bomaanslag — `bomaanslag`
 - **Afroep:** *"Een bomaanslag vindt plaats op uur a en b."* — één van **vier** vaste duo's, elk met
@@ -190,7 +193,7 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
   (*Alix Blond* vóór *Alix Bruin*, *Marie DM* vóór *Marie Smet*). Nooit dubbelzinnig.
 - **Wat doen:** onthoud wiens naam jij draagt en reageer dáárop; reageer je op je échte naam, dan
   beweeg je als niet-doelwit → straf.
-- **Duur & kans:** **7–15 events**, dan keert alles terug (met afloop-audio); max 1; **epic**.
+- **Duur & kans:** **10 events** (vast, was 7–15), dan keert alles terug (met afloop-audio); max 1; **epic**.
 - **Operator:** reactietijd 15 s; de mapping staat in `global.luisterNaam`.
 
 ### 15. Tijdreizen — `tijdreizen`
@@ -230,9 +233,11 @@ er niet aan. Een **god-punt** vergeeft het volledig. Er is **geen enkele vrije f
 het spel **gestopt** is wordt er niets opgenomen.
 
 **Doelwit-dichtheid (Spelbalans-knob).** Aantallen met een optie groeien **sub-lineair** met het aantal
-actieve spelers (√N), zodat het veld nooit verzadigt: bij 31 spelers raakt `laag` er **2**, `midden` **3**
-en `hoog` **5** (clamp 1–6, × de dashboard-knob, default 25 %). Ziekte, tijdbom en happy hour gebruiken
-alle drie `laag`. Groep-events wegen bij > 15 spelers bovendien zwaarder. *(EV6.)*
+actieve spelers (√N), zodat het veld nooit verzadigt: bij 31 spelers raakt `laag` er **≈ 2**, `midden` **≈ 3**
+en `hoog` **≈ 5** (clamp 1–6, × de dashboard-knob, default 25 %). Sinds juli 2026 (O5) zit er een **jitter**
+van **±1** op (25 % −1, 25 % +1), dus de uitkomst varieert per event (bv. `laag` 1–3, `hoog` 4–6) i.p.v. elke
+keer exact hetzelfde. Ziekte, tijdbom en happy hour gebruiken alle drie `laag`. Groep-events wegen bij > 15
+spelers bovendien zwaarder. *(EV6.)*
 
 **Tiers & wachtrij.** Events worden gewogen gekozen op zeldzaamheid; de engine plant 5 events
 vooruit (paneel "Volgende events"). De operator kan daar een event **wegklikken** of via de

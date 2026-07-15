@@ -166,6 +166,11 @@ aantal = clamp( round( mult × √N × (dichtheid / 0,25) ), 1, min(N, 6) )
 | `midden` | 0,55   | 2 | 2 | 3 | **3** |
 | `hoog`   | 0,90   | 3 | 4 | 4 | **5** |
 
+**Jitter (O5):** ná de √N-formule en **vóór** de clamp krijgt het aantal een **±1-stap**: **25 %** kans −1,
+**25 %** kans +1, **50 %** ongewijzigd. De getallen in de tabel zijn dus **richtwaarden** — bij 31 spelers
+varieert `laag`/`midden`/`hoog` rond 2/3/5 (met jitter ≈ 1–3 / 2–4 / 4–6) i.p.v. elke keer exact hetzelfde.
+De formule zelf en de knob blijven ongewijzigd.
+
 Waarom sub-lineair: een lineaire fractie van N liet het veld **verzadigen** — bij 31 spelers raakte
 `laag` er al 5 en kleurde happy hour 5 van de 24 uren goud (21 % van de ring). Met √N groeit het aantal
 nog steeds mee, maar vlakt het af, zodat een toestand-event zeldzaam blijft aanvoelen. De harde cap

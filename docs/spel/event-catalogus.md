@@ -20,9 +20,11 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
     die **sub-lineair** met het veld meegroeit (**doelwit-dichtheid**, G3):
     `aantal = clamp(round(mult × √N × (dichtheid / 0,25)), 1, min(N, 6))` met `mult` **0,35** (`laag`) /
     **0,55** (`midden`) / **0,90** (`hoog`), en `enkel` = altijd 1. `global.doelwitDichtheid` (default
-    **0,25**) is de globale knob. Bij 31 spelers geeft dat **2 / 3 / 5**; de vroegere lineaire formule
-    gaf 5 / 8 / 10 en liet het veld verzadigen. Groep-events negeren `aantal` (emergente omvang) en
-    wegen zwaarder bij veel spelers.
+    **0,25**) is de globale knob. **Jitter (O5):** ná de √N-formule en vóór de clamp wordt er een
+    **±1-stap** bijgeteld — **25 %** kans −1, **25 %** kans +1, **50 %** ongewijzigd — zodat het aantal
+    doelwitten per afvuring licht varieert i.p.v. elke keer exact hetzelfde te zijn. Bij 31 spelers geeft
+    dat rond **2 / 3 / 5** (met jitter ≈ 1–3 / 2–4 / 4–6); de vroegere lineaire formule gaf 5 / 8 / 10 en
+    liet het veld verzadigen. Groep-events negeren `aantal` (emergente omvang) en wegen zwaarder bij veel spelers.
 - **Bewegen mag enkel wanneer een event het zegt.** Buiten een event (fases `aanloop`/`wacht`) is elke
   paalwissel **vrij wandelen**: bij de eerstvolgende controle vervalt je winst (`delta → 0`) en krijg je
   +1 valsspeelpunt (`… | VRIJ GEWANDELD`). Géén levensuren-verlies, géén sterfte. Een **god-punt** vergeeft
@@ -42,6 +44,10 @@ afloop gecontroleerd wordt. De drie categorieën zijn:
   **aantal** doelwitten + het zelfstandig naamwoord afgeroepen (bv. "3 spelers …",
   "1 speler …", "2 uren …"); daarna de event-tekst en ten slotte de doelwitten één voor
   één. Zie `pi/audio-player/audio/README.md`.
+- **Woosh-signatuur (wereld-events)**: enkel bij `categorie === "wereld"` speelt **direct ná het aftellen
+  en vóór de afroep** een korte sting `sound-effect/wereld-events/woosh.wav` — een herkenbaar "er komt een
+  groot event aan"-geluid. Andere categorieën (verplaatsing/toestand) krijgen die woosh niet. (WAV nog op te
+  nemen; de audio-player slaat ontbrekende bestanden stil over.)
 - **Max** (`max`): begrenst hoeveel instanties van hetzelfde toestand-event tegelijk
   op het veld mogen staan (zie hoofdstuk 2).
 - **Netto-verplaatsing**: het verschil tussen begin- en eindpaal op de 24-uur ring,
@@ -282,9 +288,12 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Ontmanteling** (knop werkt op **elk** moment, in elke event-fase — node "Knop-verwerking"):
   - Een bom-speler die op een gekozen **ontmantel-paal** staat en die knop (laat) indrukken, probeert te
     ontmantelen. Kans op slagen: **dag** (uren **7–18**) = **80%**, **nacht** (uren **19–6**) = **50%**.
-  - **Slaagt** → bom verdwijnt, geen gevolgen.
+  - **Slaagt** → bom verdwijnt, geen gevolgen. De ingedrukte paal flitst **blauw** (actie 16 modus 0,
+    `r0 g0 b255`); omdat actie 16 geen firmware-timeout heeft, stuurt Node-RED na ~1 s een `ACTIE_NIETS`
+    (actie 0) om de flits te wissen. De box roept: `tijdbom_ontmanteld.wav`.
   - **Mislukt** → **iedere** speler op die paal verliest het aantal levensuren gelijk aan het **uur**
     (mislukking op uur 7 → −7 voor iedereen daar; onder 0 → 0 + sterfte). De bom(men) op die paal zijn verbruikt.
+    De paal krijgt een **rode ontploffing + sirene** (actie 24 `ACTIE_ONTPLOFFING`) + `tijdbom_ontploft.wav`.
 - **Ontploffing** (node "Tijdbom-beheer", elke ronde na de controle): tikt elke ronde af; bij **0**
   ontploft de bom = **hetzelfde als een mislukte ontmanteling** (iedereen op de paal van de bom-speler
   verliest `uur` levensuren). Zijn er geen bommen meer → de ontmantel-palen gaan uit. De stand wordt
@@ -373,8 +382,8 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   `epic` 8 · `legendary` 2 (default `common`). De engine kiest events **gewogen** (in "Bouw pof/status"
   voor de wachtrij en in "Kies event" als fallback), zodat ingrijpende events zeldzaam blijven en het spel
   niet wild heen en weer geslingerd wordt. Standaard (zoals in de `[CONFIG]`-injects): verplaatsing-events
-  `common`; portalen/happy_hour `uncommon`; ziekte/tijdbom/sneller/trager/bomaanslag/max_per_uur/polonaise `rare`;
-  tornado/etenstijd/tweeling/identiteitscrisis/**tijdreizen** `epic`; nuke/onmiddellijke_dood `legendary`. Per event aanpasbaar
+  `common`; portalen/happy_hour `uncommon`; ziekte/tijdbom/bomaanslag/max_per_uur/polonaise `rare`;
+  sneller/trager/tornado/etenstijd/tweeling/identiteitscrisis/**tijdreizen** `epic`; nuke/onmiddellijke_dood `legendary`. Per event aanpasbaar
   via de **events-tab** in de simulator (`sim/tiers-config` → `global.eventTiers`).
 
 ### Slechte aura (geen event — een eigenschap van negatieve events)
@@ -457,20 +466,20 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 
 ### Nuke — "Nuke."
 - **Tier:** legendary
-- **Uitleg:** Aftelklok om weg te lopen; wie bij de controle nog gedetecteerd is verliest alles + 1 sterfte. Daarna een regroup-pauze.
+- **Uitleg:** Aftelklok om weg te lopen; wie bij de controle nog gedetecteerd is verliest alles + 1 sterfte. De arena bouwt op naar een **verblindende ontploffing** (wit → rood-strobe → nagloed). Daarna een regroup-pauze van **30 s**.
 - **Max:** 1
 - **Audio (opkomst):** `nuke.wav`
 - **Audio (weggaan):** —
 
 ### Sneller — "events komen sneller."
-- **Tier:** rare
+- **Tier:** epic
 - **Uitleg:** Verlaagt `spelTempoFactor` met −0,1 (min 0,6); elk volgend event krijgt een kortere reactietijd.
 - **Max:** —
 - **Audio (opkomst):** `events_komen_sneller.wav`
 - **Audio (weggaan):** —
 
 ### Trager — "events komen trager."
-- **Tier:** rare
+- **Tier:** epic
 - **Uitleg:** Verhoogt `spelTempoFactor` met +0,1 (max 1,3); elk volgend event krijgt een langere reactietijd.
 - **Max:** —
 - **Audio (opkomst):** `events_komen_trager.wav`
@@ -485,7 +494,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 
 ### Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis."
 - **Tier:** epic
-- **Uitleg:** Schuift de luisternamen één alfabetische stap door (cyclisch): elke actieve speler luistert nu naar de naam van een andere speler. Duurt 7–15 rondes.
+- **Uitleg:** Schuift de luisternamen één alfabetische stap door (cyclisch): elke actieve speler luistert nu naar de naam van een andere speler. Duurt **vast 10** rondes.
 - **Max:** 1
 - **Audio (opkomst):** `identiteitscrisis.wav`
 - **Audio (weggaan):** `identiteitscrisis_voorbij.wav`
@@ -511,11 +520,18 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   locatie` dit al (prune uitgeschakeld). **Vereiste**: `reactietijd_s ≥ escape_s + 2` (de prune loopt op
   ~1 s-cadans). Zie `docs/invarianten.md §4c` (N1/N7).
 - **Doelwit**: `type: geen`. **Gevolg**: `{type:"nuke"}`. `max: 1`.
-- **Lichtshow**: tijdens het aftellen kleurt de hele arena groen↔geel (actie 8), **behalve de
-  middernacht-poort-paal** (de hoogste paal) — die houdt zijn poort-status. Na de ontploffing gaan
-  alle nuke-palen weer netjes uit (geen blijvend-groene palen).
-- **Regroup**: na de ontploffing een pauze van `regroup_s` s (standaard **45**, aanpasbaar) — de engine
-  staat in fase `regroup` en gaat daarna terug naar de normale aanloop. Geen bewegings-straffen tijdens
+- **Lichtshow (tijd-gefaseerd)**: de ACTIE_NUKE-animatie loopt in de slave **op zijn eigen klok** vanaf
+  `actieStartMs`, in drie fasen: **0–16 s** = opbouwend radioactief geel↔groen (de "ademhaling" versnelt
+  naarmate de knal nadert), **16–19 s** = de **ontploffing** (verblindende witte flits → felle wit/rode
+  strobe), **≥19 s** = uitdovende rode nagloed. Het geldt voor de hele arena (actie 8), **behalve de
+  middernacht-poort-paal** (de hoogste paal) — die houdt zijn poort-status. Om die firmware-klok te laten
+  doorlopen en de escalatie zichtbaar te houden zet Node-RED bij het nuke-resolve een **`nukeNaglow`**-vlag
+  (i.p.v. de LED's meteen te herbouwen): de ring blijft de hele regroup op actie 8 en wordt **niet
+  opnieuw verzonden**; pas aan het **einde** van de regroup wist `Engine tick` de vlag via
+  `paalLedForceRebuild`, waarna de palen netjes uitgaan.
+- **Regroup**: na de ontploffing een pauze van `regroup_s` s (standaard **30**, aanpasbaar) — de engine
+  staat in fase `regroup` en gaat daarna terug naar de normale aanloop; spelers mogen ná de 30 s terug naar
+  hun vorige toestand. Geen bewegings-straffen tijdens
   een NUKE (iedereen mág vluchten). **In `regroup` is bewegen niet vrij** (V10): wie terugloopt betaalt bij de
   volgende controle 0 winst + 1 valsspeelpunt. Levensuren kost het niet — hij staat toch op 0. Een nuke
   breekt bovendien **geen tweelingbanden** (TW5) en de wolf vangt niet in een nuke-controle.
@@ -553,7 +569,7 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   **cyclisch** over alle actieve (niet-gepauzeerde) spelers: wie alfabetisch als eerste komt, luistert
   voortaan naar de tweede naam, enz., en de laatste naar de eerste. Roept een event of doelwit dus een
   naam af, dan geldt die voor de speler die nú die luisternaam draagt — spelers moeten uitkijken naar
-  de naam van iemand anders. De toestand loopt `duratie [10, 15]` rondes; bij afloop keren de
+  de naam van iemand anders. De toestand loopt `duratie: 10` rondes (vast, was `[7, 15]`); bij afloop keren de
   luisternamen terug naar normaal.
 - **Scope**: de crisis raakt **alleen je luisternaam en je kleur**. Draag je de naam van iemand anders, dan
   hoor je ook bij **zijn kleur-groep**. Je `jaar`, `maand`, `seizoen` en `pariteit` blijven onveranderd van
@@ -599,6 +615,9 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   vrij-wandel-straf (V10). Niet-doelwitten worden gewoon normaal gescoord. Zie invarianten BS1–BS3.
 - **Config**: `tier:"rare"`, `reactietijd_s:15` + `reactieVast:true` (blijft 15 s ondanks de toestand-basis van
   10 s, item 10), `doelwit:{type:"speler",aantal:2}`, **`minSpelerAfstand:5`**, `gevolgen:[{type:"geen"}]`.
+- **LED-cue**: tijdens de reactietijd laat "Doelwit reveal" de **twee (start)palen oranje kaarsvlammen**
+  (actie 16 modus 1, `r255 g140 b0`), zodat spelers zien **tussen welke twee palen** de wissel loopt. Bij de
+  controle zet "Verifieer beweging" `paalLedForceRebuild` → Sync wist de flikkering weer.
 - **Audio**: `body_swap.wav` (afroep) — **nog opnemen**.
 
 ### Verplaatsing (iedereen) — "Iedereen maximum 5 uur vooruit." (verplaatsing)
@@ -606,9 +625,15 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   per afvuring een getal **tussen 1 en 5** en roept het af ("Iedereen maximum 3 uur vooruit"). Gewone scoring. **Elk bewogen uur maakt de aura 5% slechter** (`auraPerUur:5` → `auraValsspeel
   += 5 × voor` in `Verifieer beweging`; blijvend). Hoe verder je gaat, hoe vaker je later doelwit wordt van
   slechte-aura-events. `tier:"rare"`.
+- **`geenDoelwitAfroep:true` (O1)**: omdat het doelwit **iedereen** is, wordt de afroep **niet** per speler
+  opgesomd. (a) Er speelt **geen** getal-prefix `getallen/<N>.wav` (die zou bij 31 spelers naar het
+  onbestaande `getallen/31.wav` zoeken) — in plaats daarvan één `prefix/iedereen.wav`; (b) de 31 losse
+  naam-clips worden **niet** afgespeeld; (c) de reveal toont één regel **"Iedereen"** i.p.v. 31 namen één
+  voor één op te lijsten (dat kostte ~25 s vóór de reactietijd kon starten). Afroep =
+  `iedereen.wav → maximum.wav → getallen/<getal>.wav → uur_vooruit.wav`.
 
-### Maximaal aantal per uur — "Vanaf nu mogen er maximaal x spelers per uur staan." (wereld)
-- **Werking**: rolt X uit **4–8** (`getal:[4,8]`, = het afroepgetal), zet `global.maxPerUur=X`. Tijdelijk
+### Maximaal aantal per uur — "Vanaf nu maximaal x spelers per uur." (wereld)
+- **Werking**: rolt X uit **4–6** (`getal:[4,6]`, = het afroepgetal), zet `global.maxPerUur=X`. Tijdelijk
   (`duratie:[10,15]`). Zolang actief: telt een uur bij de controle **meer dan X** spelers, dan verliest
   **iedereen** op dat uur het **overschot** aan levensuren — bij X=5 en 7 spelers → `7 − 5 = −2` voor elk.
   Onder 0 → 0 + een sterfte (zoals bom/tijdbom); een sterfte laat de eventuele **tweeling mee sterven**.
@@ -621,16 +646,45 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 
 ### Polonaise — "De polonaise begint." (wereld)
 - **Werking**: duurt **10 verplaatsings-events** (eigen teller `global.polonaiseTeller`, afgeteld in
-  `Verifieer beweging`; niet-verouderend wereld-effect). Bij een **verplaatsings-event**: vertrek met **≥ 4**
-  spelers van hetzelfde uur → gewone beweging **+ 1 levensuur per medevertrekker boven 4** (5 vertrekkers = +1).
-  Vertrek met **< 4** = **foute zet** (`TE WEINIG SAMEN` → valsspeelpunt + aura). `max:1`, `tier:"rare"`.
+  `Verifieer beweging`; niet-verouderend wereld-effect). Bij een **verplaatsings-event**: vertrek met **≥ 3**
+  spelers van hetzelfde uur → gewone beweging **+ 1 levensuur per medevertrekker boven 3** (`+ (M − 3)`, dus
+  4 vertrekkers = +1).
+  Vertrek met **< 3** = **foute zet** (`TE WEINIG SAMEN` → valsspeelpunt + aura). `max:1`, `tier:"rare"`.
 - **Audio**: `polonaise.wav` + `polonaise_voorbij.wav` — **nog opnemen** (afloop-cue nog niet gewired).
+
+### De reactietijd wordt Pools — "De reactietijd wordt Pools." (wereld)
+- **Werking**: `duratie:7`, `max:1`, `tier:"epic"`, `gevolg:{type:"reactie_pools"}`. Zolang de toestand
+  loopt speelt een **Poolse achtergrondsong** (`muziek/reactie_pools.wav`, ~120 s) **tijdens de
+  reactietijd** van elk event; hij **pauzeert** wanneer het volgende event begint en **hervat op
+  dezelfde positie** bij de volgende reactietijd. Geen spelregel-effect — puur sfeer.
+- **Mechaniek**: `Voer gevolg uit` zet `global.poolsActief=true`; de nieuwe node **"Poolse-muziek-tick"**
+  (gevoed door de 1 s-ticker) stuurt op de fase-randen `play`/`resume`/`pause` naar het bestuurbare
+  audiokanaal **`audio/muziek`** (zie `docs/protocol.md`). Bij het verlopen (`Verouder effecten`) →
+  `poolsActief=false` → de tick stuurt `stop`. `resetPartij` wist `poolsActief`/`poolsGestart`.
+- **Audio**: `muziek/reactie_pools.wav` (geplaatst). Aparte gesproken afroep (`audioVoor`) nog **op te nemen**.
+
+### Onmiddellijke dood — "Een speler zal onmiddellijk sterven." (wereld, cutscene)
+- **Werking**: `fase:"avond"`, `max:1`, `tier:"legendary"`, `gevolg:{type:"onmiddellijke_dood"}`. Kiest een
+  slachtoffer via een **loterij** (gewicht = `sterftes + valsspeelpunten`; 0 = immuun) en speelt een
+  **cutscene** af (node `dood_anim_fn1`). De engine gaat naar fase **`cutscene`** (Engine tick bevroren →
+  geen andere events/verplaatsingen; RF vrij) tot de cutscene klaar is.
+- **Cutscene**: de 24 s-track `events/wereld-events/onmiddellijke_dood.wav` start op het kanaal `audio/muziek`;
+  tegelijk springt een **rode lamp** (`actie 10`) **paal-per-paal** rond (~6/s, fire-and-forget), landt na
+  hele rondes **exact op het uur van het slachtoffer** (14–20 s totaal). Bij de landing wordt de track
+  **afgekapt** (`audio/muziek stop`) en **direct** `events/wereld-events/eliminatie.wav` gespeeld; het
+  slachtoffer sterft (`totaalUren=0`, `+1 sterfte`, `gestorven=true`) en de engine hervat. De vloeiende
+  versie loopt in de simulator via `pof/dood-anim`.
+- **Audio**: `onmiddellijke_dood.wav` (24 s cutscene-track, vervangt de afroep → `audioVoor:""`) +
+  `eliminatie.wav` (geplaatst).
 
 ### Pariteit-verplaatsing — "maximum x uur vooruit." op even/oneven uur (verplaatsing)
 - **Werking**: als de bestaande groep-verplaatsing, maar de groep = spelers op een **even** óf **oneven**
   **startuur** (`doelwit:{type:"groep",veld:"pariteit"}`; `Kies event` bepaalt de leden uit `spelerLocaties`,
   niet uit `spelerEigenschappen`). Label/afroep: `uur: even` / `uur: oneven`. Gewone scoring; middernacht-regels
   gelden. `tier:"uncommon"`.
+- **LED-cue**: tijdens de afroep pulseert "Doelwit reveal" **alle even (of oneven) palen 2 s wit**
+  (actie 16 modus 0), afhankelijk van de gekozen groep (even/oneven); daarna `paalLedForceRebuild` → Sync
+  herstelt de echte toestand. Zo zien spelers meteen welke pariteit aan de beurt is.
 - **Audio**: `groepen/uur/even.wav` + `groepen/uur/oneven.wav` — **nog opnemen**.
 
 ### Twee groepen tegelijk (item 11, geen apart event)

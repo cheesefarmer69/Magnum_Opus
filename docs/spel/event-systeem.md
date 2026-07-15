@@ -120,7 +120,7 @@ de per-paal acties.
 uren 0 + sterfte; wie ontkomen is overleeft. Geen bewegings-straffen. Een nuke **wist de wereld**: ze ruimt
 ook de lopende **ziekte-episode** (`ziekeSpelers` + medicijn-effecten) en alle **dienaars** op, zodat het veld
 daarna schoon is (Ziekte-beheer herpubliceert dan lege `pof/ziekte`/`pof/dienaars`). Daarna zet "Verifieer
-beweging" de engine in de fase **`regroup`** (`regroup_s` s, standaard **45**) i.p.v. de normale aanloop; de
+beweging" de engine in de fase **`regroup`** (`regroup_s` s, standaard **30**) i.p.v. de normale aanloop; de
 "Engine tick" telt die af en keert daarna terug naar `aanloop`/`wacht`. **Ook in `regroup` is bewegen
 verboden** (V10, geen uitzonderingen): wie het veld weer inloopt betaalt bij de eerstvolgende controle
 0 winst + 1 valsspeelpunt (levensuren kost het niet — hij staat toch op 0). Een nuke breekt bovendien
