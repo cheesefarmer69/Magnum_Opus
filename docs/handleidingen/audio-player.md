@@ -114,9 +114,9 @@ Het script bouwt de image, (her)start de container met `--network host`,
 
 ## Volume regelen (dashboard)
 
-Het volume staat op het **Admin-dashboard**, groep **"Geluid (box)"**: een schuif (0–100 %) plus de
-knoppen **Stil (30 %)**, **Normaal (70 %)** en **MAX (100 %)**. Buiten op een veld wil je meestal
-gewoon MAX.
+Het volume staat op het dashboard **Buzzer/LED test**, groep **"Geluid (box)"**: een schuif (0–100 %)
+plus de knoppen **Stil (30 %)**, **Normaal (70 %)** en **MAX (100 %)**. Buiten op een veld wil je
+meestal gewoon MAX.
 
 **Hoe het werkt.** Het dashboard publiceert **retained** op `audio/volume`
 (`{"volume": 85}`); `player.py` is daarop geabonneerd en draait
@@ -139,13 +139,17 @@ De container heeft alles wat daarvoor nodig is al: `alsa-utils` levert **`amixer
 en `--device=/dev/snd` geeft ook `controlC0` (het mixer-device) door. ALSA-mixerstanden zijn
 **kernel-globaal**, dus wat de container zet, geldt meteen voor de hele Pi.
 
-**Klopt de mixer niet?** `player.py` spoort de control zelf op (Bookworm: `Headphone`, oudere images:
-`PCM`). Controleer met:
+**Klopt de mixer niet?** `player.py` spoort sinds juli 2026 **zowel de kaart als de control zelf op**:
+het tast de kaarten uit `aplay -l` (naam én index, plus 0–3 als vangnet) af en kiest de eerste met een
+bruikbare control (`Headphone` op Bookworm, `PCM` op oudere images, anders `Master`/`Speaker`). Zo werkt
+het volume ook als de kaart níét exact `Headphones` heet — de vorige versie gokte `Headphones` en faalde
+dan **stil** (dé reden dat het volume "niets deed"). De keuze staat in de log: `[VOLUME] Mixer
+gedetecteerd: kaart '…', control '…'`. Controleer met:
 
 ```bash
-aplay -l                                                   # kaartnaam (zoek "Headphones")
-docker exec audio-player amixer -c Headphones scontrols    # welke controls bestaan er
-docker exec audio-player amixer -M -c Headphones sset Headphone 80%   # handmatige test
+docker logs --tail 30 audio-player | grep -i volume        # wat detecteerde de player?
+docker exec audio-player aplay -l                          # welke kaarten bestaan er
+docker exec audio-player amixer -c <kaart> scontrols       # welke controls op die kaart
 ```
 
 Wijkt jouw Pi af, zet dan `MIXER_CARD` / `MIXER_CONTROL` in `pi/deploy-audio.sh` en draai

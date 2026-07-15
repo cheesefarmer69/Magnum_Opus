@@ -162,7 +162,7 @@ const state = {
     infected: { actief: false, fase: "", besmet: [], overlevenden: [], bestrijders: [], winnaars: [], palen: {} },  // uit infected/status
     doelStatus: { percent: 0, aantal: 0, totaal: 0, spelers: {}, doel: null },  // uit pof/doelstatus (PoF-doelen)
     spelers: [],                // {naam, mac, kleur, x, y, auto, drag, actief, gezien}
-    aantalActief: 12,           // sim-modus: hoeveel van de 31 meedoen (slider); default 12 voor overzicht
+    aantalActief: 31,           // sim-modus: hoeveel van de 31 meedoen (slider); default allemaal — verlaag voor overzicht
     paalActie: new Array(AANTAL_PALEN + 1).fill(0),  // actie-ID per paal
     paalLaatsteCmd: new Array(AANTAL_PALEN + 1).fill(0),  // ms
     paalBuzzer: new Array(AANTAL_PALEN + 1).fill(0),  // buzzer-icoon actief tot (ms)
@@ -1569,7 +1569,9 @@ function zetAantalActief(n) {
 // Welke spelers nu getekend/gepubliceerd worden: in sim-modus de actieve, in monitor-modus enkel de
 // spelers die effectief een locatie kregen (anders staan 31 ongeplaatste dots op elkaar).
 function zichtbareSpelers() {
-    if (state.modus === "monitor") return state.spelers.filter(s => s.gezien);
+    // In BEIDE modi de actieve roster tonen (zijbalk + veld). In monitor-modus herpositioneert de
+    // locatie/spelers-handler de gedetecteerde spelers; niet-gedetecteerde blijven op hun startpositie
+    // staan — zo zie je altijd de volledige roster i.p.v. een leeg veld zolang er niets binnenkomt.
     return state.spelers.filter(s => s.actief !== false);
 }
 
