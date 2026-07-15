@@ -63,6 +63,9 @@ main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 #speler-lijst button { font-size: 0.75em; padding: 2px 6px; background: #ddd; color: #333; border: 0; border-radius: 3px; cursor: pointer; }
 #speler-lijst button.actief { background: #0094CE; color: white; }
 #speler-lijst button.del-knop { background: #c62828; color: white; font-weight: bold; }
+.aantal-spelers { display: block; margin: 4px 0 8px 0; font-size: 0.82em; color: #555; }
+.aantal-spelers input[type="range"] { width: 100%; margin-top: 2px; }
+.aantal-spelers b { color: #0094CE; }
 .aside-actions { margin-top: 8px; display: flex; gap: 6px; }
 .aside-actions button { flex: 1; padding: 4px; background: #ddd; color: #333; border: 0; border-radius: 3px; cursor: pointer; font-size: 0.85em; }
 .toestand-sectie { margin-bottom: 10px; }

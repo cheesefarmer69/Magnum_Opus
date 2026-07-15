@@ -162,7 +162,7 @@ en volledig wist. Geheugen is bewust begrensd (historie ≤ 30 partijen, snapsho
 
 - **Dashboards** (Node-RED Dashboard 2.0, ~9 pagina's): Spelstatus (pre-flight), Bediening
   (speltoestand + doel + spelbalans), Live Radar, Admin, Beacons & Locatie (tuning + scan-duur +
-  spelersbeheer), Historiek, Buzzer-tuning, Audio-test, Drukknop-test. Functie en opbouw per
+  spelersbeheer), Historiek, Buzzer/LED test, Drukknop-test. Functie en opbouw per
   pagina: [`dashboards.md`](../handleidingen/dashboards.md).
 - **Browser-simulator** ([`pi/simulator/`](../../pi/simulator/README.md)): verbindt via
   MQTT-over-WebSocket en is een volwaardige MQTT-deelnemer. **Monitor**-modus kijkt passief mee

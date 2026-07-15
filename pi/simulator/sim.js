@@ -107,14 +107,44 @@ function klokslagTeamKleur(teamId) {
     return KLOKSLAG_KLEUR[t.kleur] || t.kleur || "#888";
 }
 
-const DEFAULT_SPELERS = [
-    { naam: "Lilou",  mac: "48:87:2d:9d:bb:7d", kleur: "#e91e63" },
-    { naam: "Zoë",    mac: "48:87:2d:9d:ba:5c", kleur: "#9c27b0" },
-    { naam: "Louisa", mac: "48:87:2d:9d:ba:cc", kleur: "#3f51b5" },
-    { naam: "Lola",   mac: "48:87:2d:9d:ba:5f", kleur: "#03a9f4" },
-    { naam: "Maud",   mac: "48:87:2d:9d:bb:0b", kleur: "#4caf50" },
-    { naam: "Mien",   mac: "48:87:2d:9d:ba:a5", kleur: "#ff5722" }
+// De VOLLEDIGE roster (31 spelers), MAC's uit de Node-RED-seed [CONFIG] Spelerslijst / docs/spel/spelers.md.
+// De marker-kleur komt uit een palet (puur cosmetisch); de polsbandkleur (rood/zwart/blauw) komt uit
+// SPELER_KLEURGROEP via groepKleurVoor(). Zo matcht elke echte naam -> in monitor-modus verschijnen de
+// ziek/tijdbom-badges bij de juiste speler, en de slider (zie hieronder) bepaalt hoeveel er meedoen.
+const ALLE_SPELERS = [
+    { naam: "Aagje", mac: "48:87:2d:9d:ba:a1" },
+    { naam: "Alix Blond", mac: "48:87:2d:9d:c2:31" },
+    { naam: "Maybel", mac: "48:87:2d:9d:ba:a6" },
+    { naam: "Emma", mac: "48:87:2d:9d:cf:67" },
+    { naam: "Blanche", mac: "48:87:2d:9d:cc:ec" },
+    { naam: "Casper", mac: "48:87:2d:9d:ba:f2" },
+    { naam: "Elias", mac: "48:87:2d:9d:ba:d8" },
+    { naam: "Tobin", mac: "48:87:2d:9d:bb:96" },
+    { naam: "Margaux", mac: "48:87:2d:9d:ba:99" },
+    { naam: "Louisa", mac: "48:87:2d:9d:ba:cc" },
+    { naam: "Jinte", mac: "48:87:2d:9d:bb:d4" },
+    { naam: "Aster", mac: "48:87:2d:9d:ba:d7" },
+    { naam: "Suzan", mac: "48:87:2d:9d:ba:51" },
+    { naam: "Lotta", mac: "48:87:2d:9d:bb:97" },
+    { naam: "Elisa", mac: "48:87:2d:9d:bb:9c" },
+    { naam: "Maud", mac: "48:87:2d:9d:bb:0b" },
+    { naam: "Anna", mac: "48:87:2d:9d:bb:79" },
+    { naam: "Lilou", mac: "48:87:2d:9d:bb:7d" },
+    { naam: "Marie Smet", mac: "48:87:2d:9d:bb:6f" },
+    { naam: "Lore", mac: "48:87:2d:9d:b9:f2" },
+    { naam: "Marie DM", mac: "48:87:2d:9d:bb:a6" },
+    { naam: "Mauro", mac: "48:87:2d:9d:bb:a4" },
+    { naam: "Amélie", mac: "48:87:2d:9d:ba:66" },
+    { naam: "Mien", mac: "48:87:2d:9d:ba:a5" },
+    { naam: "Alix Bruin", mac: "48:87:2d:9d:ba:a2" },
+    { naam: "Mila", mac: "48:87:2d:9d:c2:5e" },
+    { naam: "Ina", mac: "48:87:2d:9d:ba:ac" },
+    { naam: "Stelle", mac: "48:87:2d:9d:cf:6b" },
+    { naam: "Estée", mac: "48:87:2d:9d:bb:8b" },
+    { naam: "Lola", mac: "48:87:2d:9d:ba:5f" },
+    { naam: "Zoë", mac: "48:87:2d:9d:ba:5c" }
 ];
+const MARKER_PALET = ["#e91e63", "#9c27b0", "#3f51b5", "#03a9f4", "#009688", "#4caf50", "#ff9800", "#ff5722", "#795548", "#607d8b"];
 
 // --- GLOBALE STATE ---
 const state = {
@@ -131,7 +161,8 @@ const state = {
     klokslagStatus: { actief: false, resterend_s: 0, winnaar: null },  // uit klokslag/status
     infected: { actief: false, fase: "", besmet: [], overlevenden: [], bestrijders: [], winnaars: [], palen: {} },  // uit infected/status
     doelStatus: { percent: 0, aantal: 0, totaal: 0, spelers: {}, doel: null },  // uit pof/doelstatus (PoF-doelen)
-    spelers: [],                // {naam, mac, kleur, x, y, auto, drag}
+    spelers: [],                // {naam, mac, kleur, x, y, auto, drag, actief, gezien}
+    aantalActief: 12,           // sim-modus: hoeveel van de 31 meedoen (slider); default 12 voor overzicht
     paalActie: new Array(AANTAL_PALEN + 1).fill(0),  // actie-ID per paal
     paalLaatsteCmd: new Array(AANTAL_PALEN + 1).fill(0),  // ms
     paalBuzzer: new Array(AANTAL_PALEN + 1).fill(0),  // buzzer-icoon actief tot (ms)
@@ -395,12 +426,14 @@ function verwerkBericht(topic, raw) {
         // Dit is de enige bron van speler-posities in monitor-modus.
         if (state.modus === "monitor") {
             const f = (R_BUITEN_M - 2.5) / R_BUITEN_M;
+            // Reset 'gezien' — enkel spelers in dit bericht staan nu op het veld (rest is ongedetecteerd).
+            state.spelers.forEach(s => { s.gezien = false; });
             for (const naam in data) {
                 const paal = data[naam];
                 const sp = state.spelers.find(s => s.naam === naam);
                 if (sp && paal >= 1 && paal <= AANTAL_PALEN) {
                     const p = paalPositie(paal);
-                    sp.x = p.x * f; sp.y = p.y * f;
+                    sp.x = p.x * f; sp.y = p.y * f; sp.gezien = true;
                 }
             }
             renderSpelers();
@@ -793,7 +826,7 @@ function publishLocaties() {
     // in "Locatiebepaling Spelers" dat op echte hardware doet. Dit houdt de pad-gebaseerde
     // verplaatsingscontrole (Verifieer beweging) zuiver: geen valse "TE VEEL"/"TERUG IN TIJD".
     // Spelers die "uit" staan (buiten het veld) worden NIET gepubliceerd → ongedetecteerd.
-    const lijst = state.spelers.filter(sp => !isUit(sp)).map(sp => {
+    const lijst = state.spelers.filter(sp => sp.actief !== false && !isUit(sp)).map(sp => {
         if (!sp.drag) sp.paal = welkUur(sp.x, sp.y);   // settelen enkel als niet gesleept
         return { mac: sp.mac, paal: (sp.paal != null ? sp.paal : welkUur(sp.x, sp.y)) };
     });
@@ -1296,8 +1329,9 @@ function berekenGroepsOffsets(spelers) {
 function renderSpelers() {
     const grp = document.getElementById("spelers");
     grp.innerHTML = "";
-    const offsets = berekenGroepsOffsets(state.spelers);
-    for (const sp of state.spelers) {
+    const zichtbaar = zichtbareSpelers();
+    const offsets = berekenGroepsOffsets(zichtbaar);
+    for (const sp of zichtbaar) {
         const off = offsets.get(sp) || { dx: 0, dy: 0 };
         const cx = sp.x * M_TO_PX + off.dx;
         const cy = sp.y * M_TO_PX + off.dy;
@@ -1361,7 +1395,7 @@ function renderZijbalk() {
             ? `${ds.aantal || 0}/${ds.totaal || 0} doel — ${ds.percent || 0}%` : "";
     }
     const doelBereikt = (state.doelStatus && state.doelStatus.spelers) || {};
-    for (const sp of state.spelers) {
+    for (const sp of zichtbareSpelers()) {
         const li = document.createElement("li");
         const kleur = document.createElement("span");
         kleur.className = "kleur-blok";
@@ -1502,28 +1536,56 @@ function spelerStartPositie(i, totaal) {
 }
 
 function laadDefaultSpelers() {
-    state.spelers = DEFAULT_SPELERS.map((s, i) => {
-        const pos = spelerStartPositie(i, DEFAULT_SPELERS.length);
-        return { naam: s.naam, mac: s.mac, kleur: s.kleur, groepKleur: groepKleurVoor(s.naam), x: pos.x, y: pos.y, auto: false, drag: false };
+    state.spelers = ALLE_SPELERS.map((s, i) => ({
+        naam: s.naam, mac: s.mac, kleur: MARKER_PALET[i % MARKER_PALET.length],
+        groepKleur: groepKleurVoor(s.naam), x: 0, y: 0,
+        auto: false, drag: false,
+        actief: true,     // sim-modus: doet mee (door de slider te wijzigen)
+        gezien: false     // monitor-modus: pas tekenen zodra locatie/spelers hem plaatst
+    }));
+    zetAantalActief(state.aantalActief || ALLE_SPELERS.length);
+}
+
+// De actieve spelers = wie in sim-modus meedoet (en dus op sim/locatie gepubliceerd wordt). De slider
+// zet de EERSTE n op actief en verdeelt die netjes over de ring; de rest gaat "uit" (buiten het veld,
+// dus ongedetecteerd) zodat publishLocaties ze niet meer meestuurt.
+function zetAantalActief(n) {
+    n = Math.max(1, Math.min(ALLE_SPELERS.length, n | 0));
+    state.aantalActief = n;
+    const actief = state.spelers.filter((_, i) => i < n);
+    state.spelers.forEach((sp, i) => { sp.actief = i < n; });
+    actief.forEach((sp, i) => { const p = spelerStartPositie(i, actief.length); sp.x = p.x; sp.y = p.y; });
+    // Niet-actieve spelers buiten het veld parkeren (isUit -> niet gepubliceerd).
+    state.spelers.forEach((sp, i) => {
+        if (sp.actief) return;
+        const hoek = (i / ALLE_SPELERS.length) * 2 * Math.PI;
+        sp.x = (R_BUITEN_M + 3) * Math.cos(hoek); sp.y = (R_BUITEN_M + 3) * Math.sin(hoek); sp.paal = null;
     });
+    const lbl = document.getElementById("aantal-spelers-waarde");
+    if (lbl) lbl.textContent = n;
+    renderZijbalk(); renderSpelers();
+}
+
+// Welke spelers nu getekend/gepubliceerd worden: in sim-modus de actieve, in monitor-modus enkel de
+// spelers die effectief een locatie kregen (anders staan 31 ongeplaatste dots op elkaar).
+function zichtbareSpelers() {
+    if (state.modus === "monitor") return state.spelers.filter(s => s.gezien);
+    return state.spelers.filter(s => s.actief !== false);
 }
 
 function resetPosities() {
-    state.spelers.forEach((s, i) => {
-        const pos = spelerStartPositie(i, state.spelers.length);
-        s.x = pos.x; s.y = pos.y;
-    });
+    // Verdeel de ACTIEVE spelers netjes over de ring; niet-actieve blijven geparkeerd.
     state.uitAllen = false;
-    renderSpelers();
-    renderZijbalk();
+    zetAantalActief(state.aantalActief || state.spelers.filter(s => s.actief !== false).length);
 }
 
 // Toggle: iedereen het veld uit (ring buiten de buitenrand) of terug naar hun oorspronkelijke plaats.
 // Handig om het NUKE-event te testen (out = ongedetecteerd = veilig).
 function toggleOut() {
+    const actief = state.spelers.filter(s => s.actief !== false);
     if (!state.uitAllen) {
-        const n = state.spelers.length || 1;
-        state.spelers.forEach((sp, i) => {
+        const n = actief.length || 1;
+        actief.forEach((sp, i) => {
             sp._terugX = sp.x; sp._terugY = sp.y;
             const hoek = (i / n) * 2 * Math.PI;
             const r = R_BUITEN_M + 2;
@@ -1533,7 +1595,7 @@ function toggleOut() {
         state.uitAllen = true;
         log("info", "Alle spelers het veld UIT (ongedetecteerd).");
     } else {
-        state.spelers.forEach(sp => {
+        actief.forEach(sp => {
             if (sp._terugX != null) { sp.x = sp._terugX; sp.y = sp._terugY; }
         });
         state.uitAllen = false;
@@ -1592,6 +1654,11 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-add-speler").addEventListener("click", voegSpelerToe);
     document.getElementById("btn-reset-spelers").addEventListener("click", resetPosities);
     document.getElementById("btn-out").addEventListener("click", toggleOut);
+    const aantalSlider = document.getElementById("aantal-spelers");
+    if (aantalSlider) {
+        aantalSlider.value = state.aantalActief;
+        aantalSlider.addEventListener("input", (e) => zetAantalActief(parseInt(e.target.value, 10)));
+    }
     document.getElementById("btn-clear-log").addEventListener("click", () => {
         document.getElementById("log").innerHTML = "";
     });

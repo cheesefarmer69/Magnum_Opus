@@ -305,7 +305,11 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
   een LED-rebuild geforceerd → de palen keren terug naar hun oorspronkelijke staat.
 
 ### Etenstijd — "Een wolf zal jagen op zijn schaapjes." (wolf vs. schapen-groep)
-- **Werking**: kiest **precies één groep van het type `kleur`** als **schaapjes** (afroep "Groep …") + één **wolf**.
+- **Afroep (juli 2026):** géén "Groep …"-afroep vooraf. De wolf wordt al in **"Kies doelwit"** gekozen
+  (vóór de reveal, opgeslagen in `global.etenstijdWolf`; "Voer gevolg uit" hergebruikt die keuze), en het
+  doelwit wordt afgeroepen in de volgorde **"wolf: <naam>"** dan **"schaapjes: groep (kleur)"**
+  (`prefix/wolf.wav` + `spelers/<naam>.wav` + `prefix/schaapjes.wav` + `groepen/kleur/kleur_<w>.wav`).
+- **Werking**: kiest **precies één groep van het type `kleur`** als **schaapjes** + één **wolf**.
   Zolang de toestand loopt (`duratie: 15`
   rondes) **jaagt** de wolf: telkens hij **bij de controle** op **hetzelfde uur** eindigt als een schaapje,
   **steelt** hij van dat schaap **`min(uur, schaap-levensuren)`** levensuren (op uur 20 → tot 20, maar nooit
@@ -537,8 +541,9 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   staat verliest **`uur`** levensuren. Vluchten mag (geen bewegingsstraf, zoals NUKE).
 - **Doelwit**: `type: "uur"`, **`vastOpties: [[9,11],[4,20],[6,7],[6,9]]`** (uniform getrokken).
   **Gevolg**: `{type:"bom"}`.
-- **Lichtshow**: bij de ontploffing een **witte flikker** (OOGST-strobe, actie 11) op de twee uren; daarna
-  gaan ze weer uit (via een Sync-rebuild).
+- **Lichtshow**: bij de ontploffing een **korte witte flikker** (OOGST-strobe, actie 11) op de twee uren;
+  het venster is **~1,2 s** (juli 2026, was 3 s) zodat de LED's **niet de volgende event-ronde in blijven
+  branden** — een bom is één event, daarna gaan de LED's uit (via de Sync-rebuild, actie 0).
 - **Audio**: **één afroep-clip per duo**, parallel aan `vastOpties` in `audioVoorOpties`. Bestaat al:
   `events/wereld-events/een_bomaanslag_vind_plaats_op_uur_9_en_11.wav`. Nog **opnemen**:
   `..._4_en_20.wav`, `..._6_en_7.wav`, `..._6_en_9.wav`.
@@ -604,10 +609,14 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 
 ### Maximaal aantal per uur — "Vanaf nu mogen er maximaal x spelers per uur staan." (wereld)
 - **Werking**: rolt X uit **4–8** (`getal:[4,8]`, = het afroepgetal), zet `global.maxPerUur=X`. Tijdelijk
-  (`duratie:[10,15]`). Zolang actief: als een uur bij de controle **> X** spelers telt, krijgt iedereen die er
-  die ronde **aankwam of van wegging** een vlag; hun **eerstvolgende** zet levert **0 levensuren** op (geen
-  sterfte). Logica in `Voer gevolg uit` (gevolg `max_per_uur`), `Verifieer beweging` (vlaggen
-  `geenWinstVolgende`) en `Verouder effecten` (opruimen). `tier:"rare"`.
+  (`duratie:[10,15]`). Zolang actief: telt een uur bij de controle **meer dan X** spelers, dan verliest
+  **iedereen** op dat uur het **overschot** aan levensuren — bij X=5 en 7 spelers → `7 − 5 = −2` voor elk.
+  Onder 0 → 0 + een sterfte (zoals bom/tijdbom); een sterfte laat de eventuele **tweeling mee sterven**.
+- **Ook door een tornado (juli 2026):** de straf wordt óók toegepast in de **tornado-tak** — een tornado die
+  spelers op één center samenzuigt tot boven X straft dus net zo goed. Logica: helper `_strafOvervol` in
+  `Verifieer beweging` (aangeroepen in de normale controle én de tornado-tak); gezet in `Voer gevolg uit`
+  (gevolg `max_per_uur`), opgeruimd in `Verouder effecten`. (De oude zachte "geen winst volgende ronde"-vlag
+  is vervangen door dit directe verlies.) `tier:"rare"`.
 - **Audio**: `max_per_uur.wav` + `max_per_uur_voorbij.wav` — **nog opnemen**.
 
 ### Polonaise — "De polonaise begint." (wereld)

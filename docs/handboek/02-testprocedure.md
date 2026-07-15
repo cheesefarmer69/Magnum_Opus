@@ -81,8 +81,8 @@ paal, ST-003 datastroom, ST-006 master-conflict) — zie
 ## T7 — Audio
 
 **Doel:** afroepen zijn over het hele veld verstaanbaar.
-**Stappen:** dashboard → pagina **Audio-test**: speel een aantal-prefix + event-zin af; loop naar de
-rand van het veld.
+**Stappen:** start een sim-testronde (of Admin → "Geluid (box)") en laat een event met afroep spelen;
+loop naar de rand van het veld. (De aparte *Audio-test*-dashboardpagina is verwijderd.)
 **Verwacht:** segmenten spelen naadloos achter elkaar; verstaanbaar op 12 m.
 **Bij falen:** [`audio-player.md`](../handleidingen/audio-player.md) (container, `--device=/dev/snd`,
 volume, ontbrekende WAV's worden stil overgeslagen).

@@ -31,7 +31,7 @@ Zo hangen de pagina's samen. Volg deze volgorde:
 | # | Fase | Pagina | Wat je doet |
 |---|------|--------|-------------|
 | 1 | **Opbouw** | [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning) | Elke paal fysiek testen: brandt de LED, klinkt de zoemer? |
-| 2 | **Bakens uitdelen** | [Beacons & Locatie](#6-beacons--locatie-beacons) | Baken ↔ speler koppelen; LED-helderheid op daglicht zetten |
+| 2 | **Bakens uitdelen** | [Beacons & Locatie](#6-beacons--locatie-beacons) | Baken ↔ speler koppelen (LED-helderheid staat nu bij [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning)) |
 | 3 | **GO/NO-GO** | [Spelstatus](#1-spelstatus-spelstatus) | Staan alle 31 spelers op **OK**? Alle palen groen? Geen foutcodes? |
 | 4 | **Testronde** | Simulator (🧪 Test) + [Bediening](#2-bediening-bediening) | Spelers een ronde laten oefenen — telt niet mee |
 | 5 | **Spelen** | [Bediening](#2-bediening-bediening) | Spel starten, events volgen, ingrijpen |
@@ -51,11 +51,11 @@ GEZIEN staat, draagt zijn baken niet (of het is stuk).
 
 | Groep | Wat je ziet / doet |
 |---|---|
-| **Masters verbonden** | Per master (M1 = palen 1–8, M2 = 9–16, M3 = 17–24) een **groen/rood bolletje**. Rood = geen enkele paal in dat bereik stuurde de laatste 60 s data → die master of zijn USB-kabel hangt. |
+| **Masters verbonden** | Per master (M1 = palen 1–8, M2 = 9–16, M3 = 17–24) een **groen/rood bolletje**. Rood = geen enkele paal in dat bereik stuurde de laatste 60 s data → die master of zijn USB-kabel hangt. Daarnaast de **Hub CPU**-tegel: de Pi-temperatuur (groen < 70 °C, oranje 70–80, rood ≥ 80) — een Pi die throttelt (≥ 80 °C) voelt als "alles is traag"; kist openen/ventileren. |
 | **MQTT** | Groen = Node-RED praat met de broker. Rood hier betekent dat *niets* meer werkt. |
 | **Spelstatus** | De samenvatting: **GO** (groen) of **NO-GO** (rood, met het aantal fouten). |
 | **Spelers** | **Alle** spelers uit de roster (`global.spelersLijst`), niet enkel de geziene. Per speler: **OK** (< 15 s geleden gezien), **VERLOREN** (> 15 s stil) of **NIET GEZIEN** (nog nooit gedetecteerd). |
-| **Bediening status** | **Toon batterij** = batterijkolom bij de palen. **Override NO-GO** = tóch kunnen starten ondanks fouten (bewuste ontsnappingsklep). |
+| **Bediening status** | **Toon batterij** = batterijkolom bij de palen. **Override NO-GO** = tóch kunnen starten ondanks fouten (bewuste ontsnappingsklep). Sinds juli 2026 **gate't de pre-flight écht**: bij NO-GO weigert de Spel-schakelaar te starten (melding in de toestandsbanner + schakelaar springt terug) tot je de fouten oplost óf Override aanzet. In simulatie-modus wordt niet gegate't. Beide schakelaars herstellen hun stand na een pagina-herlaad. |
 | **Palen / Slaves** | Per paal: status, laatst gezien, batterijspanning. |
 | **Foutcodes** | De actieve problemen met uitleg — zie de tabel hieronder. |
 
@@ -69,6 +69,7 @@ GEZIEN staat, draagt zijn baken niet (of het is stuk).
 | ST-004 | INFO | Onbekend baken gezien (een omstander-telefoon) — onschuldig |
 | ST-005 | WAARSCHUWING | **Batterij bijna leeg** (< 3,5 V) → vervangen. Blokkeert niet; **hot-swap mag tijdens het spel** |
 | ST-006 | FOUT | **Master-conflict**: twee borden zijn met hetzelfde `MASTER_NR` geflasht → herflash het verkeerde |
+| ST-007 | WAARSCHUWING | **Hub te warm** (CPU ≥ 75 °C): throttle-risico vanaf 80 °C → kist openen/ventileren, Pi uit de zon |
 
 ---
 
@@ -99,8 +100,8 @@ Dit is de pagina die openstaat zolang het spel loopt.
 
 | Groep | Wat je ziet / doet |
 |---|---|
-| **Plates of Fate besturing** | De live-timer (groot), het huidige event, het doelwit, en de **controle-uitslag** van het laatste event per speler. **Tijd terug** draait de laatste ronde ongedaan (10 diep) — je redmiddel na een beacon-fout of een verkeerde controle. |
-| **Doel (Plates of Fate)** | Kies het **spel-doel** en hoeveel spelers het moeten halen. Een PoF-spel start pas met een doel. **Auto-einde** stopt het spel zodra het doel bereikt is. Deze groep verdwijnt bij Klokslag. |
+| **Plates of Fate besturing** | De live-timer (groot), het huidige event, het doelwit, en de **controle-uitslag** van het laatste event per speler. **Tijd terug** draait de laatste ronde ongedaan (10 diep) — je redmiddel na een beacon-fout of een verkeerde controle; je krijgt een pop-up-bevestiging ("Laatste ronde teruggezet" of "geen snapshot meer"). |
+| **Doel (Plates of Fate)** | Kies het **spel-doel** en hoeveel spelers het moeten halen. Een PoF-spel start pas met een doel. **Auto-einde** stopt het spel zodra het doel bereikt is (de schakelaar houdt sinds juli 2026 zijn stand vast — hij had geen feedback-lus en "hapertte" daardoor terug). Deze groep verdwijnt bij Klokslag. |
 | **Live Radar** | Per speler: huidige paal, RSSI, levensuren, sterftes. Je belangrijkste "wat gebeurt er nu"-tabel. |
 | **Actieve effecten (bord-staat)** | Welke uren een effect dragen (portaal, happy hour, medicijn, tijdbom) + welke spelers 🤒 ziek of 💣 bebomd zijn, met resterende rondes. |
 | **Wereld-effecten** | Regelwijzigingen die op **iedereen** slaan: tijdreizen, polonaise, max-per-uur, etenstijd, identiteitscrisis. |
@@ -177,7 +178,6 @@ Zie [`../locatiebepaling.md`](../locatiebepaling.md) voor het algoritme erachter
 | Groep | Waarvoor |
 |---|---|
 | **Spelers / bakens beheren** | **Dit heb je op de speeldag nodig.** Baken ↔ speler koppelen zonder deploy: wapper het baken bij een paal → kies de speler → **Koppel**. Baken kapot? Neem een reserve, koppel hem, klaar. Retained (`config/spelers`), dus dit overleeft alles. |
-| **LED-helderheid** | Helderheid van **alle** palen (10–255) of via **Min/Middel/Max**. Overdag hoog zetten, anders zie je de LED's niet. **Max verdubbelt ongeveer de LED-stroom** — dat kost batterij. |
 | **Scan-duur (BLE)** | Hoe lang een slave per cyclus scant (400–1000 ms), voor alle palen of één paal. Korter = versere detectie = minder scoring-vertraging. |
 | **Locatie-instellingen** | De zes schuiven van het locatie-algoritme (venster, hysterese, RSSI-vloer, grace, switch-samples, min-samples). |
 | **Profielen (dag/avond)** | Twee opgeslagen sets locatie-parameters. De RF-omgeving 's avonds (dauw, jassen) verschilt van 's middags — tune één keer, bewaar, en wissel met één knop. |
@@ -201,23 +201,17 @@ zoeken.
 
 | Groep | Waarvoor |
 |---|---|
-| **Paaltest (LED + zoemer)** | **Dit gebruik je bij het opbouwen.** Kies de paal (1–24) en druk **LED-test** (regenboog) of **Zoemer-test** (piep). **Uit** dooft hem weer. Zo loop je in tien minuten alle 24 palen af en weet je zeker dat ze allemaal leven. |
+| **Paaltest (LED + zoemer)** | **Dit gebruik je bij het opbouwen.** Kies de paal (1–24) en druk **LED-test** (regenboog) of **Zoemer-test** (piep). **Uit** dooft hem weer. Zo loop je in tien minuten alle 24 palen af en weet je zeker dat ze allemaal leven.<br>**Kleur + Toon kleur**: zet de paal in één van **5 vaste kleuren** — Rood, Limoen, Groen, Blauw, Magenta. Hun tinten liggen **gelijkmatig over de kleurencirkel** (0°/72°/144°/216°/288°), dus een **dood kleurkanaal** of een **verkeerde R/G/B-volgorde** valt onmiddellijk op: krijg je bij "Blauw" iets roods, dan staat de volgorde fout; blijft één kleur zwart, dan is dat kanaal dood. De globale LED-helderheid schaalt hier nog overheen. |
+| **LED-helderheid** | **Verhuisd vanaf Beacons & Locatie** — dit hoort bij de LED-test, niet bij de beacon-tuning. Helderheid van **alle** palen (10–255) of via **Min/Middel/Max**. Overdag hoog zetten, anders zie je de LED's niet. **Max verdubbelt ongeveer de LED-stroom** — dat kost batterij. Stuurt actie 21; herstelt zichzelf na een reboot via de heartbeat. |
 | **Buzzer-tuning (paal 1)** | Een passieve piezo klinkt het luidst rond zijn eigen resonantiefrequentie, en die verschilt per bordje. De **sweep** loopt van min naar max; je hoort waar het het hardst klinkt, en met **Handmatige frequentie** zoom je in op de piek. Die waarde zet je in `BUZZER_FREQ_TABEL` in de slave-firmware. **Alle commando's gaan naar paal 1** — verwissel dus telkens het test-bordje naar paal 1. |
 
----
-
-## 9. Audio-test (`/audio-test`)
-
-**Waarvoor:** controleren of de **box** het doet en of de gesproken namen kloppen, **voordat** het
-spel begint. Druk op een naam → die WAV speelt op de aux-box. **Volledige onthulling** speelt de hele
-reeks achter elkaar.
-
-> ⚠️ De naam-knoppen zijn nog de **oude zes testspelers**. Wil je alle 31 namen kunnen testen, dan
-> moeten die knoppen mee met de roster — nu test je enkel of de box werkt.
+> De kleurtest hergebruikt **actie 16** (`ACTIE_KLOKSLAG`, `modus 0` = solid r/g/b) — dat was al een
+> generiek "zet paal op kleur"-commando. Er is dus **geen nieuwe firmware-actie** voor bijgekomen en
+> je hoeft **geen enkel bordje te herflashen**.
 
 ---
 
-## 10. Drukknop-test (`/drukknop-test`)
+## 9. Drukknop-test (`/drukknop-test`)
 
 **Waarvoor:** de **fysieke drukknoppen** testen (palen 3, 4, 7, 9, 11, 13, 15, 17, 19, 21 en 22).
 
