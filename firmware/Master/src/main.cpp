@@ -238,6 +238,14 @@ struct SlaveCmdQueue {
 };
 SlaveCmdQueue cmdPerSlave[AANTAL_SLAVES] = {};   // index = paal - 1, zero-init
 
+// De FIFO's worden vanuit TWEE taken op TWEE cores gemuteerd: OnDataRecv/OnDataSent
+// (WiFi-task, core 0) poppen/rewinden, enqueueCommando/verwerkQueue (loop, core 1)
+// enqueuen/zenden. head/count zijn niet-atomaire read-modify-writes -> zonder lock
+// kan een verloren update een paal-queue permanent wedgen (count-underflow). Alle
+// index-mutaties lopen daarom onder deze spinlock; esp_now_send/logRegel blijven
+// erbuiten (FreeRTOS-calls mogen niet binnen een critical section).
+static portMUX_TYPE cmdMux = portMUX_INITIALIZER_UNLOCKED;
+
 static const uint8_t  MAX_POGINGEN     = 6;     // blinde + phase-pogingen over >=2 slave-cycli
 static const uint32_t APP_ACK_TIMEOUT  = 600;   // ms; fallback — phase-lock is de hoofdroute
 static uint16_t       volgendeCmdSeq   = 1;     // monotone teller (0 = "geen")
@@ -281,9 +289,12 @@ static bool enqueueCommando(uint8_t paal, uint8_t actie) {
     return false;
   }
   SlaveCmdQueue &q = cmdPerSlave[i];
+  bool     gedropt    = false;
+  uint16_t gedroptSeq = 0;
+  taskENTER_CRITICAL(&cmdMux);
   if (q.count == CMD_FIFO_DIEPTE) {   // FIFO vol -> oudste droppen
-    logRegel("{\"status\":\"fifo_vol\",\"paal\":%d,\"gedropt_seq\":%u}\n",
-             paal, q.items[q.head].cmd_seq);
+    gedropt    = true;
+    gedroptSeq = q.items[q.head].cmd_seq;
     q.head = (q.head + 1) % CMD_FIFO_DIEPTE;
     q.count--;
   }
@@ -296,6 +307,10 @@ static bool enqueueCommando(uint8_t paal, uint8_t actie) {
   q.items[tail].pogingen        = 0;
   q.items[tail].laatstVerstuurd = 0;
   q.count++;
+  taskEXIT_CRITICAL(&cmdMux);
+  if (gedropt) {
+    logRegel("{\"status\":\"fifo_vol\",\"paal\":%d,\"gedropt_seq\":%u}\n", paal, gedroptSeq);
+  }
   return true;
 }
 
@@ -311,30 +326,53 @@ void verwerkQueue() {
     // cyclus zou een latere retry anders precies mid-scan triggeren (poging verspild).
     bool venster = (slaveVensterVlag[i] != 0);
     if (venster) slaveVensterVlag[i] = 0;
-    if (q.count == 0) continue;
-    SlaveCmd &h = q.items[q.head];   // in-flight = head
-    if (h.pogingen > 0) {
-      bool timeoutOm = (nu - h.laatstVerstuurd) >= APP_ACK_TIMEOUT;
-      bool phaseNu   = venster && (nu - h.laatstVerstuurd) >= VENSTER_HERZEND_GUARD_MS;
-      if (!timeoutOm && !phaseNu) continue;
-    }
 
-    if (h.pogingen >= MAX_POGINGEN) {
+    // Besluit + index-mutatie onder de lock; zenden/loggen erbuiten (zie cmdMux).
+    bool     doeSend = false, doeOpgegeven = false;
+    uint8_t  sendActie = 0, sendPoging = 0, opgActie = 0, opgPogingen = 0;
+    uint16_t sendSeq = 0, opgSeq = 0;
+
+    taskENTER_CRITICAL(&cmdMux);
+    if (q.count > 0) {
+      SlaveCmd &h = q.items[q.head];   // in-flight = head
+      bool inFlight  = (h.pogingen > 0);
+      bool timeoutOm = inFlight && (nu - h.laatstVerstuurd) >= APP_ACK_TIMEOUT;
+      bool phaseNu   = inFlight && venster && (nu - h.laatstVerstuurd) >= VENSTER_HERZEND_GUARD_MS;
+      if (!inFlight || timeoutOm || phaseNu) {
+        if (h.pogingen >= MAX_POGINGEN) {
+          doeOpgegeven = true;
+          opgActie = h.actie_id; opgSeq = h.cmd_seq; opgPogingen = h.pogingen;
+          q.head = (q.head + 1) % CMD_FIFO_DIEPTE;
+          q.count--;
+        } else {
+          h.pogingen++;
+          h.laatstVerstuurd = nu;
+          doeSend = true;
+          sendActie = h.actie_id; sendSeq = h.cmd_seq; sendPoging = h.pogingen;
+        }
+      }
+    }
+    taskEXIT_CRITICAL(&cmdMux);
+
+    if (doeOpgegeven) {
       logRegel("{\"status\":\"opgegeven\",\"paal\":%d,\"actie\":%d,\"seq\":%u,\"pogingen\":%d}\n",
-               PAAL_MIN + i, h.actie_id, h.cmd_seq, h.pogingen);
-      q.head = (q.head + 1) % CMD_FIFO_DIEPTE;
-      q.count--;
+               PAAL_MIN + i, opgActie, opgSeq, opgPogingen);
       continue;
     }
-
-    h.pogingen++;
-    h.laatstVerstuurd = nu;
-    // Het commando draagt de GLOBALE paal_id (PAAL_MIN + i) zodat de slave op zijn PAAL_ID matcht.
-    commando_message_v2 cmd = { MSG_COMMANDO, (uint8_t)(PAAL_MIN + i), h.actie_id, h.cmd_seq };
-    esp_err_t r = esp_now_send(slaveAdressen[i], (uint8_t *)&cmd, sizeof(cmd));
-    if (r != ESP_OK) {
-      logRegel("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n", PAAL_MIN + i, h.pogingen);
-      h.laatstVerstuurd = nu - (APP_ACK_TIMEOUT - 150);   // snel opnieuw proberen
+    if (doeSend) {
+      // Het commando draagt de GLOBALE paal_id (PAAL_MIN + i) zodat de slave op zijn PAAL_ID matcht.
+      commando_message_v2 cmd = { MSG_COMMANDO, (uint8_t)(PAAL_MIN + i), sendActie, sendSeq };
+      esp_err_t r = esp_now_send(slaveAdressen[i], (uint8_t *)&cmd, sizeof(cmd));
+      if (r != ESP_OK) {
+        logRegel("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n", PAAL_MIN + i, sendPoging);
+        // Snel opnieuw proberen — met seq-guard: als een ACK het item intussen popte,
+        // niet de timer van het VOLGENDE item verpesten.
+        taskENTER_CRITICAL(&cmdMux);
+        if (q.count > 0 && q.items[q.head].cmd_seq == sendSeq) {
+          q.items[q.head].laatstVerstuurd = nu - (APP_ACK_TIMEOUT - 150);
+        }
+        taskEXIT_CRITICAL(&cmdMux);
+      }
     }
   }
 }
@@ -399,10 +437,17 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
       cmd_ack_message a;
       memcpy(&a, incomingData, sizeof(a));
       SlaveCmdQueue &q = cmdPerSlave[paalIndex];
-      // Alleen het HEAD-item is in-flight; match op cmd_seq -> pop.
+      // Alleen het HEAD-item is in-flight; match op cmd_seq -> pop (onder de cmdMux-lock,
+      // want de loop-task muteert head/count tegelijk op de andere core).
+      bool gepopt = false;
+      taskENTER_CRITICAL(&cmdMux);
       if (q.count > 0 && q.items[q.head].cmd_seq == a.cmd_seq) {
         q.head = (q.head + 1) % CMD_FIFO_DIEPTE;
         q.count--;
+        gepopt = true;
+      }
+      taskEXIT_CRITICAL(&cmdMux);
+      if (gepopt) {
         logRegel("{\"status\":\"%s\",\"paal\":%d,\"seq\":%u}\n",
                  a.status == 0 ? "uitgevoerd" : "geweigerd", a.paal_id, a.cmd_seq);
       } else {
@@ -449,9 +494,16 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   int i = vindSlaveIndex(mac_addr);
   if (i < 0) return;
   SlaveCmdQueue &q = cmdPerSlave[i];
-  if (q.count == 0) return;
-  logRegel("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n", PAAL_MIN + i, q.items[q.head].pogingen);
-  q.items[q.head].laatstVerstuurd = millis() - (APP_ACK_TIMEOUT - 150);
+  bool    had    = false;
+  uint8_t poging = 0;
+  taskENTER_CRITICAL(&cmdMux);
+  if (q.count > 0) {
+    poging = q.items[q.head].pogingen;
+    q.items[q.head].laatstVerstuurd = millis() - (APP_ACK_TIMEOUT - 150);
+    had = true;
+  }
+  taskEXIT_CRITICAL(&cmdMux);
+  if (had) logRegel("{\"status\":\"send_err\",\"paal\":%d,\"poging\":%d}\n", PAAL_MIN + i, poging);
 }
 
 // Buzzer-tuning: stuur direct een MSG_BUZZER_TOON (geen FIFO/ACK, fire-and-forget).
@@ -527,23 +579,26 @@ static void stuurKlokslag(int paal, uint8_t r, uint8_t g, uint8_t b, uint8_t hel
 }
 
 // ---- SERIEEL COMMANDO VAN RASPBERRY PI ----
+// Heap-vrije JSON-veld-parser: zoekt "sleutel": in de regel en parset het getal erna.
+// Vervangt de oude Arduino-String/substring-parsing die per commandoregel meerdere
+// wisselende-grootte heap-allocaties deed -> fragmentatie-churn over uren.
+static long jsonVeld(const char *regel, const char *sleutel, long fallback) {
+  const char *p = strstr(regel, sleutel);
+  if (p == nullptr) return fallback;
+  return atol(p + strlen(sleutel));
+}
+
 // Parse één complete regel en zet het commando in het juiste paal-slot.
 void verwerkRegel(const char *regel) {
-  String lijn(regel);
-  lijn.trim();
+  if (strstr(regel, "\"paal\":") == nullptr || strstr(regel, "\"actie\":") == nullptr) return;
 
-  int paalIndex  = lijn.indexOf("\"paal\":");
-  int actieIndex = lijn.indexOf("\"actie\":");
-  if (paalIndex == -1 || actieIndex == -1) return;
-
-  int     paal  = lijn.substring(paalIndex + 7).toInt();
-  uint8_t actie = lijn.substring(actieIndex + 8).toInt();
+  int     paal  = (int)jsonVeld(regel, "\"paal\":", 0);
+  uint8_t actie = (uint8_t)jsonVeld(regel, "\"actie\":", 0);
 
   // Buzzer-tuning (actie 12): niet via de FIFO, maar direct als MSG_BUZZER_TOON met de
   // frequentie uit het extra veld "toon" (Hz; 0 = stop). Zo blijft de bridge ongewijzigd.
   if (actie == ACTIE_BUZZER_TOON) {
-    int toonIndex = lijn.indexOf("\"toon\":");
-    uint16_t toon = (toonIndex == -1) ? 0 : (uint16_t)lijn.substring(toonIndex + 7).toInt();
+    uint16_t toon = (uint16_t)jsonVeld(regel, "\"toon\":", 0);
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
       stuurBuzzerToon(paal, toon);
     } else {
@@ -554,13 +609,11 @@ void verwerkRegel(const char *regel) {
 
   // Klokslag-LED (actie 16): niet via de FIFO, maar direct als MSG_KLOKSLAG met r/g/b/helderheid/modus.
   if (actie == ACTIE_KLOKSLAG) {
-    int rIdx = lijn.indexOf("\"r\":"), gIdx = lijn.indexOf("\"g\":"), bIdx = lijn.indexOf("\"b\":");
-    int hIdx = lijn.indexOf("\"helderheid\":"), mIdx = lijn.indexOf("\"modus\":");
-    uint8_t r = (rIdx == -1) ? 0 : (uint8_t)lijn.substring(rIdx + 4).toInt();
-    uint8_t g = (gIdx == -1) ? 0 : (uint8_t)lijn.substring(gIdx + 4).toInt();
-    uint8_t b = (bIdx == -1) ? 0 : (uint8_t)lijn.substring(bIdx + 4).toInt();
-    uint8_t helderheid = (hIdx == -1) ? 255 : (uint8_t)lijn.substring(hIdx + 13).toInt();
-    uint8_t modus = (mIdx == -1) ? 0 : (uint8_t)lijn.substring(mIdx + 8).toInt();
+    uint8_t r          = (uint8_t)jsonVeld(regel, "\"r\":", 0);
+    uint8_t g          = (uint8_t)jsonVeld(regel, "\"g\":", 0);
+    uint8_t b          = (uint8_t)jsonVeld(regel, "\"b\":", 0);
+    uint8_t helderheid = (uint8_t)jsonVeld(regel, "\"helderheid\":", 255);
+    uint8_t modus      = (uint8_t)jsonVeld(regel, "\"modus\":", 0);
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
       stuurKlokslag(paal, r, g, b, helderheid, modus);
     } else {
@@ -572,8 +625,7 @@ void verwerkRegel(const char *regel) {
   // BLE-scan-config (actie 20): niet via de FIFO, maar direct als MSG_SCAN_CONFIG met de
   // vensterduur uit het extra veld "scan_ms" (ms). Zo blijft de bridge ongewijzigd.
   if (actie == ACTIE_SCAN_CONFIG) {
-    int msIdx = lijn.indexOf("\"scan_ms\":");
-    uint16_t ms = (msIdx == -1) ? SCAN_MS_DEFAULT : (uint16_t)lijn.substring(msIdx + 10).toInt();
+    uint16_t ms = (uint16_t)jsonVeld(regel, "\"scan_ms\":", SCAN_MS_DEFAULT);
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
       stuurScanConfig(paal, ms);
     } else {
@@ -585,8 +637,7 @@ void verwerkRegel(const char *regel) {
   // LED-helderheid (actie 21): direct als MSG_LED_CONFIG met de helderheid uit het extra veld
   // "helderheid" (0..255). Zo blijft de bridge ongewijzigd.
   if (actie == ACTIE_LED_CONFIG) {
-    int hIdx = lijn.indexOf("\"helderheid\":");
-    uint8_t h = (hIdx == -1) ? LED_HELDER_DEFAULT : (uint8_t)lijn.substring(hIdx + 13).toInt();
+    uint8_t h = (uint8_t)jsonVeld(regel, "\"helderheid\":", LED_HELDER_DEFAULT);
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
       stuurLedConfig(paal, h);
     } else {
@@ -633,6 +684,12 @@ void setup() {
   // (i.p.v. enkel de 128-B HW-FIFO) — vereist voor de budget-drain in verwerkLogQueue.
   Serial.setTxBufferSize(2048);
   Serial.begin(115200);
+
+  // Zelfherstel bij een loop-hang: schrijf de Arduino-loop in bij de Task-WDT (5 s,
+  // panic=reset in sdkconfig). Zonder deze regel bewaakt de WDT niets en blijft een
+  // vastgelopen master dood tot een handmatige power-cycle. De loop is non-blocking
+  // (budget-gedrainde log-queue), dus een pass blijft ver onder de 5 s.
+  enableLoopWDT();
 
   // Log-queue vroeg aanmaken zodat alle output via één schrijver loopt.
   logQueue = xQueueCreate(LOG_QUEUE_DIEPTE, LOGREGEL_MAX);

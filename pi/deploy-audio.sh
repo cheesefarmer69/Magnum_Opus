@@ -25,10 +25,19 @@ docker stop audio-player 2>/dev/null || true
 docker rm audio-player 2>/dev/null || true
 
 echo "[deploy-audio] Nieuwe container starten (host network, /dev/snd, audio-volume)..."
+# --memory: OOM-sturing op de 1 GB-Pi. --health-cmd + autoheal-label: een HANGENDE
+# audio-player (proces leeft, doet niets) wordt door de autoheal-container herstart.
 docker run -d \
   --name audio-player \
   --restart unless-stopped \
   --network host \
+  --memory 96m \
+  --label autoheal=true \
+  --health-cmd 'python -c "import socket; s=socket.create_connection((\"127.0.0.1\",1883),3); s.close()"' \
+  --health-interval 60s \
+  --health-timeout 10s \
+  --health-retries 3 \
+  --health-start-period 30s \
   --log-opt max-size=10m \
   --log-opt max-file=3 \
   --device=/dev/snd \

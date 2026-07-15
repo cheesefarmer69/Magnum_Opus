@@ -32,10 +32,22 @@ echo "[deploy] Nieuwe container starten (host network, alle USB-serial, auto-res
 # welke USB-poort ook. We geven de container toegang tot alle tty-devices via
 # een cgroup-regel (major 188 = USB-serial) + /dev mount, zodat ook een master
 # die later (her)ingeplugd wordt automatisch opgepikt wordt.
+# --memory: OOM-sturing op de 1 GB-Pi (de bridge heeft ~30 MB nodig; limiet ruim erboven).
+# --health-cmd + autoheal-label: 'restart: unless-stopped' vangt enkel een CRASH; een
+# HANGENDE bridge (python-proces leeft maar doet niets) bleef voorheen onbeheerd. De check
+# kijkt of het python-hoofdproces nog leeft en de MQTT-poort bereikbaar is; 3x fout ->
+# unhealthy -> de autoheal-container (compose) herstart hem.
 docker run -d \
   --name serial-bridge \
   --restart unless-stopped \
   --network host \
+  --memory 64m \
+  --label autoheal=true \
+  --health-cmd 'python -c "import socket; s=socket.create_connection((\"127.0.0.1\",1883),3); s.close()"' \
+  --health-interval 60s \
+  --health-timeout 10s \
+  --health-retries 3 \
+  --health-start-period 30s \
   --log-opt max-size=10m \
   --log-opt max-file=3 \
   --device-cgroup-rule='c 188:* rmw' \

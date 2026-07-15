@@ -418,6 +418,19 @@ volatile bool     scanLoopt      = false;   // true tussen pBLEScan->start() en 
 uint16_t          laatsteAckSeq  = 0;       // laatst verstuurde ACK
 uint8_t           laatsteAckStat = 0;
 bool              ackTijdensScan = false;   // ACK ging mid-scan de lucht in -> herhalen
+
+// Show-gate (S3): geen FastLED.show() (RMT-transfer) zolang de BLE-scan actief is.
+// BLE-controller-interrupts (hoogste prioriteit, single core) kunnen de RMT-refill
+// mid-frame vertragen -> corrupte bits -> geglitchte/foute kleuren, of een strip die
+// helemaal niets latcht. Renderers vullen de buffer gewoon (puur CPU, geen RMT); de
+// show zelf wordt uitgesteld en direct na pBLEScan->stop() in schone lucht gedaan
+// (zelfde patroon als de her-ACK hierboven). Buiten de scan toont toonLeds() meteen.
+volatile bool     ledShowPending = false;   // buffer gerenderd tijdens scan -> flushen na stop()
+static inline void toonLeds() {             // aanroepen mét xLedMutex vast (zoals FastLED.show())
+  if (scanLoopt) { ledShowPending = true; return; }
+  FastLED.show();
+  ledShowPending = false;
+}
 unsigned long     laatsteHeartbeat  = 0;           // millis() laatste heartbeat
 uint16_t          bleOverflowTeller = 0;           // >MAX_SPELERS in deze batch
 bool              vorigeBattKritiek = false;       // voor fout-transitie batterij-kritiek
@@ -748,7 +761,7 @@ void updateAnimatie() {
     // (de ontmantelpaal is immers geen ontmantelpaal meer; Node-RED stuurt er geen actie 0 achteraan).
     if (t >= ONTPLOF_MS) {
       huidigeActie = ACTIE_NIETS;
-      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB::Black); FastLED.show(); xSemaphoreGive(xLedMutex); }
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB::Black); toonLeds(); xSemaphoreGive(xLedMutex); }
       return;
     }
     // Eerste 150 ms: witte knal. Daarna: rood dat uitdooft, met een snelle strobe (~14 Hz).
@@ -764,7 +777,7 @@ void updateAnimatie() {
     }
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, kleur);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     return;
@@ -774,7 +787,7 @@ void updateAnimatie() {
     // Knop-feedback: korte groen/rood-flits (~5 Hz). Na KNOP_FLITS_MS auto-terug naar ACTIE_NIETS (LEDs uit).
     if (t >= KNOP_FLITS_MS) {
       huidigeActie = ACTIE_NIETS;
-      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB::Black); FastLED.show(); xSemaphoreGive(xLedMutex); }
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB::Black); toonLeds(); xSemaphoreGive(xLedMutex); }
       return;
     }
     bool aan = ((t % 200) < 130);
@@ -782,7 +795,7 @@ void updateAnimatie() {
                                                    : (aan ? CRGB(220, 0, 0) : CRGB(40, 0, 0));
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, kleur);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     return;
@@ -795,7 +808,7 @@ void updateAnimatie() {
     uint8_t startHue = (uint8_t)(millis() / 15);
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_rainbow(leds, NUM_LEDS, startHue, 255 / NUM_LEDS);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     return;
@@ -820,7 +833,7 @@ void updateAnimatie() {
     }
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, kleur);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     return;
@@ -831,7 +844,7 @@ void updateAnimatie() {
     uint8_t val = beatsin8(12, 25, 110);
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, CHSV(0, 0, val));
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     return;
@@ -843,7 +856,7 @@ void updateAnimatie() {
     CRGB kleur = aan ? CRGB(255, 30, 0) : CRGB(20, 0, 0);
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, kleur);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     return;
@@ -855,7 +868,7 @@ void updateAnimatie() {
     uint8_t val = beatsin8(40, 60, 255);                 // ademende helderheid
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, CHSV(hue, 255, val));
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
   } else {  // ACTIE_OOGST
@@ -870,7 +883,7 @@ void updateAnimatie() {
     }
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
       fill_solid(leds, NUM_LEDS, kleur);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
   }
@@ -947,15 +960,15 @@ void voerActieUit(uint8_t actie) {
   if (actie == ACTIE_NIETS) {
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
       fill_solid(leds, NUM_LEDS, CRGB::Black);
-      FastLED.show();
+      toonLeds();
       xSemaphoreGive(xLedMutex);
     }
     // MOSFET blijft aan: "uit" is puur software-zwart (CRGB::Black).
   } else {
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
       fill_solid(leds, NUM_LEDS, kleur);
-      FastLED.show();
-      FastLED.show();   // belt-and-suspenders: een solid wordt maar 1x getekend -> 2e show borgt de latch
+      toonLeds();
+      toonLeds();   // belt-and-suspenders: een solid wordt maar 1x getekend -> 2e show borgt de latch
       xSemaphoreGive(xLedMutex);
     }
   }
@@ -1031,9 +1044,20 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
+  // Zelfherstel bij een loop-hang: schrijf de Arduino-loop in bij de Task-WDT (5 s,
+  // panic=reset in sdkconfig). Zonder deze regel bewaakt de WDT niets en blijft een
+  // vastgelopen paal dood tot iemand de batterij eruit trekt. Eén loop-pass is maximaal
+  // ~scanDuurMs(2000) + backoff(150) + luister(200) + staart(50) ≈ 2,4 s — ruim onder 5 s.
+  // LET OP: verhoog SCAN_MS_MAX nooit boven ~4000 zonder deze marge te herrekenen.
+  enableLoopWDT();
+
   // === PAAL_ID bepalen uit het eigen MAC (paal_macs.h) ===
   // esp_read_mac() leest het WiFi-STA-MAC rechtstreeks uit de eFuse — kan al vóór WiFi-init,
   // dus vóór de buzzer-tabel en de master-keuze die PAAL_ID gebruiken.
+#ifdef LED_TEST_SCAN_UIT
+  Serial.println("[SETUP] !! LED-TEST-BUILD: BLE-scan UIT (diagnose) — NIET voor het veld !!");
+#endif
+
   uint8_t eigenMac[6];
   esp_read_mac(eigenMac, ESP_MAC_WIFI_STA);
   PAAL_ID = zoekPaalId(eigenMac);
@@ -1061,7 +1085,7 @@ void setup() {
   // zou overschrijden (voorkomt brownout = "deels aan"). Stem 700mA af op je echte voeding.
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 700);
   fill_solid(leds, NUM_LEDS, CRGB::Black);
-  FastLED.show();
+  toonLeds();
 
   // Buzzer pin
   pinMode(BUZZER_PIN, OUTPUT);
@@ -1094,6 +1118,13 @@ void setup() {
   NimBLEDevice::init("");
   pBLEScan = NimBLEDevice::getScan();
   pBLEScan->setAdvertisedDeviceCallbacks(new BeaconZoeker(), true);
+  // Callback-only modus: NimBLE bewaart GEEN result-vector. Zonder deze regel alloceert
+  // NimBLE per uniek MAC een NimBLEAdvertisedDevice (default max 0xFF = onbegrensd) —
+  // ook alle telefoons/wearables van omstanders (de OUI-whitelist zit pas in ónze
+  // callback). Op een druk terrein = honderden malloc/free per scan-cyclus -> heap-
+  // fragmentatie over uren. Wij gebruiken de result-lijst toch niet (batchData wordt
+  // in de callback gevuld).
+  pBLEScan->setMaxResults(0);
   pBLEScan->setActiveScan(false);
   pBLEScan->setInterval(80);   // ~50 ms (units 0.625 ms)
   pBLEScan->setWindow(64);     // ~40 ms -> ~80% duty: korte scans (400-600 ms) zien nog genoeg
@@ -1192,7 +1223,7 @@ void loop() {
     ledHelderheidDirty = false;
     if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(100))) {
       FastLED.setBrightness(ledHelderheid);
-      FastLED.show();   // hertekent de huidige buffer op de nieuwe helderheid
+      toonLeds();   // hertekent de huidige buffer op de nieuwe helderheid
       xSemaphoreGive(xLedMutex);
     }
     Serial.printf("[LED] Helderheid nu %u\n", ledHelderheid);
@@ -1201,6 +1232,14 @@ void loop() {
   uint16_t venster = scanDuurMs;   // snapshot voor deze cyclus
   Serial.printf("\n[SCAN] Start (%u ms)...\n", venster);
 
+#ifdef LED_TEST_SCAN_UIT
+  // === DIAGNOSE-BUILD (env led-test-scan-uit, LED-plan test 2) ===
+  // Géén BLE-scan: zelfde cyclus-timing, maar de radio blijft stil tijdens het
+  // "scanvenster". Glitchen de kleuren hiermee NIET meer, dan is de oorzaak de
+  // BLE-activiteit (show-tijdens-scan / RF); glitchen ze nog steeds, dan is het
+  // hardware (datalijn-niveau, H5). NIET voor het veld — detecteert geen bakens.
+  servicedWait(venster);
+#else
   // Niet-blokkerende, continue scan begrensd door een millis()-venster -> ms-granulariteit
   // (NimBLE 1.4.2 kan enkel in hele seconden blokkeren). De BeaconZoeker-callback vult batchData
   // tijdens het venster, net als bij de oude blocking scan. Voordeel: commando's/melodie/animatie
@@ -1219,6 +1258,18 @@ void loop() {
   pBLEScan->stop();
   pBLEScan->clearResults();
   scanLoopt = false;                      // radio is weer vrij
+#endif
+
+  // S3: show-gate-flush in schone lucht. Frames die tijdens de scan gerenderd zijn
+  // (buffer gevuld, show uitgesteld door toonLeds()) nu in één keer tonen — geen
+  // BLE-interrupts meer die de RMT-refill kunnen verstoren.
+  if (ledShowPending) {
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) {
+      FastLED.show();
+      ledShowPending = false;
+      xSemaphoreGive(xLedMutex);
+    }
+  }
 
   // S2: her-ACK in schone lucht. Een ACK die mid-scan verzonden is (radio ~80% BLE-bezet)
   // gaat vaak verloren -> de master zou onnodig retry'en. Herhaal hem éénmalig hier,

@@ -297,7 +297,7 @@ De actie-set is bewust **minimaal**: enkel acties die aan een spel-event hangen.
 | 13 | `ACTIE_TIJDBOM`     | LED strip **geanimeerd** tikkende rode flits (~2 Hz). Gezet op de **ontmantel-palen** van een actief tijdbom-event (paal met drukknop waar een bom ontmanteld kan worden). De paal wordt tegelijk **gearmd** met `ACTIE_KNOP_ARM` (17) — zonder dat negeert de slave elke druk. |
 | 14 | `ACTIE_TORNADO`     | LED strip **donkergrijs** continu (tornado-center; zuigt de aanliggende uren naar zich toe). Overschrijft tijdelijk een onderliggend effect; herstelt na het event. |
 | 15 | `ACTIE_TORNADO_RAND`| LED strip **geanimeerd** trage grijze pulse (aanliggend uur van een tornado). |
-| 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus`. |
+| 16 | `ACTIE_KLOKSLAG`    | Klokslag-LED: **teamkleur** continu/flikker/ademend op een meeschalende helderheid. **Geen `commando_message_v2`** — de master vertaalt dit naar `MSG_KLOKSLAG` (zie §0). Vereist de extra JSON-velden `r`,`g`,`b`,`helderheid`,`modus` (`0` owned = **solid**, `1` capturing = kaarsflikker, `2` frozen = solid, `3` rust = ademend dim wit).<br>**Dubbel gebruik:** met `modus: 0` is dit in feite een **generiek "zet paal op een willekeurige RGB-kleur"**-commando. Het dashboard **Buzzer/LED test → Paaltest** gebruikt het zo voor de kleurtest (5 vaste kleuren), zonder dat daar een aparte actie voor nodig was. Voeg dus **geen** nieuwe "zet-kleur"-actie toe — die bestaat al. |
 | 17 | `ACTIE_KNOP_ARM`    | Drukknop-paal **actief** zetten: GPIO6-feedback-LED **aan** (uit zolang de knop ingedrukt is) en de cumulatieve druk-teller op 0. Raakt de WS2812B-strip niet. |
 | 18 | `ACTIE_KNOP_UIT`    | Drukknop-paal **inactief** zetten: GPIO6-LED **uit**, geen tellen meer. |
 | 19 | `ACTIE_REGENBOOG`   | **Test**: roterende regenboog over de 7 LEDs (volledig spectrum, deltaHue 255/7). Puur voor kleur-/LED-controle; via de losse inject `[TEST] Regenboog (paal 1, actie 19)` op de "00 Configuratie"-flow (zelf naar een `commando/masterN` mqtt-out bedraden). Blijft tekenen tot een andere actie binnenkomt (bv. `ACTIE_NIETS`). |
@@ -756,6 +756,15 @@ kunt definiëren.
 
 ## Wijzigingsgeschiedenis
 
+- 2026-07-15: **Lang-draai-hardening firmware** — geen wire-format-wijziging. Master: alle
+  `cmdPerSlave`-FIFO-mutaties (enqueue, ACK-pop, opgegeven-pop, send_err-rewind) lopen onder de
+  **`cmdMux`-spinlock** — OnDataRecv/OnDataSent (WiFi-task, core 0) en de loop (core 1) muteerden
+  `head`/`count` voorheen ongesynchroniseerd, wat een paal-queue na uren kon wedgen; serial-parsing
+  is **heap-vrij** (`jsonVeld()` i.p.v. Arduino-String-substring-churn). Beide firmwares:
+  **`enableLoopWDT()`** (task-WDT 5 s, panic=reset) — een gehangen bord reset zichzelf i.p.v. dood
+  te blijven tot een power-cycle. Slave: **`setMaxResults(0)`** op de NimBLE-scan (callback-only;
+  voorheen bewaarde NimBLE álle omliggende BLE-apparaten per cyclus → heap-fragmentatie op druk
+  terrein). Vereist herflash van slaves + masters.
 - 2026-07-13: **Commando-latency-optimalisatie (phase-locked retry + her-ACK)** — geen wire-format-
   wijziging. Master: retries zijn nu **phase-locked** op de binnenkomende batch/heartbeat van de
   slave (= begin van diens vrije radio-venster, `slaveVensterVlag`, guard 50 ms); `APP_ACK_TIMEOUT`

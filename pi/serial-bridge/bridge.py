@@ -52,6 +52,7 @@ laatste_conflict_alarm = {}
 # Diagnose-teller: hoeveel berichten naar MQTT gepubliceerd
 publicaties = 0
 pub_lock = threading.Lock()
+laatste_pub_fout = 0.0   # throttle voor [MQTT-FOUT]-waarschuwing (max 1x/10s)
 
 
 def paal_naar_topic(paal_id):
@@ -215,7 +216,16 @@ def lees_poort(device):
 
             # Inkomende data ongewijzigd doorpubliceren; de paal_id in de data
             # routeert verder in Node-RED (werkt voor elk aantal masters).
-            client.publish(MQTT_DATA_TOPIC, json.dumps(data))
+            # QoS 0 + broker tijdelijk weg (herstart/OOM) = stille drop; maak dat
+            # zichtbaar met een throttled waarschuwing i.p.v. onzichtbaar dataverlies.
+            _res = client.publish(MQTT_DATA_TOPIC, json.dumps(data))
+            if _res.rc != mqtt.MQTT_ERR_SUCCESS:
+                global laatste_pub_fout
+                _nu = time.time()
+                if _nu - laatste_pub_fout > 10:
+                    laatste_pub_fout = _nu
+                    print(f"[MQTT-FOUT] publish rc={_res.rc} - broker weg? "
+                          f"(berichten gaan verloren tot de reconnect)")
             with pub_lock:
                 publicaties += 1
             if VERBOSE:

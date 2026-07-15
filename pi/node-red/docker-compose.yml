@@ -20,6 +20,11 @@ services:
     image: nodered/node-red:4.1.7        # gepind (zie docs/versions.md); was 'latest'
     container_name: magnum-Opus
     restart: unless-stopped
+    # OOM-sturing op de 1 GB-Pi: zonder limieten kiest de kernel-OOM-killer zijn slachtoffer
+    # op RSS-heuristiek en kan hij net zo goed de BROKER doden (bus weg = alles stil) als
+    # Node-RED. Met deze limiet raakt geheugendruk voorspelbaar node-red — die heeft
+    # healthcheck+autoheal+rehydrate en komt vanzelf goed. (mem_limit werkt met compose v2.)
+    mem_limit: 600m
     labels:
       # Laat de autoheal-container deze container bewaken (zie service 'autoheal' onderaan).
       - "autoheal=true"
@@ -60,6 +65,10 @@ services:
       # Simulator read-only in de container; via httpStatic (settings.js) geserveerd op
       # http://<pi>:1880/sim/ — zo werkt de simulator op elk toestel zonder losse bestanden.
       - ../simulator:/sim-static:ro
+      # CPU-temperatuur van de Pi (read-only) voor de thermiek-tegel op het Spelstatus-
+      # dashboard: een Pi 4 in een dichte kist throttelt bij 80 °C — dat uit zich als
+      # "alles traag" en werd voorheen nergens bewaakt. Zie docs/hardware/hardware-info.md.
+      - /sys/class/thermal:/sys/class/thermal:ro
 
   mosquitto:
     # Was een handmatige, ongecodificeerde container ("MQTT-broker", tag latest) — hier vastgelegd:
@@ -72,6 +81,19 @@ services:
     image: eclipse-mosquitto:2.0.21
     container_name: MQTT-broker
     restart: unless-stopped
+    # De broker is het hart van de bus: begrens zijn geheugen (retained-set is klein) en
+    # laat autoheal hem herstarten als hij HANGT (restart-policy vangt enkel crashes).
+    mem_limit: 128m
+    labels:
+      - "autoheal=true"
+    healthcheck:
+      # Echte end-to-end check: subscribe op het broker-uptime-topic. Faalt 3x -> unhealthy
+      # -> autoheal herstart de broker (retained messages staan persistent op /mosquitto/data).
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "5"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     logging:
       driver: json-file
       options:

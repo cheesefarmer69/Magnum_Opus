@@ -105,13 +105,32 @@ dus ~350–500 MB speling. Node-RED is de swingfactor.
 **Operationele tips:**
 - **Houd het aantal open dashboard-/simulator-tabs beperkt.** Elke tab is een WebSocket-client die alle
   retained + de 1 s-`pof/status`-berichten meekrijgt; veel tabs = meer geheugen én CPU. Sluit ongebruikte.
+  (De broker cap't trage clients nu op 200 berichten / 5 MB per client — `mosquitto.conf`.)
 - Monitor op de speeldag: `free -h`, `docker stats --no-stream` (let op de node-red-container) en
-  `df -h /` (SD-vulling); OOM-kills zie je met `dmesg | grep -i oom`.
+  `df -h /` (SD-vulling); OOM-kills zie je met `dmesg | grep -i oom`. De containers hebben nu
+  **mem-limits** (node-red 600m, broker 128m, bridge 64m, audio 96m) zodat geheugendruk voorspelbaar
+  node-red raakt (die heeft autoheal + rehydrate) en nooit de broker.
 - `contextStorage` (localfilesystem) flusht **alle** globals elke 15 s naar de SD — de caps hierboven houden
   ook die writes klein.
 - **Klok zonder RTC:** op het veld (geen internet/NTP) start de Pi met de laatst bekende tijd
-  (fake-hwclock) — timestamps in logs/historie kunnen dan afwijken. Geen spellogica-impact (alles
-  rekent relatief), enkel cosmetisch.
+  (fake-hwclock) — timestamps in logs/historie kunnen dan afwijken. De TTL-prunes in Node-RED hebben
+  een **klok-guard** (timestamp uit de toekomst wordt teruggeclampt), dus een kloksprong legt het
+  opruimen niet meer stil. Zet de klok bij voorkeur vóór de spelstart, niet tijdens een partij.
+- **Swap op SD uitzetten** (staat default aan op Raspberry Pi OS, 100 MB op de SD — traag + slijtage
+  onder geheugendruk): `sudo dphys-swapfile swapoff && sudo dphys-swapfile uninstall &&
+  sudo systemctl disable dphys-swapfile`. De mem-limits + caps maken swap overbodig.
+
+### Thermiek (Pi 4 in een dichte kist — juli!)
+
+Een Pi 4 **throttelt bij 80 °C** (hard bij 85 °C) en dat uit zich als *"alles is traag"* — een klacht
+die makkelijk verkeerd aan geheugen of netwerk wordt toegeschreven. Daarom:
+- **Dashboard-tegel "Hub CPU"** op de Spelstatus-pagina (naast de master-bolletjes): groen < 70 °C,
+  oranje 70–80, rood ≥ 80. Gevoed door een 30 s-uitlezing van `/sys/class/thermal/thermal_zone0/temp`
+  (read-only gemount in `docker-compose.yml`). Boven **75 °C** verschijnt foutcode **ST-007** in de
+  pre-flight-tabel.
+- Handmatig checken: `vcgencmd measure_temp` of `cat /sys/class/thermal/thermal_zone0/temp` (÷1000).
+- Wordt het warm: kist openen/ventileren, of de Pi uit de zon. Neem dit mee in élke
+  "waarom is alles traag"-triage.
 
 ## Aandachtspunten / PCB rev-B
 

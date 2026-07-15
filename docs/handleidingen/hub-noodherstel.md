@@ -39,6 +39,15 @@ speeldag snel te herstellen, plus de **voorbereiding** die dat mogelijk maakt.
    printf '[Journal]\nSystemMaxUse=100M\n' | sudo tee /etc/systemd/journald.conf.d/cap.conf
    sudo systemctl restart systemd-journald
    ```
+5b. **Netwerkprofiel + swap (eenmalig, én na élke SD-herkloon):**
+   ```bash
+   # Veld-eth autoconnect uit (anders kaapt hij eth0 zodra thuis-DHCP hapert)
+   # + AP-kanaal 6 pinnen (H6). Idempotent script uit de repo:
+   sudo bash ~/Magnum_Opus/config/network/apply-network.sh
+
+   # Swap op SD uit (traag + slijtage onder geheugendruk; mem-limits maken hem overbodig)
+   sudo dphys-swapfile swapoff && sudo dphys-swapfile uninstall && sudo systemctl disable dphys-swapfile
+   ```
 6. **Mosquitto draait gecodificeerd in `pi/node-red/docker-compose.yml`** (gepinde tag, restart-policy,
    config-mount, persistent `/mosquitto/data`). **Eenmalige migratie** vanaf de oude handmatige container
    (retained spelstand behouden!):
