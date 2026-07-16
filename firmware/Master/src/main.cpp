@@ -759,15 +759,20 @@ void verwerkRegel(const char *regel) {
   int     paal  = (int)jsonVeld(regel, "\"paal\":", 0);
   uint8_t actie = (uint8_t)jsonVeld(regel, "\"actie\":", 0);
 
-  // Bom-animatie (actie 25): niet via de FIFO, maar direct als MSG_BOM met de tijden uit de extra
-  // velden laad_ms/hold_ms/pink_ms/pink_hz. Fire-and-forget zoals klokslag; de bridge blijft ongewijzigd.
+  // Bom-animatie (actie 25): niet via de FIFO. Zonder wacht_ms (of 0) direct als blinde MSG_BOM
+  // (v1-gedrag); met wacht_ms > 0 een GEPLANDE bom: in de per-slave bom-wachtrij, phase-locked
+  // herzonden met per poging een verse signed rest-wacht (zie verwerkBomQueue). De bridge blijft
+  // ongewijzigd — het extra JSON-veld reist gewoon mee.
   if (actie == ACTIE_BOM) {
     uint16_t laad = (uint16_t)jsonVeld(regel, "\"laad_ms\":", 0);
     uint16_t hold = (uint16_t)jsonVeld(regel, "\"hold_ms\":", 0);
     uint16_t pink = (uint16_t)jsonVeld(regel, "\"pink_ms\":", 0);
     uint16_t hz   = (uint16_t)jsonVeld(regel, "\"pink_hz\":", 2);
+    long     w    = jsonVeld(regel, "\"wacht_ms\":", 0);
+    if (w < 0) w = 0; if (w > 60000) w = 60000;
     if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
-      stuurBom(paal, laad, hold, pink, hz);
+      if (w > 0) enqueueBom(paal, laad, hold, pink, hz, (uint32_t)w);
+      else       stuurBom(paal, laad, hold, pink, hz);
     } else {
       logRegel("{\"status\":\"buiten_bereik\",\"paal\":%d,\"master\":%d}\n", paal, MASTER_NR);
     }
@@ -826,6 +831,10 @@ void verwerkRegel(const char *regel) {
   }
 
   if (paal >= PAAL_MIN && paal <= PAAL_MAX) {
+    // Actie 0 dooft ook GEPLANDE bommen: wis de bom-wachtrij van deze slave vóór het
+    // enqueuen, zodat er ná de stop geen bom-herzendingen meer kunnen vertrekken (de
+    // slave wist zijn eigen schema wanneer actie 0 daar uitgevoerd wordt).
+    if (actie == 0) bomWisSlave(paalNaarIndex(paal));
     if (enqueueCommando(paal, actie)) {
       logRegel("{\"status\":\"queued\",\"paal\":%d,\"actie\":%d}\n", paal, actie);
     }

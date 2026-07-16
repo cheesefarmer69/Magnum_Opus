@@ -89,9 +89,10 @@ Deze tijdlijn is **automatisch uit de MIDI gegenereerd** (noot-exact) met
   bom- én golf-animatie gewoon door (show-gate-uitzondering S3b, revert via build-flag
   `BOM_SHOW_TIJDENS_SCAN=0`). De scan blijft op 300 ms draaien — de scoring-verslocatie verandert
   niet. De **Muziek-offset**-slider compenseert nu enkel nog de constante audio-opstartlatentie.
-- **Sfeer-golf-wis:** de golf-afsluiting op 66,0 s stuurt **geen actie 0** (dat zou de geplande
-  66,5 s-cues wissen) maar `actie 16` met helderheid 0 (zwart). Stop en het 84 s-einde gebruiken
-  wél actie 0 — daar is het wissen van geplande bommen precies de bedoeling.
+- **Sfeer-golf-wis:** de golf-afsluiting (na elk `tl.sfeer`-venster) stuurt **geen actie 0** (dat
+  zou bommen wissen die al gepland/onderweg zijn voor cues vlak ná het venster) maar `actie 16`
+  met helderheid 0 (zwart). Stop en het einde-van-de-track gebruiken wél actie 0 — daar is het
+  wissen van geplande bommen precies de bedoeling.
 - **Node-RED:** speltype `"bommen"`; de **"Bommen engine"** (tab 07, op de 250 ms-tick) start/stopt
   zichzelf zoals Klokslag/Infected en plant de tijdlijn met `pofGeneration`-gated `setTimeout`-cues (een
   Stop verhoogt `pofGeneration` → alle cues bailen). Status op retained `bommen/status`. De tracknaam

@@ -260,7 +260,9 @@ function verwerkBericht(topic, raw) {
             if (actie === 25) {
                 // Bom-animatie (minigame): onthoud de tijden zodat renderBommenLeds de paal rood laat
                 // opgloeien -> hold -> pinken -> uit. laad_ms/hold_ms/pink_ms/pink_hz uit het commando.
-                state.bomPalen[paal] = { start: Date.now(), laad: data.laad_ms || 0, hold: data.hold_ms || 0, pink: data.pink_ms || 0, hz: data.pink_hz || 2 };
+                // wacht_ms (geplande bom, beat-sync): de cue komt LEAD ms vooraf binnen -- start pas
+                // op het geplande moment, net als de slave (anker), anders loopt de sim vóór op het veld.
+                state.bomPalen[paal] = { start: Date.now() + (data.wacht_ms || 0), laad: data.laad_ms || 0, hold: data.hold_ms || 0, pink: data.pink_ms || 0, hz: data.pink_hz || 2 };
             } else if (actie === ACTIE_BUZZER_PIEP) {
                 // buzzer-piep: toon icoon voor de duur van de piep, laat paalActie ongemoeid
                 state.paalBuzzer[paal] = Date.now() + BUZZER_PIEP_MS;
@@ -1103,7 +1105,8 @@ function renderBommenLeds() {
         if (b) {
             const t = nu - b.start;
             const tHold = b.laad + b.hold, tEind = tHold + b.pink;
-            if (t < b.laad) { const v = b.laad > 0 ? Math.round(t / b.laad * 255) : 255; fill = `rgb(${v},0,0)`; }
+            if (t < 0) { /* gepland (wacht_ms), nog donker tot het startmoment */ }
+            else if (t < b.laad) { const v = b.laad > 0 ? Math.round(t / b.laad * 255) : 255; fill = `rgb(${v},0,0)`; }
             else if (t < tHold) { fill = "rgb(255,0,0)"; }
             else if (t < tEind) { const per = 1000 / (b.hz || 2); fill = ((t - tHold) % per) < per / 2 ? "rgb(255,0,0)" : "rgb(20,0,0)"; }
             else { delete state.bomPalen[n]; }

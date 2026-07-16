@@ -107,7 +107,12 @@ def on_mqtt_message(client, userdata, msg):
     topic = msg.topic
     commando = msg.payload.decode('utf-8').strip()
 
-    print(f"[MQTT] Ontvangen op {topic}: {commando}")
+    # Per-commando logging enkel met VERBOSE=1: tijdens de bommen-minigame passeren hier
+    # bursts (16 cues tegelijk + de sfeer-golf ~96 msg/s) en elke print is een synchrone
+    # stdout-write naar de docker-log op SD -- onnodige jitter op het beat-kritieke pad.
+    # Foutmeldingen hieronder blijven onvoorwaardelijk.
+    if VERBOSE:
+        print(f"[MQTT] Ontvangen op {topic}: {commando}")
 
     # Valideer dat het geldige JSON is
     try:
@@ -131,7 +136,8 @@ def on_mqtt_message(client, userdata, msg):
 
     try:
         ser.write((commando + '\n').encode('utf-8'))
-        print(f"[SERIEEL] Commando verstuurd naar {topic} ({ser.port}): {commando}")
+        if VERBOSE:
+            print(f"[SERIEEL] Commando verstuurd naar {topic} ({ser.port}): {commando}")
     except Exception as e:
         print(f"[SERIEEL] Schrijffout op {topic} ({ser.port}): {e}")
 
