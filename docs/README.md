@@ -14,7 +14,8 @@ docs/
 │   ├── 02-testprocedure.md  ← T1–T13: elk onderdeel verifiëren + symptoom→document-tabel
 │   ├── 03-technische-opbouw.md ← de volledige techniek, laag voor laag (synthese + verwijzingen)
 │   ├── 04-spelersuitleg.md  ← voorleesbare briefing + spiekkaarten (PoF/Klokslag/Infected)
-│   └── 05-events-en-dynamieken.md ← alle 15 events als kaart + alle permanente mechanismen
+│   ├── 05-events-en-dynamieken.md ← alle 15 events als kaart + alle permanente mechanismen
+│   └── 06-rollen-en-taken.md ← taken doorgeven aan hulpleiding (techniek-wacht / speler-admin) + printkaarten
 ├── invarianten.md       ← alle invarianten van het systeem op één plek
 ├── protocol.md          ← communicatieprotocol (ESP-NOW / serial / MQTT)
 ├── locatiebepaling.md   ← RSSI-locatie-algoritme + tuning
