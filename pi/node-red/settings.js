@@ -88,6 +88,13 @@ module.exports = {
             global.set("poolsActief", false); global.set("poolsGestart", false);   // Poolse-reactietijd-muziek: tick stuurt bij stop een audio/muziek stop
             global.set("infectedActief", false); global.set("infected", null); global.set("infectedLed", {}); global.set("infectedLaatstePalen", []); global.set("infectedStatusSig", "");
             global.set("bommenGestart", false); global.set("bommenStatusSig", ""); global.set("bommenFlourishGewist", false);   // minigame "Bommen vermijden": Stop stopt de gescripte tijdlijn (pofGeneration is al opgehoogd -> geplande cues bailen)
+            // LET OP: bommenMuziekAan staat hier BEWUST NIET bij -- dat is de vlag waarmee de
+            // bommen-engine zijn audio-stop nog kan sturen NADAT deze reset bommenGestart nulde
+            // (anders bleef de muziek spelen bij een handmatige Stop; zie "Bommen engine").
+            global.set("storm", null); global.set("stormRichting", null);                    // storm-event (baan + richting)
+            global.set("mnZone", null);                                                      // "middernacht breidt uit" (buurpalen-zone)
+            global.set("verdeelPaal", null);                                                 // gelijke-verdeling-knop (regenboog-paal)
+            global.set("rouletteActief", null); global.set("rouletteCooldownTot", 0);        // drukknop roulette (alarm + cooldown)
             global.set("nukeActief", false); global.set("nukeNaglow", false); global.set("middernachtOogst", false); global.set("tornadoActief", []); global.set("spelTempoFactor", 1); global.set("pofSnapshots", []); global.set("paalLedForceRebuild", true);
             global.set("pofVerificatie", {}); global.set("pofLaatsteControle", []); global.set("pofPad", {});
             global.set("pofVrijPad", {}); global.set("pofVrijVanaf", 0);

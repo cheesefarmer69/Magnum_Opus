@@ -199,6 +199,18 @@ const unsigned long ONTPLOF_MS   = 1600;   // duur van de ontploffings-strobe
 // MSG_BOM (geen commando_message_v2/FIFO) met de parameters laad_ms/hold_ms/pink_ms/pink_hz. De
 // ramp bereikt 255 EXACT bij t==laad_ms -> de piek valt structureel vóór het knipperen begint.
 const uint8_t ACTIE_BOM          = 25;
+// 26 = ALARM (drukknop roulette): chaotisch, irritant zoemer-alarm van ~10 s (eindige noten-tabel,
+// speelt zichzelf uit). Puur geluid — raakt de LED-staat NIET. Wordt vervroegd gestopt door
+// ACTIE_KNOP_UIT (18): de roulette-afhandeling in Node-RED stuurt die bij een druk of time-out.
+// Gewone commando_message_v2 (FIFO/ACK).
+const uint8_t ACTIE_ALARM        = 26;
+// 27 = STORM: alle 7 LEDs continu CYAAN — een kleur die door geen enkele andere actie gebruikt
+// wordt, dus de trekkende storm (wereld-event) is van ver herkenbaar. Solid, FIFO/ACK.
+const uint8_t ACTIE_STORM        = 27;
+// 28 = BLIKSEM: grillige gele dubbel-flits (inslag in de storm), auto-terug naar ACTIE_NIETS na
+// BLIKSEM_MS — de Sync-rebuild zet daarna de gewenste toestand (bv. storm-cyaan) terug. FIFO/ACK.
+const uint8_t ACTIE_BLIKSEM      = 28;
+const unsigned long BLIKSEM_MS   = 1300;   // duur van de gele bliksem-flikker
 
 // ====================================================================
 // MELODIE STATE + NOTEN TABEL
@@ -259,6 +271,42 @@ static const Noot MELODIE_ONTPLOFFING[] = {
     {2500,60},{2100,60},{1750,60},{1450,60},{1200,70},{1000,70},{820,80},{660,90},{520,100},{400,120},{300,150},
     {0,60},
     {220,180},{0,50},{180,200},{0,50},{150,260},
+    {   0,   0}
+};
+
+// Alarm (actie 26, drukknop roulette): chaotisch en bewust irritant — grillige sprongen in het
+// luide piezo-gebied (1,8-3,8 kHz), ongelijke nootlengtes, dissonante wissels en korte haperingen.
+// EINDIGE tabel van ~10,4 s (de roulette-beslistijd is 10 s; de staart valt weg doordat de
+// afhandeling ACTIE_KNOP_UIT stuurt, die het alarm stopt — zie voerActieUit). Deterministisch
+// gegenereerd (seed 1337), 162 noten; melodie.noot is uint8_t dus max 255 noten per tabel.
+static const Noot MELODIE_ALARM[] = {
+    {3700,80},{2200,60},{3700,60},{2200,80},{3700,45},{1900,45},
+    {3700,60},{3700,80},{0,40},{3400,60},{0,25},{0,120},
+    {3300,90},{2600,70},{2600,70},{2600,70},{2600,70},{3300,90},
+    {0,40},{3300,70},{0,80},{3100,40},{2500,70},{2500,70},
+    {0,40},{3700,40},{3700,70},{3100,70},{3100,55},{0,25},
+    {1900,40},{1900,40},{3100,40},{3700,55},{0,150},{3800,130},
+    {3800,100},{1800,130},{0,40},{1800,100},{0,40},{1800,130},
+    {3800,100},{0,60},{2800,65},{3500,65},{3500,65},{3500,65},
+    {0,25},{3500,65},{3500,65},{2800,50},{2800,85},{3500,65},
+    {0,40},{3500,50},{0,140},{3200,75},{3600,45},{3600,75},
+    {2000,45},{0,40},{2400,75},{0,25},{3600,45},{2400,75},
+    {3600,45},{0,90},{1850,110},{3750,80},{0,25},{3750,110},
+    {3750,80},{1850,110},{1850,110},{1850,80},{0,130},{1950,90},
+    {3600,40},{3600,90},{0,25},{2300,90},{0,40},{3000,40},
+    {2300,40},{0,40},{3000,40},{1950,60},{1950,60},{2300,40},
+    {0,25},{3600,60},{0,100},{3500,55},{2050,55},{0,25},
+    {2050,70},{2050,70},{0,25},{2650,70},{3500,70},{0,25},
+    {3500,55},{2650,70},{2650,70},{0,40},{0,150},{1900,50},
+    {0,25},{3700,50},{3700,50},{2350,50},{3100,50},{3100,80},
+    {0,40},{3100,80},{0,40},{3100,50},{0,25},{2450,65},
+    {3150,45},{2450,85},{0,40},{3150,45},{3150,85},{3550,45},
+    {0,130},{1950,45},{0,25},{3550,85},{3550,45},{1950,65},
+    {2450,65},{3550,85},{0,130},{2450,85},{3150,65},{0,25},
+    {3550,45},{3550,45},{0,25},{2450,45},{2450,65},{0,25},
+    {0,130},{3150,85},{2450,45},{1950,85},{0,25},{3550,45},
+    {1950,65},{1950,45},{0,130},{1950,85},{0,40},{1950,45},
+    {2450,45},{3150,85},{1950,45},{2450,65},{0,25},{0,130},
     {   0,   0}
 };
 
@@ -484,7 +532,8 @@ bool              ackTijdensScan = false;   // ACK ging mid-scan de lucht in -> 
 volatile bool     ledShowPending = false;   // buffer gerenderd tijdens scan -> flushen na stop()
 static inline void toonLeds() {             // aanroepen mét xLedMutex vast (zoals FastLED.show())
   bool latchTochTijdensScan = BOM_SHOW_TIJDENS_SCAN &&
-                              (huidigeActie == ACTIE_BOM || huidigeActie == ACTIE_KLOKSLAG);
+                              (huidigeActie == ACTIE_BOM || huidigeActie == ACTIE_KLOKSLAG ||
+                               huidigeActie == ACTIE_BLIKSEM);   // bliksem: zelfde self-healing animatieklasse
   if (scanLoopt && !latchTochTijdensScan) { ledShowPending = true; return; }
   FastLED.show();
   ledShowPending = false;
@@ -765,6 +814,7 @@ static const Noot* getMelodieSequentie(uint8_t type) {
     case ACTIE_KNOP_GOED:    return MELODIE_KNOP_GOED;
     case ACTIE_KNOP_FOUT:    return MELODIE_KNOP_FOUT;
     case ACTIE_ONTPLOFFING:  return MELODIE_ONTPLOFFING;
+    case ACTIE_ALARM:        return MELODIE_ALARM;
     default:                 return nullptr;
   }
 }
@@ -921,7 +971,7 @@ void verwerkBom() {
 // Rendert frames voor de geanimeerde acties (8 = nuke-ring, 11 = oogst). Wordt
 // vaak aangeroepen vanuit de wacht-loop; solid acties (0/1/2/4/9/10) doen hier niets.
 void updateAnimatie() {
-  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT && huidigeActie != ACTIE_ONTPLOFFING && huidigeActie != ACTIE_BOM) return;
+  if (huidigeActie != ACTIE_NUKE && huidigeActie != ACTIE_OOGST && huidigeActie != ACTIE_TIJDBOM && huidigeActie != ACTIE_TORNADO_RAND && huidigeActie != ACTIE_KLOKSLAG && huidigeActie != ACTIE_REGENBOOG && huidigeActie != ACTIE_KNOP_GOED && huidigeActie != ACTIE_KNOP_FOUT && huidigeActie != ACTIE_ONTPLOFFING && huidigeActie != ACTIE_BOM && huidigeActie != ACTIE_BLIKSEM) return;
   const unsigned long t = millis() - actieStartMs;
 
   if (huidigeActie == ACTIE_BOM) {
@@ -989,6 +1039,22 @@ void updateAnimatie() {
       toonLeds();
       xSemaphoreGive(xLedMutex);
     }
+    return;
+  }
+
+  if (huidigeActie == ACTIE_BLIKSEM) {
+    // Bliksem-inslag (storm): grillige GELE dubbel-flits — twee ongelijke flikker-ritmes over
+    // elkaar, zoals echte bliksem naflikkert. Auto-terug naar ACTIE_STORM (cyaan): een inslag
+    // gebeurt per definitie op een storm-paal, dus de paal herstelt zichzelf zonder dat Node-RED
+    // een rebuild hoeft te sturen (die zou de flits juist direct overschrijven).
+    if (t >= BLIKSEM_MS) {
+      huidigeActie = ACTIE_STORM;
+      if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, CRGB(0, 200, 255)); toonLeds(); toonLeds(); xSemaphoreGive(xLedMutex); }
+      return;
+    }
+    bool aan = ((t % 90) < 25) || ((t % 240) < 40);
+    CRGB kleur = aan ? CRGB(255, 220, 0) : CRGB(25, 22, 0);
+    if (xSemaphoreTake(xLedMutex, pdMS_TO_TICKS(20))) { fill_solid(leds, NUM_LEDS, kleur); toonLeds(); xSemaphoreGive(xLedMutex); }
     return;
   }
 
@@ -1134,6 +1200,9 @@ void voerActieUit(uint8_t actie) {
   }
   if (actie == ACTIE_KNOP_UIT) {
     knopArmed = false; digitalWrite(WARNING_LED_PIN, LOW);
+    // Drukknop roulette: knop-uit stopt ook een lopend ALARM (druk of time-out = alarm klaar).
+    // Andere melodieën spelen gewoon uit; alleen het alarm is aan de knop gekoppeld.
+    if (melodie.type == ACTIE_ALARM) { melodie.type = 0; noTone(BUZZER_PIN); }
     Serial.printf("[KNOP] paal %d inactief (LED uit)\n", PAAL_ID);
     return;
   }
@@ -1164,8 +1233,8 @@ void voerActieUit(uint8_t actie) {
   huidigeActie = actie;
   actieStartMs = millis();
 
-  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom, 19 = regenboog): updateAnimatie() tekent ---
-  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST || actie == ACTIE_TIJDBOM || actie == ACTIE_TORNADO_RAND || actie == ACTIE_REGENBOOG) {
+  // --- Geanimeerde acties (8 = nuke-ring, 11 = oogst, 13 = tijdbom, 19 = regenboog, 28 = bliksem): updateAnimatie() tekent ---
+  if (actie == ACTIE_NUKE || actie == ACTIE_OOGST || actie == ACTIE_TIJDBOM || actie == ACTIE_TORNADO_RAND || actie == ACTIE_REGENBOOG || actie == ACTIE_BLIKSEM) {
     Serial.printf("[ACTIE] Animatie %d\n", actie);
     updateAnimatie();   // teken meteen het eerste frame
     return;
@@ -1180,6 +1249,7 @@ void voerActieUit(uint8_t actie) {
     case ACTIE_MN_OPEN:     kleur = CRGB(180, 200, 255); break;   // zacht wit (poort open)
     case ACTIE_MN_DICHT:    kleur = CRGB(220,   0,   0); break;   // rood (poort dicht)
     case ACTIE_TORNADO:     kleur = CRGB( 40,  40,  45); break;   // donkergrijs (tornado-center)
+    case ACTIE_STORM:       kleur = CRGB(  0, 200, 255); break;   // cyaan (storm-baan; nergens anders in gebruik)
     case ACTIE_NIETS:
     default:                kleur = CRGB::Black;          break;
   }
@@ -1235,7 +1305,8 @@ void verwerkCommandos() {
                          actie == ACTIE_KNOP_ARM || actie == ACTIE_KNOP_UIT ||
                          actie == ACTIE_REGENBOOG ||
                          actie == ACTIE_KNOP_GOED || actie == ACTIE_KNOP_FOUT ||
-                         actie == ACTIE_ONTPLOFFING) ? 0 : 1;   // 1 = onbekende actie
+                         actie == ACTIE_ONTPLOFFING ||
+                         actie == ACTIE_ALARM || actie == ACTIE_STORM || actie == ACTIE_BLIKSEM) ? 0 : 1;   // 1 = onbekende actie
     if (seq != laatsteUitgevoerdeSeq) {
       Serial.printf("[CMD] Actie %d uitvoeren (seq %u)\n", actie, seq);
       if (ackStatus == 0) voerActieUit(actie);

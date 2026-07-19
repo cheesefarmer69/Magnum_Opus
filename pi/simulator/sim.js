@@ -69,7 +69,8 @@ const BUZZER_PIEP_MS = 600;   // moet overeenkomen met ACTIE_BUZZER_PIEP op de s
 const ACTIE_NAAM = {
     0: "NIETS", 1: "PORTAAL", 2: "HAPPY_HOUR", 3: "BUZZER_PIEP",
     4: "MEDICIJN", 5: "ZIEK_W3", 6: "ZIEK_W2", 7: "ZIEK_W1",
-    8: "NUKE", 9: "MN_OPEN", 10: "MN_DICHT", 11: "OOGST", 13: "TIJDBOM", 14: "TORNADO", 15: "TORNADO_RAND"
+    8: "NUKE", 9: "MN_OPEN", 10: "MN_DICHT", 11: "OOGST", 13: "TIJDBOM", 14: "TORNADO", 15: "TORNADO_RAND",
+    26: "ALARM", 27: "STORM", 28: "BLIKSEM"
 };
 const ACTIE_BUZZER_PIEP = 3;
 const ZIEKTE_WAARSCH_MS = 3500;   // hoe lang het kloppend-hart-icoon zichtbaar blijft
@@ -77,7 +78,8 @@ const KNOP_FLITS_MS = 450;        // hoe lang de knop-flits op het veld zichtbaa
 const SOLID_KLEUR = {
     0: "#cccccc", 1: "#9c27b0", 2: "#ffb400", 4: "#ff1493",  // 4 = medicijn (felroze)
     9: "#b4c8ff", 10: "#dc0000",                             // 9 = middernacht open (wit), 10 = dicht (rood)
-    14: "#3a3a40"                                            // 14 = tornado-center (donkergrijs)
+    14: "#3a3a40",                                           // 14 = tornado-center (donkergrijs)
+    27: "#00c8ff"                                            // 27 = storm-baan (cyaan)
 };   // 8 (nuke), 11 (oogst), 13 (tijdbom) en 15 (tornado-rand) worden geanimeerd in renderLeds()
 
 // --- SPELERS (default uit Node-RED config-flow) ---
@@ -170,6 +172,7 @@ const state = {
     paalBuzzer: new Array(AANTAL_PALEN + 1).fill(0),  // buzzer-icoon actief tot (ms)
     paalHart: new Array(AANTAL_PALEN + 1).fill(null), // ziekte-waarschuwing {tot, slagen} per paal
     paalKnop: new Array(AANTAL_PALEN + 1).fill(0),    // knop-flits actief tot (ms) per paal
+    paalBliksem: new Array(AANTAL_PALEN + 1).fill(0), // gele bliksem-flikker actief tot (ms) per paal (actie 28)
     drukknopPalen: [],          // palen met een fysieke drukknop (uit config/drukknoppen, retained)
     tijdbom: { spelers: [], ontmantelPalen: [] },     // actieve tijdbommen + ontmantel-palen (uit pof/tijdbom)
     animatie: { type: null },   // dramatische animatie (nuke/oogst/tornado) uit pof/animatie (retained, robuust)
@@ -184,6 +187,8 @@ const state = {
     tempo: 1,                   // reactietijd-multiplier (systeeminstelling -> sim/systeem-config)
     badAura: true,              // spelinstelling: slechte aura (avond/nacht gevaarlijker) -> sim/spel-config
     thuisbank: false,           // spelinstelling: levensuren storten bij landen op je startuur -> sim/spel-config
+    drukknopRoulette: false,    // dynamiek: spontaan 10s-alarm op een bezette drukknop-paal -> sim/spel-config
+    bliksem: false,             // dynamiek: 5%/storm-uur inslag (naar 1 levensuur) -> sim/spel-config
     spelTempo: 1,               // huidig spel-tempo (uitlezing uit pof/status, via sneller/trager-events)
     uitAllen: false,            // true wanneer de 'Out'-knop iedereen het veld uit zette
     events: [],                 // volledige events-pool [{id,naam,categorie,tekst,...}] (uit pof/events, retained)
@@ -263,6 +268,12 @@ function verwerkBericht(topic, raw) {
                 // wacht_ms (geplande bom, beat-sync): de cue komt LEAD ms vooraf binnen -- start pas
                 // op het geplande moment, net als de slave (anker), anders loopt de sim vóór op het veld.
                 state.bomPalen[paal] = { start: Date.now() + (data.wacht_ms || 0), laad: data.laad_ms || 0, hold: data.hold_ms || 0, pink: data.pink_ms || 0, hz: data.pink_hz || 2 };
+            } else if (actie === 26) {
+                // Drukknop-roulette-alarm: geluid-only op de paal; toon het zoemer-icoon ~10 s
+                state.paalBuzzer[paal] = Date.now() + 10400;
+            } else if (actie === 28) {
+                // Bliksem-inslag: gele flikker die vanzelf dooft (firmware valt terug naar storm-cyaan)
+                state.paalBliksem[paal] = Date.now() + 1300;
             } else if (actie === ACTIE_BUZZER_PIEP) {
                 // buzzer-piep: toon icoon voor de duur van de piep, laat paalActie ongemoeid
                 state.paalBuzzer[paal] = Date.now() + BUZZER_PIEP_MS;
@@ -877,7 +888,7 @@ function publishSysteemConfig() {
 
 function publishSpelConfig() {
     if (!state.verbonden) return;
-    state.client.publish("sim/spel-config", JSON.stringify({ badAura: state.badAura, thuisbank: state.thuisbank }), { retain: true });
+    state.client.publish("sim/spel-config", JSON.stringify({ badAura: state.badAura, thuisbank: state.thuisbank, drukknopRoulette: state.drukknopRoulette, bliksem: state.bliksem }), { retain: true });
 }
 
 function publishAvondModus() {
@@ -1256,7 +1267,12 @@ function renderLeds() {
 
         // Per-paal toestanden (geen dramatische animaties).
         const actie = state.paalActie[n] || 0;
-        if (actie === 13) {
+        if (state.paalBliksem[n] > Date.now()) {
+            // grillige gele dubbel-flits (actie 28), zelfde ritme als de firmware
+            const tb = Date.now() % 1000;
+            const aan = ((tb % 90) < 25) || ((tb % 240) < 40);
+            led.style.fill = aan ? "#ffdc00" : "#191600";
+        } else if (actie === 13) {
             led.style.fill = ((Date.now() % 500) < 120) ? "#ff1e00" : "#3a0000";   // tijdbom-ontmantelpaal
         } else if (actie === 11) {
             led.style.fill = (Math.floor(Date.now() / 120) % 2 === 0) ? "#ffffff" : "#9a9a9a";   // bom/oogst: witte flikker (per paal)
@@ -1767,6 +1783,18 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("bad-aura").addEventListener("change", (e) => {
         state.badAura = e.target.checked;
         log("info", "Slechte aura " + (state.badAura ? "AAN (avond/nacht gevaarlijker)" : "UIT"));
+        publishSpelConfig();
+    });
+    const _rouletteCb = document.getElementById("drukknop-roulette");
+    if (_rouletteCb) _rouletteCb.addEventListener("change", (e) => {
+        state.drukknopRoulette = e.target.checked;
+        log("info", "Drukknop roulette " + (state.drukknopRoulette ? "AAN (spontaan 10s-alarm, niemand drukt = iedereen -10%)" : "UIT"));
+        publishSpelConfig();
+    });
+    const _bliksemCb = document.getElementById("bliksem");
+    if (_bliksemCb) _bliksemCb.addEventListener("change", (e) => {
+        state.bliksem = e.target.checked;
+        log("info", "Bliksem " + (state.bliksem ? "AAN (5%/storm-uur, inslag = naar 1 levensuur)" : "UIT"));
         publishSpelConfig();
     });
     const _thuisCb = document.getElementById("thuisbank");

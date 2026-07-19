@@ -42,7 +42,7 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 - **Operator:** reactietijd **20 s**; let op de middernacht-uitzondering: wie door de dichte poort
   wordt tegengehouden op exact de poort-afstand wordt **niet** bestraft (gate-block).
 
-## Toestand-events (7)
+## Toestand-events (8)
 
 ### 3. Portalen — `portalen`
 - **Afroep:** *"Een portaal opent tussen twee uren."* (geen aantal-prefix); daarna de twee uren.
@@ -142,7 +142,19 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 - **Duur & kans:** tot spel-einde, een dood of tot jullie samenkomen; **epic**.
 - **LED/geluid:** geen paal-LED; afroep-audio *"tweeling"*.
 
-## Wereld-events (6)
+### 9b. Gelijke verdeling — `gelijke_verdeling` *(drukknop-event, juli 2026)*
+- **Afroep:** *"Gelijke verdeling! Druk op de regenboog-knop."*
+- **Effect:** één drukknop-paal toont een **regenboog** en is gearmd. Wie drukt: **alle levensuren
+  van alle spelers gaan op één hoop en worden gelijk verdeeld** (rest-uren 1-voor-1 naar
+  willekeurige spelers). Voor de armste spelers een cadeau, voor de leider een ramp — wie durft?
+- **Niemand drukt?** Na 3–5 events vervalt de kans en dooft de regenboog.
+- **Duur & kans:** duratie 3–5 events; max 1; **rare**.
+- **Operator:** dit is (naast de tijdbom) een **drukknop-event** — de bag trekt het via het
+  drukknop-token. Knop werkt pas na het armen (automatisch).
+
+---
+
+## Wereld-events (8)
 
 ### 10. Nuke — `nuke`
 - **Afroep:** *"Nuke."* — daarna telt de klok af.
@@ -207,9 +219,38 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
   **dichte** poort blijft dicht.
 - **Duur & kans:** **10–15 events**; max 1; **epic**; afloop-audio *"tijdreizen voorbij"*.
 
+### 16. Middernacht breidt uit — `middernacht_uitbreiding` *(juli 2026)*
+- **Afroep:** *"Middernacht zal uitbreiden."*
+- **Effect:** uur 23 en uur 1 doen 8–12 events mee als poort: zelfde witte/rode LED, zelfde regels.
+  **23 → 1 verplaatsen mag ook bij rood** (je blijft binnen de poort), maar wie bij rood vóórbij
+  uur 1 gaat, verliest alles + een sterfte, precies zoals een gewone oversteek.
+- **Stilstaan** op 23, 24 of 1 bij een rode lamp kost −1 per controle (zoals op de poort zelf).
+- **Duur & kans:** 8–12 events; max 1; **rare**; alleen als middernacht actief is. De **oogst**
+  blijft enkel op uur 24.
+
+### 17. Storm — `storm` *(juli 2026)*
+- **Afroep:** *"Een storm trekt over het veld,"* + de grootte (3–6 uren) + de richting
+  (*met de klok mee* / *tegen de klok in*).
+- **Effect:** een **cyaan** baan van aaneengesloten uren die **elk event 1 uur opschuift**,
+  10 events lang. **In de storm staan** bij de controle = **−1 levensuur**. Er **doorheen lopen**
+  kost **+1 extra per doorkruist storm-uur** — omlopen of wachten is dus slimmer.
+- **Bliksem** (aparte dynamiek, zie hieronder): als die aanstaat kan de storm inslaan.
+- **Duur & kans:** 10 events; max 1; **epic**. De storm mag over andere events heen trekken.
+
 ---
 
 ## Permanente mechanismen & dynamieken (Plates of Fate)
+
+**Drukknop roulette** *(dynamiek, aan/uit in de simulator-Spelinstellingen, juli 2026).* Op een
+willekeurig moment — óók tussen events — begint een drukknop-paal **waar iemand op staat** een
+**chaotisch alarm van 10 seconden**. Drukt iemand op tijd op die knop: ramp afgewend (groene
+flits). Drukt niemand: **iedereen verliest 10% van zijn levensuren**. Gemiddeld ~1× per 4 minuten,
+nooit 2× binnen de minuut.
+
+**Bliksem** *(dynamiek, aan/uit in de simulator-Spelinstellingen, juli 2026).* Alleen tijdens een
+**storm**: per event heeft elk storm-uur **5% kans** op een inslag — de paal flikkert **geel**, er
+klinkt een donderklap, en **iedereen op dat uur valt terug naar exact 1 levensuur** (net niet
+dood, geen sterfte).
 
 **Middernacht — de poort van π.** Geen event maar een vast mechanisme op de hoogste paal.
 Open (zacht wit) / dicht (rood) volgens de cijfers van π (3 open, 1 dicht, 4 open, …; loopt door

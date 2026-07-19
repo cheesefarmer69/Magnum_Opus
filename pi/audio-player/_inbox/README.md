@@ -36,6 +36,30 @@ Speelt automatisch, vlak vóór het volgende event, wanneer de toestand afloopt.
   `global.tweelingVerbrokenCue`)*
 - ✗ `etenstijd_voorbij.wav`  *("de wolf is voldaan")*
 
+### Nieuw (juli 2026): storm / bliksem / roulette / gelijke verdeling / middernacht-uitbreiding
+Alle hieronder ✗ — de config is al bekabeld, enkel de opnames ontbreken (ontbrekend = stil, nooit fataal).
+
+**Afroepen (audioVoor/Na):**
+- ✗ `events/wereld-events/middernacht_uitbreiding.wav`  *("Middernacht zal uitbreiden.")*
+- ✗ `events/wereld-events/storm.wav`  *("Een storm trekt over het veld," — daarna klinkt het getal)*
+- ✗ `events/wereld-events/uren_groot.wav`  *("uren groot.")*
+- ✗ `woorden/klok_mee.wav`  *("met de klok mee.")*
+- ✗ `woorden/klok_tegen.wav`  *("tegen de klok in.")*
+- ✗ `events/toestanden/gelijke_verdeling.wav`  *("Gelijke verdeling! Druk op de regenboog-knop.")*
+- ✗ `events/wereld-events/drukknop_roulette.wav`  *("Drukknop roulette!" — bij het spontane alarm)*
+
+**Eind-cues (afgelopen):**
+- ✗ `events/afgelopen/middernacht_uitbreiding_voorbij.wav`  *("Middernacht krimpt terug.")*
+- ✗ `events/afgelopen/storm_voorbij.wav`  *("De storm is gaan liggen.")*
+- ✗ `events/afgelopen/gelijke_verdeling_uitgevoerd.wav`  *("De levensuren zijn gelijk verdeeld.")*
+- ✗ `events/afgelopen/gelijke_verdeling_voorbij.wav`  *("De kans is verkeken." — niemand drukte)*
+- ✗ `events/afgelopen/roulette_afgewend.wav`  *("Ramp afgewend.")*
+- ✗ `events/afgelopen/roulette_mislukt.wav`  *("Niemand drukte: iedereen verliest tien procent.")*
+
+**Sound-effects:**
+- ✗ `sound-effect/wereld-events/storm.wav`  *(wind/onweer-sfeer, sfxReactie tijdens de reactietijd)*
+- ✗ `sound-effect/wereld-events/bliksem.wav`  *(donderklap, bij elke bliksem-inslag)*
+
 ### `sound-effect/` — reactietijd-sfx (`sfxReactie`) + woosh
 - ✓ `wereld-events/woosh.wav` (elk wereld-event), `wereld-events/bomaanslag.wav` (bang),
   `toestanden/tornado.wav`, `toestanden/portalen.wav`

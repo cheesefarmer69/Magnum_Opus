@@ -219,6 +219,13 @@ hetzelfde event tegelijk actief mogen zijn (zo blijft het veld overzichtelijk).
 - **Audio (opkomst):** `etenstijd.wav` (nog opnemen)
 - **Audio (weggaan):** `etenstijd_voorbij.wav` (nog opnemen)
 
+### Gelijke verdeling — "Gelijke verdeling! Druk op de regenboog-knop." (drukknop-event)
+- **Tier:** rare
+- **Uitleg:** Eén vrije drukknop-paal toont een **regenboog** (actie 19) en wordt gearmd. Wie drukt laat **alle levensuren van alle spelers samensmelten en gelijk verdelen** (afronden naar beneden; de rest-uren gaan 1-voor-1 naar willekeurige spelers, er gaat niets verloren). Drukt niemand binnen de duratie (3–5 events), dan vervalt de kans.
+- **Max:** 1
+- **Audio (opkomst):** `gelijke_verdeling.wav` (nog opnemen)
+- **Audio (weggaan):** `gelijke_verdeling_voorbij.wav` bij verval; `gelijke_verdeling_uitgevoerd.wav` bij een druk (beide nog opnemen)
+
 ### Tweeling — "2 spelers worden een tweeling."
 - **Tier:** epic
 - **Uitleg:** Koppelt 2 spelers; je verdient enkel levensuren als je partner deze ronde óók legaal bewoog. Sterft er één, dan sterft de ander mee (behalve bij een nuke). Samen op hetzelfde uur eindigen heft de vloek op.
@@ -517,6 +524,21 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 - **Audio (opkomst):** `tijdreizen.wav`
 - **Audio (weggaan):** `tijdreizen_voorbij.wav`
 
+### Middernacht breidt uit — "Middernacht zal uitbreiden."
+- **Tier:** rare
+- **Uitleg:** De buurpalen van de poort (uur 23 en uur 1 op een vol veld) fungeren 8–12 events lang mee als uur 24: zelfde LED, zelfde regels. Van 23 naar 1 verplaatsen mag óók bij een rode lamp (dat is binnen de poort blijven), maar er **voorbij** (uur 2+) blijft dodelijk.
+- **Max:** 1 (alleen kiesbaar als middernacht actief is)
+- **Audio (opkomst):** `middernacht_uitbreiding.wav` (nog opnemen)
+- **Audio (weggaan):** `middernacht_uitbreiding_voorbij.wav` (nog opnemen)
+
+### Storm — "Een storm trekt over het veld."
+- **Tier:** epic
+- **Uitleg:** Een **cyaan** baan van 3–6 aaneengesloten uren (grootte wordt afgeroepen, richting ook: met de klok mee of tegen) start op een willekeurige plek — mag over bestaande events heen — en schuift **1 uur per event** op, 10 events lang. In de storm staan kost **−1 levensuur per controle**; er **doorheen** lopen kost **+1 extra per doorkruist storm-uur** (portaal-sprongen tellen niet). Onder 0 → 0 + sterfte.
+- **Max:** 1
+- **Audio (opkomst):** `storm.wav` + getal + `uren_groot.wav` + `klok_mee.wav`/`klok_tegen.wav` (alle nog opnemen)
+- **Audio (weggaan):** `storm_voorbij.wav` (nog opnemen)
+- **Sfeer (reactietijd):** `sound-effect/wereld-events/storm.wav` (`sfxReactie`, nog opnemen)
+
 ## Huidige events
 
 ### Nuke — "Nuke." (ontploffing + regroup)
@@ -617,6 +639,67 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   (bij afloop) — beide WAV's moet je nog **opnemen**.
 
 ## Nieuwe events & regels (juli 2026)
+
+### Middernacht breidt uit — "Middernacht zal uitbreiden." (wereld)
+- **Werking**: zet `global.mnZone` = de twee **buurpalen** van de poort op de actieve ring (vol veld:
+  uur 23 en uur 1). Zolang de toestand loopt (duratie `[8,12]`) tellen die overal mee als poort:
+  zelfde **LED** (wit/rood, "Sync toestanden + LEDs"), de **STIL-straf** (−1 bij rood stilstaan geldt
+  ook op 23/1), de **M10-gate** (doelwit dat exact op een zone-lid landt → OK), en de
+  **doelwit-uitsluiting** (events kiezen 23/1 niet). De oversteek-regel wordt zachter én harder
+  tegelijk: een voorwaartse oversteek die **op uur 1 landt** (23 → 1) mag ook bij een rode lamp
+  (binnen de poort blijven), maar wie er **voorbij** gaat (uur 2+) sterft zoals voorheen
+  (`MIDDERNACHT DICHT`). Ook de live **poort-bewaker** (tussen events) respecteert de zone.
+- **Alleen kiesbaar** wanneer het middernacht-mechanisme actief is ("Kies event"-filter); de oogst
+  blijft **enkel op uur 24** (bewuste keuze — drie oogst-palen zou te dodelijk zijn).
+- **Config**: `tier:"rare"`, `max:1`, `doelwit:{type:"geen"}`, `gevolgen:[{type:"mn_uitbreiding"}]`.
+- **Audio**: `middernacht_uitbreiding.wav` + `middernacht_uitbreiding_voorbij.wav` — **nog opnemen**.
+
+### Storm — "Een storm trekt over het veld." (wereld)
+- **Werking**: "Kies event" rolt de **grootte** (3–6, = het afgeroepen getal) en de **richting**
+  (klok mee / klok tegen — apart afgeroepen via `woorden/klok_mee.wav`/`klok_tegen.wav`); "Voer
+  gevolg uit" kiest een willekeurige startplek (mag over bestaande events heen liggen) en zet
+  `global.storm = {uren, richting}`. Elke ronde schuift **"Verouder effecten"** de baan 1 uur op.
+  De baan is **cyaan** (actie 27, nieuw) via de Sync; de poort-LED wint bij overlap.
+- **Schade** ("Verifieer beweging", zelfde semantiek als max/uur): **in** de storm eindigen = **−1**
+  per controle; het pad **erdoorheen** = **+1 extra per doorkruist storm-uur** (eindpaal telt niet
+  dubbel; portaal-sprongen tellen niet). Onder 0 → 0 + sterfte.
+- **Config**: `tier:"epic"`, `max:1`, `duratie:10`, `getal:[3,6]`, `gevolgen:[{type:"storm"}]`.
+- **Audio**: `storm.wav` (voor) + getal + `uren_groot.wav` (na) + richting-clip; afloop
+  `storm_voorbij.wav`; reactietijd-sfx `sound-effect/wereld-events/storm.wav` — **alles nog opnemen**.
+
+### Bliksem (dynamiek, simulator-instelbaar — hoort bij de storm)
+- **Werking**: checkbox **Bliksem** in het simulator-Spelinstellingen-paneel (retained
+  `sim/spel-config` → `global.bliksemAan`). Alleen terwijl een storm loopt: per event heeft **elk
+  storm-uur 5% kans** op een inslag. Bij een inslag flikkert de paal **geel** (actie 28, ~1,3 s,
+  valt daarna vanzelf terug op storm-cyaan), klinkt `sound-effect/wereld-events/bliksem.wav`
+  (mee met de afgelopen-cue-emissie) en gaat **iedereen op dat uur naar exact 1 levensuur** —
+  net niet dood, geen sterfte.
+
+### Drukknop roulette (dynamiek, simulator-instelbaar)
+- **Werking**: checkbox **Drukknop roulette** (retained `sim/spel-config` →
+  `global.drukknopRouletteAan`). Op een willekeurig moment tussendoor (1 s-tick, ~1× per 4 min,
+  cooldown 60 s) wordt een drukknop-paal **waar minstens één speler op staat** (en waar geen ander
+  drukknop-event actief is) gearmd met een **chaotisch 10-seconden-alarm** (actie 26, nieuw).
+  **Drukt iemand binnen de 10 s** → ramp afgewend (groene flits + deuntje, alarm stopt).
+  **Drukt niemand** → **iedereen verliest 10% van zijn levensuren** (naar boven afgerond,
+  vloer 0, géén sterfte) en de paal flitst rood.
+- **Audio** (alle **nog opnemen**, ontbrekend = stil): `drukknop_roulette.wav` (activatie),
+  `roulette_afgewend.wav`, `roulette_mislukt.wav`.
+
+### Gelijke verdeling — "Gelijke verdeling! Druk op de regenboog-knop." (drukknop-event)
+- **Werking**: "Voer gevolg uit" kiest één **vrije** drukknop-paal (geen ontmantel-paal, geen
+  poort/zone, geen roulette) → die toont een **regenboog** (actie 19 via de Sync) en wordt
+  **gearmd**. In "Knop-verwerking": bij een druk wordt de **pot** (som van alle levensuren van
+  niet-gepauzeerde spelers) gelijk verdeeld — **afronden naar beneden**, de rest-uren gaan
+  **1-voor-1 naar willekeurige spelers** zodat er niets verloren gaat. Drukt niemand binnen de
+  duratie (`[3,5]`), dan vervalt de kans ("Verouder effecten" ontwapent de knop).
+- **Bag**: dit is (naast de tijdbom) een **drukknop-event**: het zit in `bagConfig.drukknopEvents`
+  en wordt door het bag-token "drukknop" getrokken — en is **uitgesloten** uit de gewone
+  toestand-pool (niet dubbel trekbaar). Zie invariant/bag-sectie in `docs/spel/event-systeem.md`.
+- **Config**: `tier:"rare"`, `max:1`, `doelwit:{type:"geen"}`, `gevolgen:[{type:"gelijke_verdeling"}]`.
+- **Audio**: `gelijke_verdeling.wav` + `gelijke_verdeling_uitgevoerd.wav` (druk) +
+  `gelijke_verdeling_voorbij.wav` (verval) — **nog opnemen**.
+
 
 ### Body-swap — "Twee spelers wisselen van plaats." (toestand)
 - **Werking**: 2 spelers die **minstens 5 uren uit elkaar** staan zijn doelwit. **Correct** = beide eindigen

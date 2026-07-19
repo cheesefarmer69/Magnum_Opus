@@ -155,17 +155,24 @@ Huidige mapping (config → bestand, per submap):
 - **`events/toestanden/`** (toestand-events): `worden_ziek.wav`, `worden_een_tijdbom.wav`,
   `worden_getroffen_door_een_tornado.wav`, `een_portaal_opent_tussen_twee_uren.wav`,
   `worden_happy_hour.wav`, `etenstijd.wav` ("een wolf zal jagen op zijn schaapjes"),
-  `tweeling.wav` ("2 spelers worden een tweeling"), `body_swap.wav` ("twee spelers wisselen van plaats").
+  `tweeling.wav` ("2 spelers worden een tweeling"), `body_swap.wav` ("twee spelers wisselen van plaats"),
+  en (nog op te nemen) `gelijke_verdeling.wav` ("Gelijke verdeling! Druk op de regenboog-knop.").
 - **`events/wereld-events/`** (wereld-events): `events_komen_sneller.wav`,
   `events_komen_trager.wav`, `een_bomaanslag_vind_plaats_op.wav`, `nuke.wav`, `identiteitscrisis.wav`,
   `tijdreizen.wav` ("tijdreizen zal worden toegestaan"), `polonaise.wav` ("de polonaise begint"),
-  `max_per_uur.wav` + `spelers_per_uur_staan.wav`.
+  `max_per_uur.wav` + `spelers_per_uur_staan.wav`, en (nog op te nemen)
+  `middernacht_uitbreiding.wav`, `storm.wav` + `uren_groot.wav` (het storm-getal klinkt ertussen;
+  de richting komt uit `woorden/klok_mee|klok_tegen.wav`) en `drukknop_roulette.wav`.
   De **bomaanslag** roept de gekozen uren af als getal-segmenten na `een_bomaanslag_vind_plaats_op.wav`;
   die clip is meteen de gesproken waarschuwing vlak vóór de reactietijd van dat event.
 - **`events/afgelopen/`** (eind-cue `audioAfgelopen` bij afloop van de duratie):
   `portaal_gesloten.wav`, `happy_hour_voorbij.wav`, `identiteitscrisis_voorbij.wav`,
   `tijdreizen_voorbij.wav`, `max_per_uur_voorbij.wav`, `polonaise_voorbij.wav`, en (nog op te nemen)
   `etenstijd_voorbij.wav` ("de wolf is voldaan").
+  Nieuw (nog op te nemen): `middernacht_uitbreiding_voorbij.wav`, `storm_voorbij.wav`,
+  `gelijke_verdeling_voorbij.wav`; en buiten `audioAfgelopen` om: `gelijke_verdeling_uitgevoerd.wav`
+  (bij een druk), `roulette_afgewend.wav` / `roulette_mislukt.wav` (drukknop roulette) en de
+  donderklap `sound-effect/wereld-events/bliksem.wav` + storm-sfx `sound-effect/wereld-events/storm.wav`.
   Buiten het generieke `audioAfgelopen`-pad om spelen: **`alle_zieken_gestorven.wav`**
   ("Alle zieken zijn gestorven." — **Ziekte-beheer**, geen medicijn meer terwijl er zieken zijn,
   invariant Z9), **`tijdbom_ontmanteld.wav`** / **`tijdbom_ontploft.wav`** (**Knop-verwerking** /
@@ -192,7 +199,9 @@ positief deuntje).
 
 De aantal-prefix (`speler`/`spelers`/`uur`/`uren`/`groep`/`groepen`) staat in `prefix/`
 (zie `prefix/README.md`); de losse tussenwoorden `of.wav` en `een.wav` staan in `woorden/`
-(`een.wav` is nog niet in een afroep gewired — reserve voor een toekomstig event).
+(`een.wav` is nog niet in een afroep gewired — reserve voor een toekomstig event). Nieuw (nog op
+te nemen): `klok_mee.wav` ("met de klok mee.") en `klok_tegen.wav` ("tegen de klok in.") — de
+richting-afroep van het storm-event.
 
 **Alle groep-audio** (de aanroep "groep/groepen" + kleur/jaar/maand/seizoen met hun
 waarden) staat gebundeld in `groepen/` — zie **`groepen/README.md`** voor de volledige
