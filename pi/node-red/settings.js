@@ -97,6 +97,65 @@ module.exports = {
             global.set("pofPeek", null);   // S7 peek & veto
         },
 
+        // ---- S1 BAG-SYSTEEM (single source of truth) ------------------------------------
+        // De categorie-mix per blok van 10 events. De ENGINE trekt hiermee, en de wachtrij-
+        // PREVIEW simuleert met exact dezelfde functies vooruit — zo kan de preview nooit iets
+        // anders tonen dan wat er echt komt. Wijzig je de regels, doe het dus HIER.
+        bagDefault: function () {
+            return {
+                quota: { verplaatsing: 4, toestand: 2, wereld: 2, drukknop: 1 },
+                vrijeSlots: 1, blokgrootte: 10, geenHerhaling: true,
+                maxHoogOpRij: 2, drukknopMin: 10, actief: false
+            };
+        },
+        // Vul een verse zak volgens de quota + vrije slots en schud hem (Fisher-Yates).
+        bagVul: function (cfg) {
+            const bag = [];
+            const q = (cfg && cfg.quota) || {};
+            for (const cat in q) for (let i = 0; i < (q[cat] || 0); i++) bag.push(cat);
+            for (let i = 0; i < ((cfg && cfg.vrijeSlots) || 0); i++) bag.push("vrij");
+            for (let i = bag.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+            }
+            return bag;
+        },
+        // Trek één token. PUUR: muteert niets globaal, geeft de nieuwe staat terug.
+        // st = { bag, laatsteCategorie, sindsKnop }.
+        bagTrek: function (st, cfg, helpers) {
+            let bag = (st.bag || []).slice();
+            if (!bag.length) bag = helpers.bagVul(cfg);
+            let kandidaten = bag.filter(function (v, i, a) { return a.indexOf(v) === i; });
+            // Regel 1: niet twee keer dezelfde categorie na elkaar (ontsnapping als dat alles wegfiltert).
+            if (cfg.geenHerhaling && st.laatsteCategorie) {
+                const zonder = kandidaten.filter(function (c) { return c !== st.laatsteCategorie; });
+                if (zonder.length) kandidaten = zonder;
+            }
+            // Regel 2: HARDE drukknop-ondergrens — minstens 1 knop-event per drukknopMin events,
+            // ook als het quotum op 0 staat. Staat er geen drukknop-token in de zak, dan forceren
+            // we hem er alsnog bij (er wordt dan geen token verbruikt; de rest van het blok blijft
+            // dus intact en de verhouding van de overige categorieën klopt nog steeds).
+            let kies, geforceerd = false;
+            if ((st.sindsKnop || 0) >= (cfg.drukknopMin || 999)) {
+                kies = "drukknop";
+                geforceerd = bag.indexOf("drukknop") < 0;
+            } else {
+                kies = kandidaten[Math.floor(Math.random() * kandidaten.length)];
+            }
+            if (!geforceerd) bag.splice(bag.indexOf(kies), 1);
+            return {
+                kies: kies,
+                bag: bag,
+                laatsteCategorie: (kies === "vrij") ? st.laatsteCategorie : kies,
+                sindsKnop: (kies === "drukknop") ? 0 : ((st.sindsKnop || 0) + 1)
+            };
+        },
+        // Geen `intensiteit`-veld in de event-configs: "hoog" leiden we af uit de tier.
+        bagIsHoog: function (ev, tierOverride) {
+            const t = (tierOverride && tierOverride[ev.id]) || ev.tier || "common";
+            return t === "epic" || t === "legendary";
+        },
+
         // Gedeelde TWEELING-DOOD (single source of truth, invariant TW3). Sterft een speler, dan
         // sterft zijn tweeling mee (uren 0 + 1 sterfte) en breekt de band. Dit moet OOK gebeuren
         // buiten "Verifieer beweging": bij de middernacht-oogst en bij de ziekte-dood. Roep aan met
