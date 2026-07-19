@@ -62,6 +62,11 @@ module.exports = {
 
     // --- Function-nodes ---
     functionGlobalContext: {
+        // S4 crash-herstel: function-nodes mogen naar /data/state schrijven (atomair: .tmp + rename).
+        // /data is de persistente Node-RED-volume-mount, dus dit overleeft een container-recreate.
+        fs: require("fs"),
+        path: require("path"),
+
         // Gedeelde PARTIJ-reset (single source of truth). Wist ALLE per-partij toestand-registers
         // op één plek, zodat elk nieuw global-veld nog maar HIER hoeft te worden toegevoegd i.p.v.
         // in elke reset-knop apart. Raakt NOOIT persistente state aan (globaleStats, spelHistorie,
@@ -87,6 +92,9 @@ module.exports = {
             global.set("pofVerificatie", {}); global.set("pofLaatsteControle", []); global.set("pofPad", {});
             global.set("pofVrijPad", {}); global.set("pofVrijVanaf", 0);
             global.set("mnGestraft", {}); global.set("paalLedActie", {});
+            global.set("freeze", false);   // S3 incident-freeze: een nieuwe partij start nooit bevroren
+            global.set("pofBag", []); global.set("pofLaatsteCategorie", null); global.set("pofSindsKnop", 0); global.set("pofBagHoogTeller", 0);   // S1 bag-systeem: verse zak per partij
+            global.set("pofPeek", null);   // S7 peek & veto
         },
 
         // Gedeelde TWEELING-DOOD (single source of truth, invariant TW3). Sterft een speler, dan
