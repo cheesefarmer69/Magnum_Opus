@@ -317,6 +317,23 @@ Aan/uit via de simulator (🎲 Spelinstellingen → "Thuisbank"), retained op `s
 
 ---
 
+## 5c. Incident-freeze, bag-systeem & crash-herstel (juli 2026)
+
+| # | Invariant |
+|---|-----------|
+| **FR1** | **Freeze = totale stilstand.** `global.freeze === true` (gezet door Pauze, gewist door Hervat) betekent dat **geen enkele** tijd-node nog iets doet: `Engine tick`, `Poolse-muziek-tick`, `Sync toestanden + LEDs`, en de `Klokslag`/`Infected`/`Bommen`-engines keren onmiddellijk terug. Tijdens een freeze is er dus **geen levensuren-mutatie, geen toestand-veroudering en geen countdown** — de teller staat bij Hervat exact waar hij stond. |
+| **FR2** | Bij pauze gaan alle 24 palen **wit** (actie 16) en ligt de LED-sync stil, zodat dat wit blijft staan. Bij hervat herbouwt de 2 s-sync de echte kleuren uit `bordStaat`; er wordt bewust **geen** vorige LED-staat bewaard. |
+| **FR3** | `resetPartij()` zet `freeze` altijd op `false`: een nieuwe partij start nooit bevroren. |
+| **BG1** | Het **bag-systeem** is additief en standaard **uit** (`bagConfig.actief === false`) → dan gedraagt de engine zich exact als vóór juli 2026 (pure tier-weging). |
+| **BG2** | Met de bag aan ligt **de verhouding per blok vast, de volgorde niet**: elk blok van `blokgrootte` events bevat exact de geconfigureerde quota + vrije slots. Nieuwe quota gelden pas bij de **volgende** zak (of meteen na "Zak herschudden"). |
+| **BG3** | De **wachtrij-preview** simuleert de zak vooruit met **dezelfde helpers** als de engine (`bagVul`/`bagTrek` in `settings.js`). De preview mag dus nooit een andere volgorde tonen dan wat er echt komt. |
+| **BG4** | Een **veto** (S7) geeft het verbruikte token terug aan de zak, zodat de blokverhouding klopt. De drukknop-ondergrens (`drukknopMin`) vuurt **ook** als het quotum 0 is, zonder de rest van de mix te verstoren. |
+| **CR1** | De spelstate wordt elke 15 s **atomair** (`.tmp` + rename) naar `/data/state/spelstate-N.json` geschreven in een **ringbuffer van 5**; een corrupt of half bestand kost dus hooguit de nieuwste snapshot. |
+| **CR2** | Na een herstart wordt een gevonden snapshot **alleen gemeld**, nooit automatisch geladen. Laden gebeurt op de knop "Herstel na reboot" en zet het spel **bevroren** (`freeze=true`, `gepauzeerd`) zodat de operator eerst het veld kan bekijken. |
+| **ZT1** | De **pre-flight zelftest** weigert te draaien terwijl `spelToestand === "lopend"`. Het GO/NO-GO-oordeel is NO-GO bij: geen contact met een paal, batterij < 3,5 V, of een knop-timeout op een drukknop-paal. |
+
+---
+
 ## 5b. PoF-doelen & stats per spel
 
 | # | Invariant |

@@ -219,7 +219,8 @@ De fases `idle` en `regroup` nemen niets op. Classificatie:
    aura en de suffix `| VRIJ GEWANDELD (0 uur)` — géén uren-verlies, géén sterfte. Een god-punt
    vergeeft het. Er is **geen enkele vrije fase** meer — ook niet de `regroup` na een nuke. Er wordt enkel
    opgenomen zolang de PoF-engine draait (niet bij Klokslag/Infected of een gestopt spel). Zie **V10**.
-2. **Event kiezen + tonen** — respecteer de `max`/`getal`-grenzen van het event.
+2. **Event kiezen + tonen** — respecteer de `max`/`getal`-grenzen van het event. Met het
+   **bag-systeem** aan (§4b) bepaalt eerst de zak de *categorie*, en kiest de engine daarbinnen.
 3. **Doelwitten bekendmaken** (fase `bezig`) — wie is geselecteerd (afroep: aantal + zelfst.nw +
    tekst). **De pad-opname loopt hier al** (begin-snapshot staat vast), zodat bewegen tijdens de
    reveal niet ongestraft blijft.
@@ -231,6 +232,46 @@ De fases `idle` en `regroup` nemen niets op. Classificatie:
 6. **Controle** — de verplaatsingscontrole draait (sectie 7): pad actie-per-actie + invarianten.
 7. **Toestanden opschonen** — verlopen toestanden (`resterendeRondes ≤ 0`) verdwijnen; portalen/
    happy hour die nog actief zijn blijven.
+
+## 4b. Bag-systeem — de categorie-mix sturen (juli 2026)
+
+Zonder bag kiest de engine puur op **tier-gewicht** (common 50 / uncommon 25 / rare 15 / epic 8 /
+legendary 2). Dat geeft geen controle over de *verhouding* tussen soorten events: je kan drie
+wereld-events na elkaar krijgen. Het **bag-systeem** lost dat op zonder de volgorde voorspelbaar
+te maken.
+
+**Werking.** Per blok van `blokgrootte` (default 10) events wordt een "zak" gevuld met tokens
+volgens de quota (bv. 4× `verplaatsing`, 2× `toestand`, 2× `wereld`, 1× `drukknop`) plus
+`vrijeSlots` jokers, en geschud. Elk event trekt één token; is de zak leeg, dan wordt hij opnieuw
+gevuld. **De verhouding ligt dus vast, de volgorde niet.** Een `vrij`-token = de oude tier-weging
+over álle categorieën (daar landen de legendaries).
+
+**Twee flow-regels bovenop de zak:**
+- `geenHerhaling` — nooit twee events van dezelfde categorie na elkaar (met ontsnapping: als de
+  regel alle kandidaten wegfiltert, wint "een event kiezen").
+- `maxHoogOpRij` — na N zware events op rij vraagt de engine een rustiger event
+  (`msg.vermijdHoog`). "Zwaar" wordt afgeleid uit de tier (`epic`/`legendary`), want de
+  event-configs hebben geen `intensiteit`-veld.
+- `drukknopMin` — **harde** ondergrens: minstens één knop-event per N events, **ook als het
+  quotum op 0 staat** (dan wordt een token geforceerd zonder de rest van de mix te verstoren).
+
+**`drukknop` is een virtuele categorie.** Geen enkel event heeft `categorie:"drukknop"`; het token
+verwijst naar de events uit `bagConfig.drukknopEvents` (default `["tijdbom_speler"]`).
+
+**Waar het leeft.** Config op retained `config/bag` → `global.bagConfig`; de zak zelf in
+`global.pofBag` (+ `pofLaatsteCategorie`, `pofSindsKnop`, `pofBagHoogTeller`). De trek-logica staat
+als **gedeelde helper** in `settings.js` (`bagVul`/`bagTrek`/`bagIsHoog`), zodat de engine
+(node "Bag: kies categorie") en de **wachtrij-preview** in "Bouw pof/status" letterlijk dezelfde
+code gebruiken — de preview kan dus niet iets anders tonen dan wat er echt komt.
+
+**Live wijzigen.** Nieuwe quota gelden vanaf de **volgende** zak (anders klopt de verhouding van
+het lopende blok niet). Met de knop **"Zak nu herschudden"** forceer je ze meteen. Bediening →
+groep **"Event-mix (bag)"**; de tekst "Zak nu" toont de resterende tokens (V/T/W/K/\*).
+
+`actief:false` (default) = exact het oude gedrag. Zie ook §7 peek & veto: een **veto** geeft het
+verbruikte token terug aan de zak, zodat de blokverhouding blijft kloppen.
+
+---
 
 Portalen en happy hour zijn **toestanden** (open in hun eigen event, blijven actief tot ze
 aflopen of voor altijd als er geen einde is). De **levensduur** van een toestand komt uit
