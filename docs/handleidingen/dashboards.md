@@ -31,6 +31,7 @@ Zo hangen de pagina's samen. Volg deze volgorde:
 | # | Fase | Pagina | Wat je doet |
 |---|------|--------|-------------|
 | 1 | **Opbouw** | [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning) | Elke paal fysiek testen: brandt de LED, klinkt de zoemer? |
+| 1b | **Geluid checken** | [Audio](#10-audio-audio-preview) | Box: fragmenten + een volledige event-afroep beluisteren. Palen: de zoemer-deuntjes afspelen. **Kan niet tijdens een lopend spel.** |
 | 2 | **Bakens uitdelen** | [Beacons & Locatie](#6-beacons--locatie-beacons) | Baken ↔ speler koppelen (LED-helderheid staat nu bij [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning)) |
 | 3 | **GO/NO-GO** | [Spelstatus](#1-spelstatus-spelstatus) | Staan alle 31 spelers op **OK**? Alle palen groen? Geen foutcodes? |
 | 4 | **Testronde** | Simulator (🧪 Test) + [Bediening](#2-bediening-bediening) | Spelers een ronde laten oefenen — telt niet mee |
@@ -223,6 +224,50 @@ armt de **tijdbom** zijn ontmantelpalen automatisch — hier doe je het met de h
 |---|---|
 | **Knoppen activeren** | Per paal de knop **arm**en. De GPIO6-LED op het bordje gaat aan; hij dooft zolang je de knop indrukt — zo zie je meteen of de knop elektrisch werkt. |
 | **Druk-tellers** | Hoe vaak er op elke paal gedrukt is. **Reset tellers** zet ze op 0. |
+
+---
+
+## 10. Audio (`/audio-preview`)
+
+**Waarvoor:** **alle geluid beluisteren en testen vóór het spel** — zowel de gesproken audio uit de
+box als de zoemer-deuntjes op de palen.
+
+> ⚠️ **Alles op deze pagina wordt geweigerd terwijl er een spel loopt** (je krijgt dat als melding in
+> het statusveld te zien). Dat is met opzet: een preview-afroep of een zoemerpiep is voor de spelers
+> niet van een echte te onderscheiden en zou het spel vervalsen. Test dus vóór de start of na de stop.
+
+| Groep | Waarvoor |
+|---|---|
+| **Fragment beluisteren** | Kies een **Map** (`events/toestanden`, `spelers`, `getallen`, `muziek`, …) en daarbinnen een **Fragment**, en druk **Speel af**. De dropdowns vullen zichzelf uit de bestanden die écht op de Pi staan, dus wat hier niet in de lijst staat, ontbreekt ook in het spel. Lange tracks (alles uit `muziek/` en de dood-cutscene) gaan automatisch via het **bestuurbare muziek-kanaal** — daarvoor is **Stop muziek**, dat een lopende track afbreekt. |
+| **Event-aankondiging testen** | Kies een **Event** en druk **Speel aankondiging**: je hoort de volledige afroep zoals het spel hem zou opbouwen (woosh bij wereld-events, aantal + prefix, de `audioVoor`-clip, het getal, de `audioNa`-clip en de eventuele reactietijd-sfx), met **3** als voorbeeld-aantal en **5** als voorbeeld-uur. Zo hoor je meteen of er een WAV ontbreekt. |
+| **Zoemer op de paal** | De **zoemer-deuntjes uit de firmware** afspelen op één paal. Kies het **Zoemergeluid**, zet **Paal (1-24)** en druk **Speel op de paal**. Zie de tabel hieronder. |
+
+### Welke zoemergeluiden zijn er?
+
+Elk deuntje hangt vast aan een **actie-id** — de slave speelt de bijbehorende melodie zelf af (de
+noten staan in `firmware/Slave/src/main.cpp`, de acties in [`../protocol.md`](../protocol.md) §2).
+
+| Geluid in de dropdown | Actie | Hoe het klinkt | Waar het in het spel voor staat |
+|---|---|---|---|
+| **Piep (uur-afroep)** | 3 | één korte toon van 600 ms | het afroepen van een uur-doelwit; klinkt **per paal op een andere frequentie** (elk bordje is gekalibreerd in `BUZZER_FREQ_TABEL`, daarom klinkt dit op de ene paal luider dan op de andere) |
+| **Ziek — nog 3 events** | 5 | ziekenhuis-monitor (3× 2200 Hz) + **3** hartslagen | waarschuwing aan een zieke speler |
+| **Ziek — nog 2 events** | 6 | idem + **2** hartslagen | idem |
+| **Ziek — nog 1 event** | 7 | idem + **1** hartslag | laatste waarschuwing vóór hij sterft |
+| **Knop goed (stijgend)** | 22 | twee stijgende tonen (2000 → 2600 Hz) | goede keuze bij een drukknop-event |
+| **Knop fout (dalend)** | 23 | twee dalende, doffe tonen (1600 → 1000 Hz) | foute keuze |
+| **Ontploffing (sirene+dreunen)** | 24 | dalende sirene 2500 → 300 Hz + drie lage dreunen (~1,6 s) | een tijdbom gaat af — bewust veel langer en lager dan 23, zodat je het van over het veld hoort |
+
+> **22, 23 en 24 zetten óók de LED** (groene flits · rode flits · rode strobe). Dat hoort bij die
+> acties en dooft **vanzelf** — je hoeft achteraf geen "uit" te sturen.
+
+**Verschil met de andere twee zoemer-knoppen:**
+
+- *Buzzer/LED test* → **Zoemer-test** speelt altijd dezelfde korte piep (actie 3) op de gekozen paal —
+  bedoeld om bij de opbouw snel alle 24 palen af te lopen.
+- *Buzzer/LED test* → **Buzzer-tuning** stuurt een **continue, instelbare** toon (actie 12) en altijd
+  naar **paal 1**; daarmee zoek je de resonantiefrequentie van een bordje.
+- Deze pagina speelt de **echte spel-deuntjes** op een **vrij te kiezen paal**, zodat je hoort wat de
+  spelers straks horen.
 
 ---
 
