@@ -6,11 +6,23 @@ Waar `genereer_tijdlijn.py` een WAV *analyseert* (onsets raden), leest deze gene
 **noot-exact** — veel strakker. Bedoeld voor de AoT-hardstyle-track "YouSeeBIGGIRL", maar de
 constanten bovenaan zijn eenvoudig aan te passen voor een ander nummer.
 
-Choreografie:
-  - de drijvende beat (BEAT_NOTE) -> losse bommen, uitgedund met een sectie-geschaalde min-gap,
-    palen roterend rond de 24-ring zodat spelers moeten blijven bewegen;
-  - de zeldzame accenten (ACCENT_NOTE) -> grote GROEPS-explosies (meerdere palen tegelijk);
-  - rustige secties (SFEER) -> sfeer-golven (actie 16, geen scoring) i.p.v. bommen.
+Choreografie v2 (juli 2026 — "maak het intens"): vijf secties die de intensiteitsboog van het
+nummer volgen, met COMBINATIES van bom-vormen en SEQUENTIES — alles verankerd op MIDI-noten:
+
+  intro     0-20   ademruimte: trage SLOW-dread-bommen (7,2 s opladen — dreiging, geen paniek)
+  opbouw    20-40  STD-bommen op de beat + de eerste CHASE-sequenties (3 palen die na elkaar
+                   beginnen te laden maar SAMEN pinken en SAMEN ontploffen op één beat)
+  drop      40-70  dichte PUNCH-bommen (1,8 s — snel!), QUAD-ring-blasts op de accenten,
+                   MIRROR-paren (p en p+12) en twee WALLs van 5 aaneengesloten palen
+  breakdown 70-82  sfeer-golven (geen scoring) + twee SLOW-dreads die de stilte OVERBRUGGEN
+                   en pas op de eerste beats van de finale ontploffen
+  finale    82-113 climax: PUNCH-beats, CHASE-4-sequenties, QUAD-accenten en als slotstuk een
+                   MEGA-WALL van 12 palen op de laatste grote hit
+  outro     113+   uitademen (niets)
+
+Zelfde-paal-conflicten worden automatisch weggedraaid (een paal krijgt geen nieuwe cue zolang
+zijn vorige bom nog loopt), zodat de firmware-bom-queue (diepte 4, max ~2 pending) nooit klem
+loopt en replace-on-fire geen choreografie opeet.
 
 Output = het bestaande bommenTijdlijn-schema (cmds/expl/duur), uitgebreid met `sfeer:[{van,tot}]`.
 
@@ -29,29 +41,27 @@ ROOT = os.path.abspath(os.path.join(HIER, "..", ".."))
 # ---- Bron (defaults voor AoT — YouSeeBIGGIRL) --------------------------------------------
 STD_MID = os.path.join(ROOT, "pi/audio-player/_inbox",
                        "AOT_Hardstyle_YouSeeBIGGIRL_-_Hiroyuki_Sawano_KLICKAUD.mid")
-STD_WAV = os.path.join(ROOT, "pi/audio-player/_inbox",
-                       "AOT_Hardstyle_YouSeeBIGGIRL_-_Hiroyuki_Sawano_KLICKAUD.wav")
+STD_WAV = os.path.join(ROOT, "pi/audio-player/audio/muziek", "aot_youseebiggirl.wav")
 
 DRUMS_TRACK = "Drums"     # tracknaam met de beat
 BEAT_NOTE = 38            # drijvende dodge-beat (289 hits)
 ACCENT_NOTE = 36          # grote accent-momenten (10 hits)
 
-# ---- Bom-vormen (punchy, hardstyle) ------------------------------------------------------
-BOM = dict(laad=1800, hold=0, pink=1200, hz=2)     # som 3.0 s
-ACCENT = dict(laad=2200, hold=0, pink=1400, hz=3)  # som 3.6 s, iets dramatischer + sneller pinken
-SOM_S = (BOM["laad"] + BOM["hold"] + BOM["pink"]) / 1000.0
-ACC_SOM_S = (ACCENT["laad"] + ACCENT["hold"] + ACCENT["pink"]) / 1000.0
+# ---- Bom-vormen ---------------------------------------------------------------------------
+SLOW   = dict(laad=3830, hold=0, pink=3330, hz=2)   # som 7,16 s — trage dread (intro/breakdown)
+STD    = dict(laad=1800, hold=0, pink=1200, hz=2)   # som 3,0 s  — allrounder (opbouw)
+PUNCH  = dict(laad=1000, hold=0, pink=800,  hz=4)   # som 1,8 s  — snel en fel (drop/finale)
+ACCENT = dict(laad=2200, hold=0, pink=1400, hz=3)   # som 3,6 s  — quad-ring-blast
 
-# ---- Secties: (van_s, tot_s, min_gap_s tussen losse bommen). Volgt de intensiteitsboog. ----
-SECTIES = [
-    (0.0, 20.0, 2.4),    # intro (rustig)
-    (20.0, 40.0, 1.8),   # opbouw
-    (40.0, 70.0, 1.25),  # drop (dicht)
-    (80.0, 130.0, 1.4),  # finale-climax (70-80 is breakdown -> sfeer, geen bommen)
-]
-SFEER = [(70.0, 82.0)]   # breakdown / strings-swell: sfeer-golven i.p.v. bommen
-ACCENT_MIN_SEND = 0.3    # bom die vóór de muziekstart zou moeten opladen -> overslaan
-DEDUP_S = 0.35           # losse bom binnen deze afstand van een accent -> laten vallen
+def som_s(v):
+    return (v["laad"] + v["hold"] + v["pink"]) / 1000.0
+
+# ---- Secties + specials -------------------------------------------------------------------
+SFEER = [(70.0, 82.0)]      # breakdown / strings-swell: sfeer-golven i.p.v. bommen
+INTRO, OPBOUW, DROP, FINALE = (0.0, 20.0), (20.0, 40.0), (40.0, 70.0), (82.0, 113.0)
+MIN_GAP = {"intro": 7.0, "opbouw": 1.6, "drop": 0.9, "finale": 1.0}
+ACCENT_MIN_SEND = 0.3       # bom die vóór de muziekstart zou moeten opladen -> overslaan
+DEDUP_S = 0.35              # losse bom te dicht bij een accent/special -> laten vallen
 
 
 def parse_midi(pad):
@@ -124,61 +134,177 @@ def in_sfeer(t):
     return any(v <= t < w for v, w in SFEER)
 
 
-def min_gap(t):
-    for v, w, g in SECTIES:
-        if v <= t < w:
-            return g
-    return None   # buiten elke sectie (bv. breakdown) -> geen losse bommen
+def sectie(t):
+    if INTRO[0] <= t < INTRO[1]:
+        return "intro"
+    if OPBOUW[0] <= t < OPBOUW[1]:
+        return "opbouw"
+    if DROP[0] <= t < DROP[1]:
+        return "drop"
+    if FINALE[0] <= t < FINALE[1]:
+        return "finale"
+    return None
 
 
 def dichtstbij(t, lijst):
     return min((abs(t - x) for x in lijst), default=1e9)
 
 
-def bouw(beat, accent, duur):
-    """Bouw cmds + expl uit de beat- (losse bommen) en accent-noten (groeps-explosies)."""
-    expl = []
+def beat_bij(beat, doel, marge=1.2):
+    """De beat-noot het dichtst bij `doel` (of None) — specials landen zo altijd op de beat."""
+    kandidaat = min(beat, key=lambda b: abs(b - doel), default=None)
+    return kandidaat if kandidaat is not None and abs(kandidaat - doel) <= marge else None
 
-    # 1) accenten -> groeps-explosies (highlights), 4 palen gespreid rond de ring
+
+class Plan:
+    """Verzamelt cues + explosies en bewaakt de zelfde-paal-regel: een paal krijgt geen nieuwe
+    cue die OVERLAPT met een al geplande bom op die paal (interval [send, expl] + marge) —
+    tussen twee bommen door is een paal gewoon vrij. Bij conflict schuiven we door naar de
+    volgende vrije paal op de ring."""
+
+    MARGE = 0.30   # s ademruimte tussen twee bommen op dezelfde paal
+
+    def __init__(self):
+        self.cmds = []
+        self.expl = []          # {t, palen}
+        self.per_paal = {}      # paal -> [(send, expl_t), ...] geplande intervallen
+
+    def vrij(self, paal, send, expl_t):
+        for s, e in self.per_paal.get(paal, []):
+            if not (expl_t + self.MARGE <= s or e + self.MARGE <= send):
+                return False
+        return True
+
+    def kies_vrij(self, paal, send, expl_t):
+        for k in range(24):
+            p = ((paal - 1 + k) % 24) + 1
+            if self.vrij(p, send, expl_t):
+                return p
+        return None
+
+    def bom(self, expl_t, paal, vorm, hold_extra=0, schuif=True):
+        """Plan één bom die exact op `expl_t` dooft. Geeft de gekozen paal terug (of None)."""
+        som = (vorm["laad"] + vorm["hold"] + hold_extra + vorm["pink"]) / 1000.0
+        send = round(expl_t - som, 2)
+        if send < ACCENT_MIN_SEND:
+            return None
+        p = self.kies_vrij(paal, send, expl_t) if schuif else (paal if self.vrij(paal, send, expl_t) else None)
+        if p is None:
+            return None
+        self.cmds.append({"send": send, "paal": p, "laad": vorm["laad"],
+                          "hold": vorm["hold"] + hold_extra, "pink": vorm["pink"], "hz": vorm["hz"]})
+        self.per_paal.setdefault(p, []).append((send, expl_t))
+        return p
+
+    def groep(self, expl_t, palen, vorm, stagger=0.0):
+        """Plan een groep die SAMEN op `expl_t` dooft; leden starten `stagger` s na elkaar
+        (chase-gevoel) via oplopende holds — allen pinken en doven tegelijk."""
+        gekozen = []
+        n = len(palen)
+        for i, paal in enumerate(palen):
+            # lid i start i*stagger later -> zijn hold is (n-1-i)*stagger korter dan de eerste
+            hold_extra = int(round((n - 1 - i) * stagger * 1000))
+            p = self.bom(expl_t, paal, vorm, hold_extra=hold_extra)
+            if p is not None:
+                gekozen.append(p)
+        if gekozen:
+            self.expl.append({"t": round(expl_t, 2), "palen": sorted(set(gekozen))})
+        return gekozen
+
+    def solo(self, expl_t, paal, vorm):
+        p = self.bom(expl_t, paal, vorm)
+        if p is not None:
+            self.expl.append({"t": round(expl_t, 2), "palen": [p]})
+        return p
+
+
+def bouw(beat, accent, duur):
+    plan = Plan()
+    specials_t = []
+
+    # ---- 1) QUAD-accenten: 4 palen gespreid rond de ring, op elke accent-noot --------------
     base = 0
     for t in accent:
-        if t - ACC_SOM_S < ACCENT_MIN_SEND or in_sfeer(t):
+        if in_sfeer(t) or t - som_s(ACCENT) < ACCENT_MIN_SEND:
             continue
-        palen = sorted(((base + k) % 24) + 1 for k in (0, 6, 12, 18))
-        expl.append({"t": round(t, 2), "palen": palen, "_acc": True})
+        palen = [((base + k) % 24) + 1 for k in (0, 6, 12, 18)]
+        plan.groep(round(t, 2), palen, ACCENT)
+        specials_t.append(t)
         base = (base + 7) % 24
-    accent_t = [e["t"] for e in expl]
 
-    # 2) beat -> losse bommen, sectie-geschaalde min-gap, palen roterend
+    # ---- 2) CHASES: opbouw 3-leden (~elke 10 s), finale 4-leden (~elke 8 s) ----------------
+    chase_base = 2
+    for doel in [24.0, 33.0]:
+        t = beat_bij(beat, doel)
+        if t and not in_sfeer(t):
+            palen = [((chase_base + k * 2) % 24) + 1 for k in range(3)]
+            plan.groep(round(t, 2), palen, STD, stagger=0.22)
+            specials_t.append(t)
+            chase_base = (chase_base + 9) % 24
+    for doel in [86.0, 94.0, 102.0]:
+        t = beat_bij(beat, doel)
+        if t and not in_sfeer(t):
+            palen = [((chase_base + k * 2) % 24) + 1 for k in range(4)]
+            plan.groep(round(t, 2), palen, PUNCH, stagger=0.22)
+            specials_t.append(t)
+            chase_base = (chase_base + 11) % 24
+
+    # ---- 3) WALLS: drop 2x 5 aaneengesloten palen; finale-slot een MEGA-WALL van 12 --------
+    wall_vorm = dict(laad=400, hold=0, pink=1600, hz=3)
+    for doel, breedte in [(48.0, 5), (61.0, 5)]:
+        t = beat_bij(beat, doel)
+        if t:
+            s0 = (int(doel * 7) % 24)
+            palen = [((s0 + k) % 24) + 1 for k in range(breedte)]
+            plan.groep(round(t, 2), palen, wall_vorm, stagger=0.15)
+            specials_t.append(t)
+    slot = beat_bij(beat, 110.0, marge=3.0)
+    if slot:
+        mega = dict(laad=500, hold=0, pink=2000, hz=3)
+        palen = [((3 + k) % 24) + 1 for k in range(12)]
+        plan.groep(round(slot, 2), palen, mega, stagger=0.12)
+        specials_t.append(slot)
+
+    # ---- 4) MIRROR-paren in de drop (p en p+12 tegelijk) -----------------------------------
+    mirror_base = 5
+    for doel in [44.0, 52.0, 57.0, 66.0]:
+        t = beat_bij(beat, doel)
+        if t and not in_sfeer(t):
+            palen = [((mirror_base) % 24) + 1, ((mirror_base + 12) % 24) + 1]
+            plan.groep(round(t, 2), palen, PUNCH)
+            specials_t.append(t)
+            mirror_base = (mirror_base + 5) % 24
+
+    # ---- 5) BREAKDOWN-dreads: 2 SLOW-bommen die de stilte overbruggen ----------------------
+    for doel, paal in [(82.5, 7), (83.5, 19)]:
+        t = beat_bij(beat, doel)
+        if t:
+            plan.solo(round(t, 2), paal, SLOW)
+            specials_t.append(t)
+
+    # ---- 6) losse beat-bommen per sectie (vullen rond de specials) -------------------------
     ptr = 0
     laatste = -1e9
     for t in beat:
-        g = min_gap(t)
-        if g is None or in_sfeer(t):
+        sec = sectie(t)
+        if sec is None or in_sfeer(t):
             continue
-        if t - SOM_S < ACCENT_MIN_SEND:
+        vorm = {"intro": SLOW, "opbouw": STD, "drop": PUNCH, "finale": PUNCH}[sec]
+        if t - som_s(vorm) < ACCENT_MIN_SEND:
             continue
-        if (t - laatste) < g:
+        if (t - laatste) < MIN_GAP[sec]:
             continue
-        if dichtstbij(t, accent_t) < DEDUP_S:   # accent wint van een losse bom op ~hetzelfde moment
+        if dichtstbij(t, specials_t) < (DEDUP_S if sec != "intro" else 2.0):
             continue
-        laatste = t
-        expl.append({"t": round(t, 2), "palen": [(ptr % 24) + 1], "_acc": False})
-        ptr = (ptr + 5) % 24
+        p = plan.solo(round(t, 2), (ptr % 24) + 1, vorm)
+        if p is not None:
+            laatste = t
+            ptr = (ptr + 5) % 24
 
-    expl.sort(key=lambda e: e["t"])
-
-    # 3) cmds afleiden (send terugrekenen zodat doven == t)
-    cmds = []
-    for e in expl:
-        vorm, som = (ACCENT, ACC_SOM_S) if e.pop("_acc") else (BOM, SOM_S)
-        send = round(e["t"] - som, 2)
-        for p in e["palen"]:
-            cmds.append({"send": send, "paal": p, "laad": vorm["laad"],
-                         "hold": vorm["hold"], "pink": vorm["pink"], "hz": vorm["hz"]})
-    cmds.sort(key=lambda c: (c["send"], c["paal"]))
+    plan.expl.sort(key=lambda e: e["t"])
+    plan.cmds.sort(key=lambda c: (c["send"], c["paal"]))
     sfeer = [{"van": round(v, 2), "tot": round(w, 2)} for v, w in SFEER]
-    return {"cmds": cmds, "expl": expl, "sfeer": sfeer, "duur": round(duur, 2)}
+    return {"cmds": plan.cmds, "expl": plan.expl, "sfeer": sfeer, "duur": round(duur, 2)}
 
 
 def wav_duur(pad):
@@ -212,14 +338,13 @@ def main():
     print(f"MIDI      : {os.path.basename(args.mid)}")
     print(f"Beat/acc  : {len(beat)} beat-noten (n{BEAT_NOTE}), {len(accent)} accenten (n{ACCENT_NOTE})")
     print(f"Duur      : {duur:.1f} s")
-    print(f"Resultaat : {len(tl['expl'])} explosies ({len(groepen)} groeps-accenten), "
+    print(f"Resultaat : {len(tl['expl'])} explosies ({len(groepen)} groepen), "
           f"{len(tl['cmds'])} bom-cues, sfeer {tl['sfeer']}")
-    # dichtheid per 10 s
     print("Dichtheid per 10s:")
     for lo in range(0, int(duur) + 10, 10):
         n = sum(1 for e in tl["expl"] if lo <= e["t"] < lo + 10)
         acc = sum(1 for e in groepen if lo <= e["t"] < lo + 10)
-        print(f"  {lo:3d}-{lo+10:3d}s  {n:2d} expl {'(acc '+str(acc)+')' if acc else '':7s} {'#'*n}")
+        print(f"  {lo:3d}-{lo+10:3d}s  {n:2d} expl {'(grp '+str(acc)+')' if acc else '':9s} {'#'*n}")
     print(f"Geschreven: {args.uit}")
 
 

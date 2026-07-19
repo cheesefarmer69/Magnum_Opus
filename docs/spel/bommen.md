@@ -7,7 +7,12 @@ choreografieën:
 - *"YouSeeBIGGIRL" (Attack on Titan / Hiroyuki Sawano, hardstyle)* — `audio/muziek/aot_youseebiggirl.wav`, ~122 s (default);
 - *"MAKI VS THE HEI"* — `audio/muziek/maki_vs_the_hei.wav`, ~84 s.
 
-De keuze is **retained** (`bommen/keuze`, waarden `aot`/`maki`) en overleeft dus een herstart. Kies vóór
+De keuze is **retained** (`bommen/keuze`, waarden `aot`/`maki`) en overleeft dus een herstart.
+**Fix juli 2026:** bij een koude start (lege context) kwam de retained keuze binnen vóór de
+`[CONFIG]`-inject en werd hij hard naar AoT teruggezet — "ik kies maki maar AoT speelt". De keuze
+wordt nu altijd bewaard en toegepast zodra de config geladen is. **Ook gefixt:** een handmatige
+**Stop** stopt nu wél de muziek (de engine gebruikt daarvoor zijn eigen vlag `bommenMuziekAan`,
+die — anders dan `bommenGestart` — niet door `resetPartij` wordt genuld) én herstelt de scan-duur. Kies vóór
 je het spel start; de engine laadt de bijhorende tijdlijn (`global.bommenTijdlijn`) en WAV
 (`global.bommenTrack`) op dat moment.
 
@@ -36,7 +41,7 @@ oogt én de locaties vers genoeg blijven om ontwijkers te volgen.
 
 Selecteer op **Bediening → Speltoestand** het speltype **"Bommen vermijden"** en zet **Spel** aan. De
 engine:
-- start de **muziek** en plant de **hele tijdlijn** (AoT: ~93 bom-cues + 63 explosies + de sfeer-golven),
+- start de **muziek** en plant de **hele tijdlijn** (AoT v2: 152 bom-cues + 86 explosies + de sfeer-golven),
 - zet de scan kort (300 ms) voor gladde animaties,
 - ruimt bij **Stop** of op het **einde van de track** alles op (LED's uit, scan hersteld, muziek stop).
 
@@ -46,21 +51,22 @@ opstartlatentie: verhoog/verlaag hem op gehoor tot de LED-sequentie precies op d
 ## De tijdlijn (AoT — YouSeeBIGGIRL)
 
 Deze tijdlijn is **automatisch uit de MIDI gegenereerd** (noot-exact) met
-`tools/beatmap/genereer_uit_midi.py` en volgt de intensiteitsboog van het nummer:
+`tools/beatmap/genereer_uit_midi.py` — **choreografie v2 (juli 2026)**: veel intenser, met
+sequenties en combinaties van bom-vormen, maar mét ademruimte. 152 cues / 86 explosies:
 
 | sectie | ~tijd | wat |
 |---|---|---|
-| intro | 0–20 s | dun, losse bommen (2 per 10 s) |
-| opbouw | 20–40 s | dichter (6–8 per 10 s) + eerste accenten |
-| **drop** | 40–70 s | strakke, dichte bommen (7–8 per 10 s) |
-| **breakdown** | 70–82 s | **sfeer-golven** (strings-swell), geen bommen |
-| **finale** | 82–120 s | climax, dichte bommen + accenten |
+| intro | 0–20 s | ademruimte: enkele **SLOW-dreads** (7,2 s opladen — dreiging, geen paniek) |
+| opbouw | 20–40 s | STD-bommen op de beat + de eerste **CHASE-3**-sequenties (7–9 expl/10 s) |
+| **drop** | 40–70 s | **PUNCH**-bommen (1,8 s!), **QUAD**-ring-blasts op de accenten, **MIRROR**-paren (p en p+12) en twee **WALLs** van 5 aaneengesloten palen (11–12 expl/10 s) |
+| **breakdown** | 70–82 s | **sfeer-golven** + twee SLOW-dreads die de stilte **overbruggen** en pas op de eerste beats van de finale ontploffen |
+| **finale** | 82–113 s | climax: PUNCH-beats, **CHASE-4**, QUAD-accenten en als slot een **MEGA-WALL van 12 palen** |
+| outro | 113–122 s | uitademen (niets) |
 
-- **Losse bommen** komen uit de drijvende beat (drum-noot 38, uitgedund met sectie-geschaalde min-gap);
-  palen roteren rond de 24-ring zodat spelers moeten blijven bewegen. Bom-vorm: 1,8 s laad + 1,2 s pink
-  (~3 s, punchy).
-- **Groeps-explosies** (10×) komen uit de accent-noten (drum-noot 36): 4 palen tegelijk, gespreid rond
-  de ring — de "oh shit"-momenten (3,6 s bom).
+- **Sequenties** (chases/walls) gebruiken oplopende `hold`-waarden: de leden beginnen ná elkaar te
+  laden maar **pinken en ontploffen samen**, exact op één beat — 26 verschillende bom-vormen totaal.
+- De generator bewaakt zelf de firmware-limieten: geen twee overlappende bommen op dezelfde paal
+  (interval-check + doorschuiven), max 1 pending per paal in het 1,2 s-LEAD-venster.
 - **Sfeer-golven** (geen scoring, best-effort): een zachte, reizende rode golf over alle palen (actie 16)
   in de vensters uit **`tl.sfeer`** (voor AoT: 70–82 s). Ontbreekt `tl.sfeer`, dan valt de engine terug
   op het oude vaste venster 46,9–66 s.
