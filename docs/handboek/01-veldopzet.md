@@ -160,6 +160,10 @@ Eén keer controleren vóór de eerste partij (daarna blijft dit staan):
 | **Drukknop-palen** | tab 00 → `[CONFIG] Drukknop-palen` | exact de palen waar fysiek een knop op zit |
 | **Doelwit-dichtheid** | Bediening → "Spelbalans" | 25 % is de standaard; hoger bij een kleine testgroep |
 | **PoF-doel + aantal** | Bediening → "Doel (Plates of Fate)" | verplicht vóór een PoF-start (anders weigert Start) |
+| **Bommen-track** | Bediening → "Bommen vermijden (minigame)" → dropdown **Track** | kies vóór de start: **AoT Hardstyle** (~2 min) of **Maki vs the Hei** (~84 s); keuze is retained |
+
+> De volledige knop-voor-knop-uitleg van elke dashboard-pagina staat in
+> [`docs/handleidingen/dashboards.md`](../handleidingen/dashboards.md) — houd die naast dit hoofdstuk.
 
 ---
 
@@ -173,13 +177,21 @@ foutcodes ([blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md)):
 2. **Spelers**: alle bakens **OK** (gezien < 15 s). "NIET GEZIEN" → baken aan? gekoppeld (§5)?
 3. **Batterijen**: zet "Toon batterij" aan — geen paal onder **3,5 V** (anders foutcode
    **ST-005**: vervang die batterij nu, vóór de start).
-4. **Foutcodes leeg** (of enkel INFO). ST-006 = twee masters met dezelfde rol geflasht — verkeerd
-   bord aangesloten.
-5. Statustekst = **"GO - spelstatus OK, klaar om te starten"** → je kan starten. (Override bestaat
-   voor noodgevallen, maar los liever de fout op.)
+4. **Foutcodes leeg** (of enkel INFO/waarschuwing). De volledige set: **ST-001** speler niet
+   gedetecteerd (FOUT, blokkeert), **ST-002** paal stil >60 s (waarschuwing), **ST-003** datastroom
+   dood (FOUT, blokkeert), **ST-004** onbekend baken (INFO), **ST-005** batterij <3,5 V
+   (waarschuwing), **ST-006** twee masters met dezelfde rol geflasht (FOUT, blokkeert — verkeerd
+   bord aangesloten), **ST-007** hub-CPU ≥75 °C (waarschuwing — zet de Pi in de schaduw; de
+   CPU-temperatuurtegel staat bovenaan Spelstatus).
+5. Statustekst = **"GO - spelstatus OK, klaar om te starten"** → je kan starten. Bij **NO-GO
+   weigert de Spel-schakelaar echt** (hij springt terug naar uit) tot de FOUT-codes weg zijn of
+   **Override NO-GO** aan staat — Override bestaat voor noodgevallen, maar los liever de fout op.
+   (In simulatie-modus wordt niet ge-gate't.)
 
-**Starten:** Bediening → kies **speltype** (Plates of Fate / Klokslag / Infected), bij PoF een
-**doel + aantal spelers**, en zet de **Spel-schakelaar** aan. Brief de spelers met
+**Starten:** Bediening → kies **speltype** (Plates of Fate / Klokslag / Infected / **Bommen
+vermijden**), bij PoF een **doel + aantal spelers**, bij Bommen vermijden vooraf de **Track**
+(zie §6), en zet de **Spel-schakelaar** aan. 's Avonds: zet de **Avondspel**-schakelaar
+(Bediening → Speltoestand) aan voor de omgekeerde scoring. Brief de spelers met
 [H4](04-spelersuitleg.md).
 
 ---
@@ -229,5 +241,5 @@ Ingevuld voor deze opstelling. Nog te finaliseren op de testdag: **A.3** (AP-kan
 | A.2 | **Batterij**: welk celtype/formaat (bv. 18650), welke lader, en hoeveel reserves neem je mee? | **18650** (1S Li-ion), **> 40 cellen** incl. ruime reserve. Laden kan **tijdens** het spel → we **wisselen batterijen** i.p.v. stroom te sparen. Gevolg: de LED-helderheid mag overdag gerust op **max**. |
 | A.3 | **Accesspoint**: welk apparaat is het AP (de Pi zelf? een losse router?), wat is de SSID/wachtwoord-afspraak, en waar stel je het **kanaal** in? | De **Pi zelf** is het accesspoint via **NetworkManager** (profiel `MagnumOpus-AP` op `wlan0`; géén hostapd). SSID **`MagnumOpus`**, wachtwoord **`scoutskamp`**, AP-adres **`192.168.50.1`**. **Kanaal staat op 6** (nooit 1; H6); wijzigen: `sudo nmcli connection modify MagnumOpus-AP 802-11-wireless.channel 11` + `sudo nmcli connection up MagnumOpus-AP`. Zie [`verbinden-met-de-hub.md`](../handleidingen/verbinden-met-de-hub.md). |
 | A.4 | **Bakens**: merk/model + app, en de ingestelde parameters (adv-interval 300 ms, tx-power) — hoe wijzig je die als het nodig is? | Parameters (adv-interval / tx-power) zijn **eenvoudig aan te passen via de DX-app**. |
-| A.5 | **Audio**: welk versterker/speaker-model, en de vaste volume-stand die over het hele veld verstaanbaar is? | **JBL boombox** (Bluetooth/aux). De vaste **volumestand wordt bepaald bij de test van de volledige opstelling** (H2/T7). |
+| A.5 | **Audio**: welk versterker/speaker-model, en de vaste volume-stand die over het hele veld verstaanbaar is? | **JBL boombox** (Bluetooth/aux). Het box-volume regel je **live** op dashboard-pagina **Buzzer/LED test → "Geluid (box)"** (slider 0–100 % + knoppen Stil/Normaal/MAX); de stand is retained en overleeft een herstart. Stel af tijdens H2/T7. |
 | A.6 | **Vervoer/opslag**: hoe worden palen en hub verpakt (kisten-indeling), en is er een vaste plek voor de reserve-SD en reservebakens? | **Nog te bepalen.** |

@@ -63,9 +63,12 @@ data binnen?") — die dekt monitor-open/poorten/routes/broker stap voor stap.
 **Stappen:** zet alle palen aan en alle bakens in het veld; open **Spelstatus**.
 **Verwacht:** alle palen OK (heartbeat < 60 s), alle spelers OK (< 15 s), foutcodes leeg,
 statustekst **GO**.
-**Bij falen:** per rij staat de ouderdom; ST-codes wijzen de schakel aan (ST-001 speler, ST-002
-paal, ST-003 datastroom, ST-006 master-conflict) — zie
-[blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md).
+**Bij falen:** per rij staat de ouderdom; ST-codes wijzen de schakel aan — **ST-001** speler
+(FOUT, blokkeert start), **ST-002** paal stil (waarschuwing), **ST-003** datastroom (FOUT,
+blokkeert), **ST-004** onbekend baken (INFO), **ST-005** batterij <3,5 V (waarschuwing),
+**ST-006** master-conflict (FOUT, blokkeert), **ST-007** hub-CPU ≥75 °C (waarschuwing) — zie
+[blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md) en
+[`dashboards.md`](../handleidingen/dashboards.md).
 
 ## T6 — Commando-keten terug (met aflever-bevestiging)
 
@@ -81,8 +84,9 @@ paal, ST-003 datastroom, ST-006 master-conflict) — zie
 ## T7 — Audio
 
 **Doel:** afroepen zijn over het hele veld verstaanbaar.
-**Stappen:** start een sim-testronde (of Admin → "Geluid (box)") en laat een event met afroep spelen;
-loop naar de rand van het veld. (De aparte *Audio-test*-dashboardpagina is verwijderd.)
+**Stappen:** start een sim-testronde en laat een event met afroep spelen; loop naar de rand van
+het veld. Het box-volume stel je af op **Buzzer/LED test → "Geluid (box)"** (slider + Stil/
+Normaal/MAX; retained). (De aparte *Audio-test*-dashboardpagina is verwijderd.)
 **Verwacht:** segmenten spelen naadloos achter elkaar; verstaanbaar op 12 m.
 **Bij falen:** [`audio-player.md`](../handleidingen/audio-player.md) (container, `--device=/dev/snd`,
 volume, ontbrekende WAV's worden stil overgeslagen).
@@ -125,6 +129,17 @@ PoF-spel (doel kiezen!), laat 2–3 events lopen en versleep spelers legaal/ille
 zijn (`deploy-flows.ps1`, **niet** `docker restart`). Ontbreekt `pofVrijPad` in `resetPartij`, dan is
 `settings.js` gewijzigd zonder **container-herstart**. Herstart daarna `serial-bridge`.
 
+## T10b — 🧪 Test-modus (testronde die niet meetelt)
+
+**Doel:** met echte spelers een oefenronde draaien zonder het leaderboard/de historiek te vervuilen.
+**Stappen:** zet in de simulator-topbalk de **🧪 Test**-schakelaar aan (snapshot van de spelstand,
+incl. globale stats en de middernacht-klok), draai een korte ronde met de spelers, zet 🧪 weer uit.
+**Verwacht:** na het uitzetten staat álles exact terug (stats, historiek, spelnummer, π-klok);
+de toestand-topics en LED's worden herpubliceerd/herbouwd.
+**Let op:** in test-modus telt de engine als "Met timer" (semi-auto) — na elke controle wacht het
+volgende event op de knop. Spelerslocaties zitten bewust níét in de snapshot (fysieke waarheid).
+**Bij falen:** [`dashboards.md`](../handleidingen/dashboards.md) + invarianten TM1–TM3.
+
 ## T11 — End-to-end mini-spel (hardware)
 
 **Doel:** het volledige spel op echte hardware, klein.
@@ -132,6 +147,10 @@ zijn (`deploy-flows.ps1`, **niet** `docker restart`). Ontbreekt `pofVrijPad` in 
 hoog voor een kleine groep); loop één event correct uit en één bewust fout (te ver).
 **Verwacht:** afroep hoorbaar, LED's kloppen, de controle geeft de juiste status/Δ (OK / TE VEEL)
 en de radar + stats volgen.
+**Let op bij minigames met een kleine testgroep:** **Infected** eindigt bewust nooit bij ≤3
+gestarte spelers (win-conditie "laatste ≤3 overlevenden" vereist >3 starters) — dat is geen hang.
+**Bommen vermijden** test je met de gekozen **Track** (Bediening → bommen-groep) en stel je
+op gehoor bij met de **Muziek-offset**-slider tot de LED's op de beat vallen.
 **Bij falen:** vergelijk sim (T10 slaagde?) — verschil zit dan in de sensing: tuning-werkwijze in
 [`locatiebepaling.md`](../locatiebepaling.md) (venster/hysterese/grace/scan-duur).
 
@@ -167,3 +186,4 @@ en de radar + stats volgen.
 | Hub dood / SD corrupt | [`hub-noodherstel.md`](../handleidingen/hub-noodherstel.md) |
 | Scoring lijkt fout | [`invarianten.md`](../invarianten.md) §2 + T12-harnas |
 | Flows-wijziging "doet niets" | [`DEPLOY.md`](../../pi/node-red/DEPLOY.md) — deploy-flows, niet docker restart |
+| Dashboard-schakelaar toont verkeerde stand na herladen | [`dashboards.md`](../handleidingen/dashboards.md) — decoupled switches; herlaad de pagina en vergelijk met de echte spelstand |

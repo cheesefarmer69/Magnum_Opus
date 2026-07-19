@@ -88,13 +88,15 @@ De centrale bus. TCP :1883 voor bridge/Node-RED, **WebSocket :9001** voor browse
 (simulator). Topics in drie families ([`protocol.md`](../protocol.md) §5):
 
 - **Data & commando's**: `plaatjes/data` (veld → logica), `commando/masterN` (logica → veld),
-  `audio/afspelen` (logica → geluidsbox).
+  `audio/afspelen` (korte gesproken segmenten) en `audio/muziek` (bestuurbaar lange-track-kanaal:
+  play/pause/resume/stop — gebruikt door Bommen vermijden, het Pools-event en de dood-cutscene).
 - **Retained configs** (overleven herstart/deploy; dashboard is de bron): `config/spelers`
-  (baken↔naam), `config/scan-duur`, `config/drukknoppen`, `spel/type`.
+  (baken↔naam), `config/scan-duur`, `config/drukknoppen`, `config/led-helderheid`, `spel/type`,
+  `bommen/keuze` (bommen-track AoT/maki), `sim/avond-modus` (avondspel aan/uit), `audio/volume`.
 - **Spel-status voor UI's**: `pof/status` (1 s), `pof/controle`, `pof/portalen`, `pof/ziekte`,
   `pof/tijdbom`, `pof/middernacht`, `pof/dienaars`, `pof/doelstatus`, `pof/animatie`,
-  `klokslag/*`, `infected/status`, `spel/historie`, `spel/state` (30 s-snapshot) en de
-  `sim/*`-ingangen van de simulator/testharnas.
+  `pof/dood-anim` (onmiddellijke-dood-cutscene), `klokslag/*`, `infected/status`, `bommen/status`,
+  `spel/historie`, `spel/state` (30 s-snapshot) en de `sim/*`-ingangen van de simulator/testharnas.
 
 ## 6. Node-RED: de spellogica (flows 00–07)
 
@@ -110,7 +112,7 @@ Het hart. Elke flow-tab is een blok met eigen README
 | **04 Puntensysteem** | pad-opname per settled paalwissel, `spel/state`-dump, middernacht-poortbewaker |
 | **05 Admin** | beheersknoppen achter een twee-staps unlock (resets, paal-reset, klok-reset) |
 | **06 Plates of Fate** | de event-engine (zie hieronder) |
-| **07 Klokslag** | de Klokslag-engine + teams; hierop draait ook de Infected-engine |
+| **07 Klokslag** | de Klokslag-engine + teams; hierop draaien ook de **Infected-engine**, de **Bommen-engine** (minigame "Bommen vermijden": gescripte muziek-tijdlijn, actie 25/`MSG_BOM`, track-keuze via `bommen/keuze`) en de **onmiddellijke-dood-animatie** (avondspel) |
 
 **Locatiebepaling** ([`locatiebepaling.md`](../locatiebepaling.md)): per speler worden recente
 RSSI-samples per paal bijgehouden (venster), de **mediaan** per paal vergeleken, en gewisseld met
@@ -147,8 +149,14 @@ paal die > 60 s zwijgt gaat tijdelijk uit de actieve ring.
 **Klokslag-engine** (flow 07): een 4 Hz-tick berekent per paal de inname (`P` groeit naar het
 uurnummer `H` met een voorsprong-bonus, vervalt bij gelijkstand, overnemen kost 2H) en stuurt
 teamkleur-LED's. **Infected-engine** (zelfde tab): dwell-teller van 15 s per speler op een
-besmette paal, bestrijders-rotatie, win bij 3 overlevenden. Regels:
-[`klokslag.md`](../spel/klokslag.md) / [`infected.md`](../spel/infected.md).
+besmette paal, bestrijders-rotatie, win bij 3 overlevenden. **Bommen-engine** (zelfde tab): plant
+bij de start de volledige muziek-tijdlijn van de gekozen track (`bommen/keuze`: AoT ~122 s of
+maki ~84 s) als generation-gated cues; bommen gaan als `MSG_BOM` (actie 25) met `wacht_ms`
+vooruit de lucht in zodat de slave het **doofmoment op de beat** ankert; wie op het doofmoment op
+de paal staat verliest 10 levensuren (mag negatief, geen sterfte). De engine-modi (volautomatisch /
+**Met timer** (semi-auto, EV9) / manueel) bepalen of het volgende event vanzelf start of op de
+knop wacht. Regels: [`klokslag.md`](../spel/klokslag.md) / [`infected.md`](../spel/infected.md) /
+[`bommen.md`](../spel/bommen.md) / [`avondspel.md`](../spel/avondspel.md).
 
 **Persistentie**: de global-context wordt elke 15 s naar disk geflusht
 (`contextStorage: localfilesystem` in [`settings.js`](../../pi/node-red/settings.js)) én elke 30 s
@@ -160,10 +168,13 @@ en volledig wist. Geheugen is bewust begrensd (historie ≤ 30 partijen, snapsho
 
 ## 7. UI-laag
 
-- **Dashboards** (Node-RED Dashboard 2.0, ~9 pagina's): Spelstatus (pre-flight), Bediening
-  (speltoestand + doel + spelbalans), Live Radar, Admin, Beacons & Locatie (tuning + scan-duur +
-  spelersbeheer), Historiek, Buzzer/LED test, Drukknop-test. Functie en opbouw per
-  pagina: [`dashboards.md`](../handleidingen/dashboards.md).
+- **Dashboards** (Node-RED Dashboard 2.0, 9 pagina's): Spelstatus (pre-flight, master-bolletjes
+  M1–M3, CPU-temperatuurtegel), Bediening (speltoestand + doel + spelbalans + minigame-groepen;
+  **Live Radar is een groep op deze pagina**, geen eigen pagina), Leaderboard (`/leaderboard`,
+  sorteerbaar klassement), Leaderbord (`/leaderbord`, groot projectiescherm voor de beamer),
+  Admin (achter twee-staps unlock), Beacons & Locatie (tuning + scan-duur + spelersbeheer),
+  Historiek, Buzzer/LED test (incl. LED-helderheid en "Geluid (box)"-volume), Drukknop-test.
+  Functie en opbouw per pagina: [`dashboards.md`](../handleidingen/dashboards.md).
 - **Browser-simulator** ([`pi/simulator/`](../../pi/simulator/README.md)): verbindt via
   MQTT-over-WebSocket en is een volwaardige MQTT-deelnemer. **Monitor**-modus kijkt passief mee
   met een echt spel; **Simulatie**-modus vervangt de hardware volledig (deterministische posities,
@@ -194,7 +205,7 @@ en volledig wist. Geheugen is bewust begrensd (historie ≤ 30 partijen, snapsho
 
 | Onderwerp | Document |
 |---|---|
-| Wire-formats, actie-tabel (0–20), MQTT-topics | [`protocol.md`](../protocol.md) |
+| Wire-formats, actie-tabel (0–25), MQTT-topics | [`protocol.md`](../protocol.md) |
 | Alle spelregels als invarianten + scoringtabel | [`invarianten.md`](../invarianten.md) |
 | Verplaatsingscontrole (STAP/TELEPORT), event-cyclus | [`event-systeem.md`](../spel/event-systeem.md) |
 | Event-schema (velden) / per-event catalogus | [`events.md`](../spel/events.md) / [`event-catalogus.md`](../spel/event-catalogus.md) |

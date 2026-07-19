@@ -12,7 +12,8 @@ DEFAULT_PORT = 1883
 # --- Speelveld ---
 RING = 24  # de klok loopt rond: na 24 -> 1
 
-# --- Spelerset (overgenomen uit pi/simulator/sim.js DEFAULT_SPELERS) ---
+# --- Spelerset: alle 31 spelers, overgenomen uit de flows-seed [CONFIG] Spelerslijst ---
+# (retained config/spelers wint runtime; deze lijst is de bootstrap-waarheid)
 # naam -> mac (lowercase; invariant C1)
 SPELERS: dict[str, str] = {
     "Lilou": "48:87:2d:9d:bb:7d",
@@ -21,6 +22,31 @@ SPELERS: dict[str, str] = {
     "Lola": "48:87:2d:9d:ba:5f",
     "Maud": "48:87:2d:9d:bb:0b",
     "Mien": "48:87:2d:9d:ba:a5",
+    "Suzan": "48:87:2d:9d:ba:51",
+    "Estée": "48:87:2d:9d:bb:8b",
+    "Ina": "48:87:2d:9d:ba:ac",
+    "Amélie": "48:87:2d:9d:ba:66",
+    "Emma": "48:87:2d:9d:cf:67",
+    "Casper": "48:87:2d:9d:ba:f2",
+    "Elias": "48:87:2d:9d:ba:d8",
+    "Aagje": "48:87:2d:9d:ba:a1",
+    "Anna": "48:87:2d:9d:bb:79",
+    "Alix Blond": "48:87:2d:9d:c2:31",
+    "Lotta": "48:87:2d:9d:bb:97",
+    "Maybel": "48:87:2d:9d:ba:a6",
+    "Stelle": "48:87:2d:9d:cf:6b",
+    "Elisa": "48:87:2d:9d:bb:9c",
+    "Mila": "48:87:2d:9d:c2:5e",
+    "Aster": "48:87:2d:9d:ba:d7",
+    "Jinte": "48:87:2d:9d:bb:d4",
+    "Mauro": "48:87:2d:9d:bb:a4",
+    "Marie DM": "48:87:2d:9d:bb:a6",
+    "Marie Smet": "48:87:2d:9d:bb:6f",
+    "Alix Bruin": "48:87:2d:9d:ba:a2",
+    "Blanche": "48:87:2d:9d:cc:ec",
+    "Margaux": "48:87:2d:9d:ba:99",
+    "Tobin": "48:87:2d:9d:bb:96",
+    "Lore": "48:87:2d:9d:b9:f2",
 }
 MAC_NAAR_NAAM: dict[str, str] = {mac: naam for naam, mac in SPELERS.items()}
 

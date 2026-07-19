@@ -20,8 +20,8 @@ spelcomputer.
 | 1 | [Veldopzet](01-veldopzet.md) | bouwploeg / operator | Het spel van nul opzetten in het veld: materiaal, veld uitzetten, palen, hub, bakens, tot en met "GO". Plus de speeldag-checklist en de afbouw. |
 | 2 | [Testprocedure](02-testprocedure.md) | operator / technicus | Elk onderdeel stap voor stap verifiëren (T1–T13), van één losse paal tot een end-to-end mini-spel. Met symptoom→document-tabel. |
 | 3 | [Technische opbouw](03-technische-opbouw.md) | technicus / ontwikkelaar | Hoe het volledige systeem technisch in elkaar zit, laag voor laag: bakens → palen → masters → bridge → MQTT → Node-RED → dashboards/simulator/audio. |
-| 4 | [Spelersuitleg](04-spelersuitleg.md) | spelleider → spelers | **Eén compleet document om het spel uit te leggen**: voorleesbare briefing + volledige regels, de poort van middernacht, **alle 15 events**, aura & god-punten, LED-kleuren, do's & don'ts, straffen én de minigames Klokslag en Infected. |
-| 5 | [Events & dynamieken](05-events-en-dynamieken.md) | spelleider / operator | Elk van de 15 events als vaste kaart (afroep · wie · wat doen · straf · duur/kans · LED · operator-notities) + alle permanente spelmechanismen. |
+| 4 | [Spelersuitleg](04-spelersuitleg.md) | spelleider → spelers | **Eén compleet document om het spel uit te leggen**: voorleesbare briefing + volledige regels, de poort van middernacht, **alle events** (~20), aura & god-punten, LED-kleuren, do's & don'ts, straffen én de minigames Klokslag, Infected en Bommen vermijden, plus het avondspel. |
+| 5 | [Events & dynamieken](05-events-en-dynamieken.md) | spelleider / operator | Elk event als vaste kaart (afroep · wie · wat doen · straf · duur/kans · LED · operator-notities) + alle permanente spelmechanismen en de minigame-dynamieken. |
 
 ## Rollen
 

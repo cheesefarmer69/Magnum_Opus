@@ -22,13 +22,15 @@ is verboden terrein. De klok draait maar **één kant op — met de tijd mee** (
 Elke speler draagt een **baken**. De palen zien voortdurend waar iedereen staat en sturen dat naar
 de centrale spelcomputer. Valsspelen heeft dus weinig zin: **de klok ziet alles**.
 
-Er zijn **drie spelmodi** op ditzelfde veld:
+Er zijn **vier spelmodi** op ditzelfde veld, plus een avond-variant van het hoofdspel:
 
 | Modus | In het kort |
 |---|---|
 | **Plates of Fate** (hoofdspel) | Verzamel **levensuren** door op afroep vooruit te lopen. De "stem van het lot" roept events af; een rijk web van gebeurtenissen (portalen, ziekte, nuke, wolf …) maakt elke partij anders. |
+| **Plates of Fate — avondspel** | Zelfde spel, **omgekeerde scoring**: in het donker kan je enkel nog levensuren **verliezen** — je overleeft op wat je 's middags opbouwde (negatief kan). De avond opent met de **onmiddellijke-dood-loterij**. |
 | **Klokslag** | Teamspel: **verover uren** door er met je team bij te staan. Hoe hoger het uur, hoe langer het duurt. Meeste uren wint. |
 | **Infected** | Besmettingsspel: blijf **gezond**. Wie te lang bij een besmette staat, raakt besmet. De laatste 3 gezonden winnen. |
+| **Bommen vermijden** (nacht-minigame) | Op muziek vormen zich **bommen** op de palen: een paal gloeit rood op, knippert, en **dooft — dat doven is de ontploffing**. Sta je er dan nog, dan verlies je **10 levensuren** (per treffer; negatief mag, sterven kan niet). Wegwezen dus, op de beat. |
 
 De rest van dit document behandelt ze één voor één.
 
@@ -116,7 +118,8 @@ moeten halen.
 hele partij; bij Stop schuiven ze naar het globale klassement (de ranglijst).
 
 **Bewegen mag alleen op afroep.** De stem roept een event af en noemt **wie** het treft: soms
-**individuele namen**, soms een **hele groep** (op **kleur**, **jaar**, **maand** of **seizoen**).
+**individuele namen**, soms een **hele groep** (op **kleur**, **jaar**, **maand**, **seizoen** of
+**positie**: "uur: even" / "uur: oneven" — dan telt het uur waaróp je staat, niet wie je bent).
 Alleen wie afgeroepen is beweegt; de rest staat **stil als een standbeeld**. Na de reactietijd
 controleert de klok wie hoe bewoog en kent de levensuren toe (nooit live, altijd **bij de controle**).
 
@@ -212,14 +215,16 @@ nooit een hele partij.
 
 ### 2.6 Alle events
 
-Er zijn **15 events**, verdeeld over drie soorten. De stem roept elk event af; kijk mee naar de
-paal-kleuren. Hieronder telkens: **afroep · wie · wat doen · gevolg · kleur**. Sommige events komen
-vaak voor, andere zelden (de zeldzame zijn meestal de spectaculairste).
+Er zijn **18 events** in het middagspel (plus één avond-event, zie §5), verdeeld over drie soorten.
+De stem roept elk event af; kijk mee naar de paal-kleuren. Hieronder telkens: **afroep · wie · wat
+doen · gevolg · kleur**. Sommige events komen vaak voor, andere zelden (de zeldzame zijn meestal de
+spectaculairste).
 
 #### Verplaatsing-events (jij mag stappen zetten)
 
 **1. Groep-verplaatsing — "maximum x uur vooruit."** *(komt vaak voor)*
-- **Wie:** een hele groep (kleur / jaar / maand / seizoen), of enkele genoemde spelers.
+- **Wie:** een hele groep (kleur / jaar / maand / seizoen / "uur: even/oneven"), soms **iedereen**,
+  of enkele genoemde spelers.
 - **Wat doen:** 0 tot **x** stappen met de klok mee. Minder mag, méér niet. Niet-leden: stilstaan.
 - **Gevolg:** loop je te ver, dan verdien je gewoon **minder** (proportioneel, tot 0); nooit verlies.
 - **Kleur:** geen paal-LED; je hoort het getal in de afroep.
@@ -282,9 +287,17 @@ vaak voor, andere zelden (de zeldzame zijn meestal de spectaculairste).
   uren + 1 sterfte) en de band breekt. Een **nuke** breekt de band níet.
 - **Opheffen:** eindig je **allebei op hetzelfde uur**, dan is de vloek verbroken (zonder beloning).
 
+**10. Body-swap — "Twee spelers wisselen van plaats."** *(zeldzaam)*
+- **Wie:** twee spelers die **minstens 5 uren** uit elkaar staan; hun palen lichten op bij de afroep.
+- **Wat doen:** eindig **op elkaars startpaal** — jullie ruilen letterlijk van plek. **Elke route is
+  legaal**: achteruit, dwars door de dichte middernachtpoort, langs volle uren — voor de twee
+  doelwitten telt alleen de **eindpositie**. Iedereen anders: standbeeld.
+- **Gevolg:** correct gewisseld = geen winst, geen verlies (de wissel ís de opdracht). Niet (goed)
+  gewisseld = foute zet: 0 levensuren + valsspeelpunt (*"niet gewisseld"*).
+
 #### Wereld-events (raken iedereen of veranderen de spelregels)
 
-**10. Nuke — "Nuke."** *(allerzeldzaamst)*
+**11. Nuke — "Nuke."** *(allerzeldzaamst)*
 - **Wat doen:** **ren het hele veld af** binnen de aftelklok (±16 s), zo ver dat de palen je baken niet
   meer zien. Tijdens een nuke bestaat er géén bewegingsstraf.
 - **Gevolg:** nog gedetecteerd bij de knal = **ONTPLOFT** (alles kwijt + 1 sterfte). Ontkomen = **VEILIG**.
@@ -295,26 +308,26 @@ vaak voor, andere zelden (de zeldzame zijn meestal de spectaculairste).
   blijven. Het veld bouwt op naar een **verblindende ontploffing** (radioactief groen↔geel dat sneller
   ademt → witte flits → wit/rode strobe → uitdovende rode nagloed).
 
-**11. Events komen sneller — "events komen sneller."** *(episch, zeldzaam)*
+**12. Events komen sneller — "events komen sneller."** *(episch, zeldzaam)*
 - Elke volgende reactietijd wordt **korter** (tot een ondergrens). Geen doelwit, geen kleur.
 
-**12. Events komen trager — "events komen trager."** *(episch, zeldzaam)*
+**13. Events komen trager — "events komen trager."** *(episch, zeldzaam)*
 - Elke volgende reactietijd wordt **langer** (meer ademruimte).
 
-**13. Bomaanslag — "Een bomaanslag op uur a en b."** *(zeldzaam)*
+**14. Bomaanslag — "Een bomaanslag op uur a en b."** *(zeldzaam)*
 - **Wie:** iedereen die bij de knal op één van de **twee afgeroepen uren** staat.
 - **Wat doen:** **3 s** om weg te vluchten van die uren (vluchten is strafvrij, zoals bij een nuke).
 - **Gevolg:** je verliest zoveel levensuren als het **uurnummer** waar je staat (onder 0 → 0 + sterfte).
 - **Kleur:** rode tik-LED + zoemer op de twee uren; knal = witte flikker.
 
-**14. Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis."** *(episch, zeldzaam)*
+**15. Identiteitscrisis — "Alle spelers krijgen een identiteitscrisis."** *(episch, zeldzaam)*
 - **Wat:** alle **luisternamen schuiven één plaats door** (alfabetisch). Hoor je "Lilou", dan is de
   speler ná Lilou bedoeld. Je neemt **de naam én de kleur** van die volgende speler over; je **jaar,
   maand, seizoen** en even/oneven blijven van jezelf (die groepen kloppen dus altijd).
 - **Wat doen:** onthoud wiens naam jij nu "draagt" en reageer dáárop. Reageer je op je échte naam, dan
   beweeg je als niet-doelwit. Duur **10 events**, dan keert alles terug.
 
-**15. Tijdreizen — "Tijdreizen zal worden toegestaan."** *(zeldzaam)*
+**16. Tijdreizen — "Tijdreizen zal worden toegestaan."** *(zeldzaam)*
 - **Wat:** zolang het duurt mag **iedereen ook achteruit** lopen; achteruit-stappen tellen dan als
   geldige stappen (geen "terug in tijd"-straf). Je moet nog steeds afgeroepen zijn en het aantal moet
   kloppen.
