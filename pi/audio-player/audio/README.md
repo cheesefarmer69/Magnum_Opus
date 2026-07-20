@@ -49,9 +49,29 @@ audio/
 │   ├── toestanden/tornado.wav        reactietijd-sfx bij het tornado-event            (via sfxReactie)
 │   ├── toestanden/portalen.wav       reactietijd-sfx bij het portalen-event           (via sfxReactie)
 │   └── (zie sound-effect/README.md — reactietijd-sfx via het config-veld `sfxReactie`)
+├── events/middernacht/   oogst-afroep ("de spelers op middernacht worden geoogst")
+├── sound-effect/middernacht/   sting die 4 s later volgt, ná de oogst-animatie
 └── muziek/        LANGE tracks voor het bestuurbare kanaal `audio/muziek` (pauze/hervat/stop)
-    ├── reactie_pools.wav   Poolse song (event "De reactietijd wordt Pools")
+    ├── reactie_pools.wav      Poolse song (event "De reactietijd wordt Pools")
+    ├── reactie_polonaise.wav  polonaise-song (speelt tijdens de reactietijd)
+    ├── reactie_storm.wav      regen/onweer (tijdens de reactietijd bij een storm)
+    ├── aot_youseebiggirl.wav / maki_vs_the_hei.wav   (minigame "Bommen vermijden")
     └── (de dood-cutscene-track staat in events/wereld-events/onmiddellijke_dood.wav)
+
+## Reactietijd-muziek: één kanaal, één bron
+
+De audio-player heeft **één** bestuurbaar muziekkanaal, dus er kan maar één reactietijd-track
+tegelijk spelen. De node **"Reactietijd-muziek-tick"** kiest er één via een **prioriteitslijst**:
+
+| Prioriteit | Bron (global) | Track |
+|---|---|---|
+| 1 | `poolsActief` | `muziek/reactie_pools.wav` |
+| 2 | `storm` | `muziek/reactie_storm.wav` |
+| 3 | `polonaiseActief` | `muziek/reactie_polonaise.wav` |
+
+De track speelt tijdens de fase `reactie`, **pauzeert** bij het volgende event en **hervat op
+positie**; wisselt de bron van track, dan start de nieuwe vanaf 0. Voeg een nieuwe bron dus toe
+aan die lijst — maak géén tweede tick-node, want die zou de eerste wegdrukken.
 ```
 
 ## Twee afspeelwegen: segment-queue vs. bestuurbaar kanaal
