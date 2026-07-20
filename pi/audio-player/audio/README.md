@@ -211,3 +211,54 @@ Ontbrekende bestanden worden gewoon overgeslagen (met een logregel) — de servi
 blijft draaien.
 
 Zie `docs/handleidingen/audio-player.md` voor het volledige stappenplan.
+
+---
+
+## Nog op te nemen (stand: juli 2026)
+
+Automatisch afgeleid uit de event-configs **en** de hardgecodeerde verwijzingen in de
+function-nodes. Ontbrekende bestanden zijn **niet fataal** — de player slaat ze stil over —
+maar op die momenten hoor je dan niets.
+
+Regenereer deze lijst met:
+```bash
+python tools/audio/ontbrekende_wavs.py
+```
+
+### Nieuw (events van juli 2026, tweede batch)
+| Bestand | Wanneer je het hoort |
+|---|---|
+| `events/verplaatsingen/iedereen_een_uur_vooruit.wav` | afroep "Iedereen exact 1 uur vooruit." |
+| `events/verplaatsingen/verplaats_een_priemgetal.wav` | afroep "Verplaats een priemgetal naar keuze." |
+| `events/wereld-events/bipolair_beestje.wav` | afroep "Een bipolair beestje verschijnt." |
+| `events/afgelopen/bipolair_beestje_weg.wav` | het beestje verdwijnt (na 4 humeurwissels) |
+| `events/toestanden/dubbel_of_niets.wav` | afroep "Dubbel of niets! Druk op de knop." |
+| `events/afgelopen/dubbel_gelukt.wav` | gok gewonnen → levensuren verdubbeld |
+| `events/afgelopen/dubbel_mislukt.wav` | gok verloren → alles kwijt |
+| `events/afgelopen/dubbel_of_niets_voorbij.wav` | niemand drukte; de knop vervalt |
+| `events/toestanden/vijf_of_min_drie.wav` | afroep "Plus vijf of min drie! Druk op de knop." |
+| `events/afgelopen/plus_vijf.wav` | gok gewonnen → +5 levensuren |
+| `events/afgelopen/min_drie.wav` | gok verloren → −3 levensuren |
+| `events/afgelopen/vijf_of_min_drie_voorbij.wav` | niemand drukte; de knop vervalt |
+
+### Systeemcues (incident-pauze / crash-herstel)
+`events/spel/gepauzeerd.wav` · `events/spel/hervat.wav` · `events/spel/hersteld.wav`
+
+### Eerder toegevoegde events die nog stil zijn
+`events/afgelopen/tijdbom_ontmanteld.wav` · `events/afgelopen/tijdbom_ontploft.wav` ·
+`events/afgelopen/alle_zieken_gestorven.wav` · `events/afgelopen/etenstijd_voorbij.wav` ·
+`events/toestanden/gelijke_verdeling.wav` · `events/afgelopen/gelijke_verdeling_uitgevoerd.wav` ·
+`events/afgelopen/gelijke_verdeling_voorbij.wav` · `events/wereld-events/storm.wav` ·
+`events/wereld-events/uren_groot.wav` · `events/afgelopen/storm_voorbij.wav` ·
+`sound-effect/wereld-events/storm.wav` · `sound-effect/wereld-events/bliksem.wav` ·
+`events/wereld-events/middernacht_uitbreiding.wav` ·
+`events/afgelopen/middernacht_uitbreiding_voorbij.wav` ·
+`events/wereld-events/drukknop_roulette.wav` · `events/afgelopen/roulette_afgewend.wav` ·
+`events/afgelopen/roulette_mislukt.wav`
+
+### Bouwstenen van de afroep (raken élke afroep)
+`prefix/iedereen.wav` · `woorden/en.wav` · `doelwit/voor.wav` · `doelwit/na.wav`
+
+> **Prioriteit:** de laatste groep eerst — die vier zitten in de opbouw van veel afroepen. Daarna de
+> gok-uitkomsten (`dubbel_gelukt`/`dubbel_mislukt`/`plus_vijf`/`min_drie`), want zonder die clips
+> weet een speler niet of hij gewonnen of verloren heeft; de LED-flits (groen/rood) blijft wel werken.

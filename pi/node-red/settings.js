@@ -102,6 +102,8 @@ module.exports = {
             global.set("freeze", false);   // S3 incident-freeze: een nieuwe partij start nooit bevroren
             global.set("pofBag", []); global.set("pofLaatsteCategorie", null); global.set("pofSindsKnop", 0); global.set("pofBagHoogTeller", 0);   // S1 bag-systeem: verse zak per partij
             global.set("pofPeek", null);   // S7 peek & veto
+            global.set("bipolair", []);                                   // bipolair beestje (uur-toestand, volgt de poort)
+            global.set("gokPaal", null); global.set("gokVariant", null);  // knop-gok (dubbel-of-niets / +5-of--3)
         },
 
         // ---- S1 BAG-SYSTEEM (single source of truth) ------------------------------------

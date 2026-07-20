@@ -790,6 +790,61 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
   de scoring behandelt `doelwit` al als platte set.
 - **Audio**: `prefix/groepen.wav` (meervoud) + `woorden/en.wav` (verbinding) — **nog opnemen**.
 
+## Nieuwe events (juli 2026, tweede batch)
+
+### Iedereen 1 uur vooruit — "Iedereen exact 1 uur vooruit." (verplaatsing)
+- **Werking**: `doelwit:{type:"speler",selectie:"alle"}` + `geenDoelwitAfroep` → de stem roept
+  `prefix/iedereen.wav` en geen namen. Technisch `voorwaarde:"of"` met `getal:[1,1]` en
+  `getal2:[1,1]` — dus **exact 1**; elk ander aantal is `ONGELDIGE KEUZE` met de gewone
+  proportionele straf. `tier:"common"`, reactietijd 15 s.
+- **Waarom zo**: de hele ring schuift één uur op — kort, chaotisch en iedereen doet mee.
+- **Audio**: `iedereen_een_uur_vooruit.wav`.
+
+### Priem-verplaatsing — "Verplaats een priemgetal naar keuze." (verplaatsing)
+- **Werking**: nieuwe `voorwaarde:"priem"`. Geldig zijn **2, 3, 5, 7, 11, 13, 17, 19, 23**
+  (1 is geen priemgetal). Klopt het aantal niet, dan status **`GEEN PRIEMGETAL`** met
+  `delta = max(0, stappen − afstand tot het dichtstbijzijnde priemgetal)` — dus 4 stappen levert
+  nog 3 uur op, 1 stap levert 0 op. Staat in de valsspeel-set (`_VALS_FOUT`) → +1 valsspeelpunt.
+- **Waarom zo**: dwingt spelers tot rekenen onder tijdsdruk zonder hen hard af te straffen.
+- `tier:"uncommon"`, reactietijd 25 s (denktijd!), doelwit = een willekeurige groep.
+- **Audio**: `verplaats_een_priemgetal.wav`.
+
+### Bipolair beestje — "Een bipolair beestje verschijnt." (wereld, uur-doelwit)
+- **Werking**: een beestje gaat op **één uur** zitten en **volgt de middernachtpoort**:
+  poort **open** → het houdt van **EVEN** verplaatsingen (LED **oranje**, RGB 255/140/0);
+  poort **dicht** → van **ONEVEN** (LED **limoen**, RGB 150/255/0).
+- **Scoring** (suffix in `Verifieer beweging`): wie op het beestje-uur **eindigt** met een
+  verplaatsing van de juiste pariteit krijgt **+1 levensuur** (`| BEESTJE BLIJ (+1)`), bij de
+  verkeerde pariteit **−1** (`| BEESTJE BOOS (-1)`, vloer 0). Stilstaan telt niet mee, en
+  portaal-teleports tellen niet als stap.
+- **Levensduur**: elke keer dat de poort omklapt wisselt het humeur; **na 4 wissels verdwijnt**
+  het beestje (LED uit + `bipolair_beestje_weg.wav`). **Max 3 tegelijk** (`max:3`).
+- **Techniek**: `global.bipolair = [{paal, even, wissels}]`. De LED gaat via een **RGB-token**
+  (`gewenst[paal] = "rgb:r,g,b"`) dat "Sync toestanden + LEDs" naar **actie 16** vertaalt —
+  bewust géén nieuwe firmware-actie, zodat de 24 slaves niet herflasht hoeven te worden.
+- `tier:"epic"`. **Audio**: `bipolair_beestje.wav`, `bipolair_beestje_weg.wav`.
+
+### Dubbel of niets — "Dubbel of niets! Druk op de knop." (drukknop)
+- **Werking**: een vrije drukknop-paal wordt gearmd (actie 17). Wie drukt gokt **voor iedereen
+  die op dat moment op die paal staat**: bij winst **verdubbelen** hun levensuren, bij verlies
+  gaan ze **volledig naar 0**. Kans: **overdag (uur 7–18) 50 %**, **'s nachts 40 %** — 's nachts
+  gokken is dus dommer.
+- **Eenmalig**: na de druk knop uit (18) + groene/rode flits (22/23), effect weg, LED gedoofd.
+  Drukt niemand binnen de duratie (3–5 rondes), dan wordt de knop ontwapend in "Verouder effecten".
+- `tier:"rare"`. **Audio**: `dubbel_of_niets.wav`, `dubbel_gelukt.wav`, `dubbel_mislukt.wav`,
+  `dubbel_of_niets_voorbij.wav`.
+
+### Plus 5 of min 3 — "Plus vijf of min drie! Druk op de knop." (drukknop)
+- **Werking**: identiek mechanisme aan Dubbel of niets, maar met een veel mildere inzet:
+  **+5 levensuren** bij winst, **−3** bij verlies (vloer 0). Zelfde dag/nacht-kansen.
+- `tier:"uncommon"` — komt dus vaker voor dan Dubbel of niets.
+- **Audio**: `vijf_of_min_drie.wav`, `plus_vijf.wav`, `min_drie.wav`, `vijf_of_min_drie_voorbij.wav`.
+
+> Beide knop-events staan in `bagConfig.drukknopEvents` en vallen dus onder het **drukknop-quotum**
+> van het bag-systeem (default 1 per blok van 10 events), samen met tijdbom en gelijke verdeling.
+
+---
+
 ## Middernacht (permanent mechanisme, géén afroepbaar event)
 Middernacht is **geen** event in `pofEvents` maar een **continu** mechanisme (node "Middernacht", draait per
 event). De poort op de hoogste paal volgt de cijfers van **π**: open (zacht witte LED) / dicht (rode LED),

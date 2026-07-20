@@ -31,7 +31,8 @@ Zo hangen de pagina's samen. Volg deze volgorde:
 | # | Fase | Pagina | Wat je doet |
 |---|------|--------|-------------|
 | 1 | **Opbouw** | [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning) | Elke paal fysiek testen: brandt de LED, klinkt de zoemer? |
-| 1b | **Geluid checken** | [Audio](#10-audio-audio-preview) | Box: fragmenten + een volledige event-afroep beluisteren. Palen: de zoemer-deuntjes afspelen. **Kan niet tijdens een lopend spel.** |
+| 1b | **Zoemers checken** | [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning) | Groep "Zoemer op de paal": de deuntjes van de firmware per paal afspelen. **Kan niet tijdens een lopend spel.** |
+| 1c | **Events kiezen** | [Events](#2b-events-events) | Bepalen welke events meedoen en hoe zeldzaam ze zijn. |
 | 2 | **Bakens uitdelen** | [Beacons & Locatie](#6-beacons--locatie-beacons) | Baken ↔ speler koppelen (LED-helderheid staat nu bij [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning)) |
 | 3 | **GO/NO-GO** | [Spelstatus](#1-spelstatus-spelstatus) | Staan alle 31 spelers op **OK**? Alle palen groen? Geen foutcodes? |
 | 4 | **Testronde** | Simulator (🧪 Test) + [Bediening](#2-bediening-bediening) | Spelers een ronde laten oefenen — telt niet mee |
@@ -110,6 +111,30 @@ Dit is de pagina die openstaat zolang het spel loopt.
 | **Vals-spelen & God-punten** | Wie valsspeelde (en dus een slechtere aura heeft) en wie nog een **god-punt** als schild heeft. |
 | **Infected (minigame)** | Status van de Infected-minigame. |
 | **Spelbalans** | Twee schuiven die je **tijdens** het spel mag bijstellen:<br>**Doelwit-dichtheid** (10–50 %, default 25) — hoeveel spelers een gemiddeld event raakt (met lichte variatie per event, jitter ±1). Voelt het veld leeg? Zet hoger.<br>**Reactietijd toestanden** (3–30 s, default 10) — hoeveel tijd spelers krijgen bij toestand-events. |
+
+---
+
+## 2b. Events (`/events`)
+
+Hier bepaal je **welke events meedoen** en **hoe vaak** ze voorkomen — dezelfde registers die de
+simulator gebruikt, dus beide blijven synchroon.
+
+**Groep "Alle events"** — tabel met elk event: naam, categorie (inclusief de virtuele categorie
+**drukknop**), de **effectieve tier** en of het **meedoet**. Bovenaan staat "X van Y events doen mee".
+
+**Groep "Event aanpassen"**:
+
+| Knop | Wat het doet |
+|---|---|
+| **Event** (dropdown) | Kies het event dat je wil aanpassen. Uitgesloten events krijgen `[UIT]` vooraan. |
+| **Tier** (dropdown) | `common` (zeer vaak) → `legendary` (zeldzaam). Bepaalt de trekkans binnen zijn categorie. |
+| **Laat meedoen** / **Sluit uit** | Zet het gekozen event aan/uit (`uitgeslotenEvents`, retained). Handig om een kapot of ongewenst event tijdens het spel uit te zetten. |
+| **Zet tier** | Schrijft een tier-override (`eventTiers`). |
+| **Alles laten meedoen** | Wist alle uitsluitingen. |
+| **Tiers terugzetten** | Wist alle overrides — elk event gebruikt weer zijn eigen tier. |
+
+> Wijzigingen gelden **meteen** voor de volgende trekking. Wil je de *verhouding* tussen categorieën
+> sturen (bv. meer drukknop-events), gebruik dan de groep **Event-mix (bag)** op Bediening.
 
 ---
 
@@ -227,20 +252,16 @@ armt de **tijdbom** zijn ontmantelpalen automatisch — hier doe je het met de h
 
 ---
 
-## 10. Audio (`/audio-preview`)
+## 10. Zoemer op de paal (groep op [Buzzer/LED test](#8-buzzerled-test-buzzer-tuning))
 
-**Waarvoor:** **alle geluid beluisteren en testen vóór het spel** — zowel de gesproken audio uit de
-box als de zoemer-deuntjes op de palen.
+> **De aparte Audio-pagina is verwijderd** (juli 2026). De fragment-preview en de
+> event-aankondiging-preview bleken in de praktijk nauwelijks gebruikt; de **zoemer-test** was het
+> enige waardevolle deel en staat nu als groep **"Zoemer op de paal"** op de
+> **Buzzer/LED test**-pagina. Wil je een gesproken fragment controleren, doe dat dan met een
+> sim-testronde (H2/T7) of luister het bestand rechtstreeks in `pi/audio-player/audio/`.
 
-> ⚠️ **Alles op deze pagina wordt geweigerd terwijl er een spel loopt** (je krijgt dat als melding in
-> het statusveld te zien). Dat is met opzet: een preview-afroep of een zoemerpiep is voor de spelers
-> niet van een echte te onderscheiden en zou het spel vervalsen. Test dus vóór de start of na de stop.
-
-| Groep | Waarvoor |
-|---|---|
-| **Fragment beluisteren** | Kies een **Map** (`events/toestanden`, `spelers`, `getallen`, `muziek`, …) en daarbinnen een **Fragment**, en druk **Speel af**. De dropdowns vullen zichzelf uit de bestanden die écht op de Pi staan, dus wat hier niet in de lijst staat, ontbreekt ook in het spel. Lange tracks (alles uit `muziek/` en de dood-cutscene) gaan automatisch via het **bestuurbare muziek-kanaal** — daarvoor is **Stop muziek**, dat een lopende track afbreekt. |
-| **Event-aankondiging testen** | Kies een **Event** en druk **Speel aankondiging**: je hoort de volledige afroep zoals het spel hem zou opbouwen (woosh bij wereld-events, aantal + prefix, de `audioVoor`-clip, het getal, de `audioNa`-clip en de eventuele reactietijd-sfx), met **3** als voorbeeld-aantal en **5** als voorbeeld-uur. Zo hoor je meteen of er een WAV ontbreekt. |
-| **Zoemer op de paal** | De **zoemer-deuntjes uit de firmware** afspelen op één paal. Kies het **Zoemergeluid**, zet **Paal (1-24)** en druk **Speel op de paal**. Zie de tabel hieronder. |
+**Zoemer op de paal:** de **zoemer-deuntjes uit de firmware** afspelen op één paal. Kies het
+**Zoemergeluid**, zet **Paal (1-24)** en druk **Speel op de paal**.
 
 ### Welke zoemergeluiden zijn er?
 
