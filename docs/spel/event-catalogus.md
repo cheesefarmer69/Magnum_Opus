@@ -843,6 +843,32 @@ Een wereld-event verandert iets voor **het hele spel** via `gevolgen` met
 > Beide knop-events staan in `bagConfig.drukknopEvents` en vallen dus onder het **drukknop-quotum**
 > van het bag-systeem (default 1 per blok van 10 events), samen met tijdbom en gelijke verdeling.
 
+### Hoe een drukknop-event verloopt (vaste volgorde)
+
+Alle knop-events waarvan de **knop de kern** is (gelijke verdeling, dubbel of niets, plus 5 of min 3)
+volgen dezelfde vaste opbouw:
+
+1. **"Drukknop event"** — de stem kondigt de soort aan (`prefix/drukknop_event.wav`), zodat iedereen
+   meteen weet dat er ergens een knop gearmd wordt.
+2. **Welk event** het is (`audioVoor` van het event).
+3. **Waar** — het **uur** wordt als doelwit afgeroepen. De keuze gebeurt in `Kies event` en is beperkt
+   tot palen die **écht een knop hebben** (`global.drukknopPalen`), minus de palen die al bezet zijn
+   door een tijdbom-ontmanteling, de roulette, een gelijke verdeling of een lopende gok. Is er geen
+   vrije knop-paal, dan wordt het event overgeslagen (met een `node.warn`).
+4. De knop wordt **gearmd** (actie 17) en blijft **5 events** drukbaar (`duratie: 5`).
+5. **Wordt er binnen die 5 events gedrukt**, dan treedt het gevolg in werking voor **iedereen die op
+   dat moment op die paal staat**, gevolgd door de groene of rode flits (actie 22/23) + de
+   uitkomst-clip. Daarna is de knop verbruikt (actie 18, effect weg, LED gedoofd).
+6. **Drukt niemand**, dan vervalt het effect na 5 events: `Verouder effecten` ontwapent de knop en
+   speelt de `audioAfgelopen`-cue.
+
+De **kans** hangt af van dag/nacht — `paal >= 7 && paal <= 18` telt als dag: **overdag 50 %**,
+**'s nachts 40 %** kans op de goede uitkomst. 's Nachts gokken is dus slechter.
+
+> **De tijdbom volgt deze volgorde bewust NIET.** Daar is de knop een *redmiddel* en gaat het event
+> over de getroffen **spelers**; hij krijgt dus geen "drukknop event"-aankondiging en houdt zijn
+> speler-doelwit + eigen duratie (10 events).
+
 ---
 
 ## Middernacht (permanent mechanisme, géén afroepbaar event)

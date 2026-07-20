@@ -228,6 +228,7 @@ python tools/audio/ontbrekende_wavs.py
 ### Nieuw (events van juli 2026, tweede batch)
 | Bestand | Wanneer je het hoort |
 |---|---|
+| `prefix/drukknop_event.wav` | **"Drukknop event"** — klinkt vooraan bij ELK knop-event (gelijke verdeling, dubbel of niets, plus 5 of min 3). Hoogste prioriteit. |
 | `events/verplaatsingen/iedereen_een_uur_vooruit.wav` | afroep "Iedereen exact 1 uur vooruit." |
 | `events/verplaatsingen/verplaats_een_priemgetal.wav` | afroep "Verplaats een priemgetal naar keuze." |
 | `events/wereld-events/bipolair_beestje.wav` | afroep "Een bipolair beestje verschijnt." |
