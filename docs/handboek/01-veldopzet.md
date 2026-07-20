@@ -128,6 +128,11 @@ Volgorde maakt weinig uit, behalve: **eerst alles aansluiten, dan de Pi voeden.*
 
 ---
 
+> **Na een stroomdip:** de spelstand wordt elke 15 s naar de SD weggeschreven. Komt de Pi terug,
+> dan **meldt** het dashboard dat er een snapshot is — hij laadt hem **niet** vanzelf. Druk op
+> **Herstel na reboot** (Admin → Beheer) en het spel komt **bevroren** terug, zodat je eerst het
+> veld kan bekijken voor je op Hervat drukt.
+
 ## 5. Bakens uitdelen & koppelen
 
 Elke speler draagt een baken; de koppeling **baken ↔ spelernaam** beheer je **live op het
@@ -160,6 +165,10 @@ Eén keer controleren vóór de eerste partij (daarna blijft dit staan):
 | **Drukknop-palen** | tab 00 → `[CONFIG] Drukknop-palen` | exact de palen waar fysiek een knop op zit |
 | **Doelwit-dichtheid** | Bediening → "Spelbalans" | 25 % is de standaard; hoger bij een kleine testgroep |
 | **PoF-doel + aantal** | Bediening → "Doel (Plates of Fate)" | verplicht vóór een PoF-start (anders weigert Start) |
+| **Events aan/uit + tiers** | Dashboardpagina **Events** (`/events`) | normaal: **alle 30 doen mee**, geen tier-overrides (knoppen "Alles laten meedoen" / "Tiers terugzetten") |
+| **Event-mix (bag)** | Bediening → "Event-mix (bag)" | standaard **uit** (= oude tier-weging). Aan = quota per blok van 10; let op dat de som klopt |
+| **Spelflow** | Bediening → "Spelflow" | aanloop (default 5 s), tempo-override 0 = automatisch |
+| **Bliksem / drukknop-roulette** | simulator → Spelinstellingen | pre-game keuze; staat níét op het dashboard |
 | **Bommen-track** | Bediening → "Bommen vermijden (minigame)" → dropdown **Track** | kies vóór de start: **AoT Hardstyle** (~2 min) of **Maki vs the Hei** (~84 s); keuze is retained |
 
 > De volledige knop-voor-knop-uitleg van elke dashboard-pagina staat in
@@ -188,6 +197,13 @@ foutcodes ([blokken/02](../../pi/node-red/blokken/02_spelstatus/README.md)):
    **Override NO-GO** aan staat — Override bestaat voor noodgevallen, maar los liever de fout op.
    (In simulatie-modus wordt niet ge-gate't.)
 
+6. **Pre-flight zelftest** (bovenaan Spelstatus): druk **Zelftest alle 24 palen**. Hij loopt de ring
+   af (LED, zoemer, knop, batterij) en geeft een **GO/NO-GO-rapport** per paal. NO-GO bij: geen
+   contact, batterij < 3,5 V, of een **knop die niet reageert**. Draai hem **vóór** de start — tijdens
+   een lopend spel weigert hij.
+7. **Netwerk (masters)** (ook op Spelstatus): per master de status, hoe lang geleden hij gezien is,
+   hoeveel palen vers zijn en hoe vaak hij al opnieuw verbond. Alles groen = klaar.
+
 **Starten:** Bediening → kies **speltype** (Plates of Fate / Klokslag / Infected / **Bommen
 vermijden**), bij PoF een **doel + aantal spelers**, bij Bommen vermijden vooraf de **Track**
 (zie §6), en zet de **Spel-schakelaar** aan. 's Avonds: zet de **Avondspel**-schakelaar
@@ -209,6 +225,10 @@ vermijden**), bij PoF een **doel + aantal spelers**, bij Bommen vermijden vooraf
 - [ ] Audio-test: één afroep hoorbaar over het veld (H2/T7); volume goed.
 - [ ] LED-test op 2–3 palen (H2/T2) — kleuren zichtbaar in daglicht.
 - [ ] Bakens: allemaal geladen, gekoppeld, juiste kleur polsbandje; 2 reserves in de kist.
+- [ ] **Pre-flight zelftest** gedraaid: 24 palen OK, geen knop-timeout, geen lege batterij.
+- [ ] **Events-pagina**: alle events doen mee, geen ongewenste tier-overrides.
+- [ ] **Event-mix (bag)**: bewust aan (quota gezet) of bewust uit.
+- [ ] **Spelflow**: aanloop en tempo op de gewenste stand.
 - [ ] Reserve-SD + reservebatterijen + dit handboek in de kist.
 - [ ] Geheugen-check Pi (`free -h`) — ruim vrij; weinig open dashboard-tabs.
 - [ ] Spelleider heeft H4 (briefing) + spiekkaarten bij de hand.

@@ -1,7 +1,7 @@
 # H2 — Testprocedure: verifiëren dat elk onderdeel werkt
 
 Een **bottom-up** verificatieketen: elke test bewijst één schakel en bouwt op de vorige, zodat een
-groen vinkje betekenis heeft. Doe **T1–T11 integraal** bij een eerste opbouw of na firmware-/
+groen vinkje betekenis heeft. Doe **T1–T13 integraal** bij een eerste opbouw of na firmware-/
 flow-wijzigingen; op een gewone speeldag volstaan **T2, T4, T5, T7** (zit al grotendeels in de
 ochtendchecklist van [H1 §8](01-veldopzet.md)).
 
@@ -94,8 +94,9 @@ volume, ontbrekende WAV's worden stil overgeslagen).
 ## T8 — Drukknoppen
 
 **Doel:** elke fysieke knop registreert betrouwbaar.
-**Stappen:** dashboard → **Drukknop-test**: wapen een knop-paal (`ACTIE_KNOP_ARM`), druk enkele
-keren, ontwapen.
+**Stappen:** dashboard → **Drukknop-test**. Groep "Knoppen activeren": zet de schakelaar van een knop-paal aan
+(die armt hem), druk enkele keren op de fysieke knop, zet de schakelaar weer uit. De groep
+"Druk-tellers" toont de tellingen; "Reset knoptest" wist ze.
 **Verwacht:** de kleine rode LED op de paal brandt (gewapend) en dooft zolang je drukt; de teller
 op het dashboard volgt **elke** druk (kogelvrij herverzonden).
 **Bij falen:** staat de paal in `[CONFIG] Drukknop-palen`? Zie [`slave.md`](../handleidingen/slave.md)
@@ -138,7 +139,34 @@ incl. globale stats en de middernacht-klok), draai een korte ronde met de speler
 de toestand-topics en LED's worden herpubliceerd/herbouwd.
 **Let op:** in test-modus telt de engine als "Met timer" (semi-auto) — na elke controle wacht het
 volgende event op de knop. Spelerslocaties zitten bewust níét in de snapshot (fysieke waarheid).
-**Bij falen:** [`dashboards.md`](../handleidingen/dashboards.md) + invarianten TM1–TM3.
+**Bij falen:** [`dashboards.md`](../handleidingen/dashboards.md) + invarianten TM1–TM4.
+
+## T4b — Pre-flight zelftest (alle 24 palen)
+
+**Doel:** in één druk weten of het hele veld meedoet.
+**Stappen:** Spelstatus → **Zelftest alle 24 palen** (het spel moet gestopt zijn — anders weigert hij).
+**Verwacht:** de palen lichten één voor één op met een piep; op knop-palen verschijnt "DRUK NU DE KNOP"
+en heb je 5 s. Daarna een rapport met 24 rijen + **GO** of **NO-GO**.
+**Bij falen:** NO-GO komt van (a) geen contact met een paal, (b) batterij < 3,5 V, (c) een knop die
+niet reageert. Die derde is nieuw en belangrijk: zonder werkende knoppen worden drukknop-events
+stilzwijgend overgeslagen.
+
+## T10c — Incident-freeze (Pauze)
+
+**Doel:** controleren dat een pauze écht alles stilzet (het EHBO-scenario).
+**Stappen:** start een spel, druk **Pauze**. Wacht een minuut. Druk **Hervat**.
+**Verwacht:** bij pauze gaan **alle 24 palen wit** en staat de timer stil; na een minuut is er
+**geen** levensuur bijgekomen, geen toestand verouderd en geen countdown gelopen. Bij hervat komen
+de echte kleuren terug en telt de timer verder **waar hij stond**. Ook Klokslag/Infected/Bommen
+staan stil tijdens de freeze.
+
+## T10d — Crash-herstel
+
+**Doel:** een stroomdip midden in een partij overleven.
+**Stappen:** start een spel, laat een paar events lopen, trek de stroom van de Pi. Start opnieuw op.
+**Verwacht:** het dashboard meldt dat er een snapshot is (hij laadt **niet** vanzelf). Druk
+**Herstel na reboot** (Admin) → de spelstand komt terug en het spel staat **bevroren**; na **Hervat**
+loopt het gewoon door.
 
 ## T11 — End-to-end mini-spel (hardware)
 
@@ -186,4 +214,7 @@ op gehoor bij met de **Muziek-offset**-slider tot de LED's op de beat vallen.
 | Hub dood / SD corrupt | [`hub-noodherstel.md`](../handleidingen/hub-noodherstel.md) |
 | Scoring lijkt fout | [`invarianten.md`](../invarianten.md) §2 + T12-harnas |
 | Flows-wijziging "doet niets" | [`DEPLOY.md`](../../pi/node-red/DEPLOY.md) — deploy-flows, niet docker restart |
+| Knop-event vuurt niet / wordt overgeslagen | Geen vrije drukknop-paal. Check `[CONFIG] Drukknop-palen` en of tijdbom/roulette/gelijke verdeling niet alle knoppen bezet houden |
+| Alles staat stil, niets telt af | **Pauze** staat aan (incident-freeze) — druk Hervat |
+| Wachtrij toont iets anders dan wat er komt | Bag-systeem: preview en engine delen dezelfde code; check of `settings.js` geladen is (container-herstart) |
 | Dashboard-schakelaar toont verkeerde stand na herladen | [`dashboards.md`](../handleidingen/dashboards.md) — decoupled switches; herlaad de pagina en vergelijk met de echte spelstand |

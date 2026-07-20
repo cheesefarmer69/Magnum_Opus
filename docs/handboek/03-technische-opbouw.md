@@ -169,9 +169,10 @@ en volledig wist. Geheugen is bewust begrensd (historie ≤ 30 partijen, snapsho
 ## 7. UI-laag
 
 - **Dashboards** (Node-RED Dashboard 2.0, 9 pagina's): Spelstatus (pre-flight, master-bolletjes
-  M1–M3, CPU-temperatuurtegel), Bediening (speltoestand + doel + spelbalans + minigame-groepen;
-  **Live Radar is een groep op deze pagina**, geen eigen pagina), Leaderboard (`/leaderboard`,
-  sorteerbaar klassement), Leaderbord (`/leaderbord`, groot projectiescherm voor de beamer),
+  M1–M3, CPU-temperatuurtegel, **Pre-flight zelftest** en **Netwerk (masters)**), Bediening (speltoestand + doel + spelbalans + minigame-groepen;
+  **Live Radar is een groep op deze pagina**, geen eigen pagina; sinds juli 2026 ook de groepen
+  **Peek & veto**, **Event-regie**, **Event-mix (bag)** en **Spelflow**), **Events** (`/events`:
+  welke events meedoen + hun tier), Leaderbord (`/leaderbord`, groot projectiescherm voor de beamer),
   Admin (achter twee-staps unlock), Beacons & Locatie (tuning + scan-duur + spelersbeheer),
   Historiek, Buzzer/LED test (incl. LED-helderheid en "Geluid (box)"-volume), Drukknop-test.
   Functie en opbouw per pagina: [`dashboards.md`](../handleidingen/dashboards.md).
@@ -205,7 +206,7 @@ en volledig wist. Geheugen is bewust begrensd (historie ≤ 30 partijen, snapsho
 
 | Onderwerp | Document |
 |---|---|
-| Wire-formats, actie-tabel (0–25), MQTT-topics | [`protocol.md`](../protocol.md) |
+| Wire-formats, actie-tabel (0–28), MQTT-topics | [`protocol.md`](../protocol.md) |
 | Alle spelregels als invarianten + scoringtabel | [`invarianten.md`](../invarianten.md) |
 | Verplaatsingscontrole (STAP/TELEPORT), event-cyclus | [`event-systeem.md`](../spel/event-systeem.md) |
 | Event-schema (velden) / per-event catalogus | [`events.md`](../spel/events.md) / [`event-catalogus.md`](../spel/event-catalogus.md) |

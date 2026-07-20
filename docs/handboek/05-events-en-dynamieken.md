@@ -1,6 +1,6 @@
 # H5 — Elk event & elke speldynamiek
 
-Naslagwerk voor spelleider en operator: **alle 15 events** als vaste kaart, daarna de **permanente
+Naslagwerk voor spelleider en operator: **alle 30 events** als vaste kaart, daarna de **permanente
 mechanismen** van Plates of Fate, en tot slot de dynamieken van **Klokslag** en **Infected**.
 
 Elke event-kaart: **Afroep** (wat spelers horen) · **Wie** · **Wat doen** · **Bij fout** · **Duur &
@@ -16,7 +16,7 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 
 ---
 
-## Verplaatsing-events (2)
+## Verplaatsing-events (6)
 
 ### 1. Groep-verplaatsing — `groep_verplaatsing`
 - **Afroep:** *"een groep … maximum x uur vooruit … kleur: rood"* (of *jaar / maand / seizoen: …*).
@@ -42,7 +42,7 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 - **Operator:** reactietijd **20 s**; let op de middernacht-uitzondering: wie door de dichte poort
   wordt tegengehouden op exact de poort-afstand wordt **niet** bestraft (gate-block).
 
-## Toestand-events (8)
+## Toestand-events (11)
 
 ### 3. Portalen — `portalen`
 - **Afroep:** *"Een portaal opent tussen twee uren."* (geen aantal-prefix); daarna de twee uren.
@@ -60,9 +60,6 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 - **Gebruik daarna:** eindigt een speler zijn beurt op zo'n uur, dan tellen de **verdiende uren
   van die beurt dubbel**.
 
-> **Portalen** (`portalen`, uncommon): twee paarse palen die **minstens 6 uren uit elkaar** liggen; de
-> sprong ertussen is gratis (0 stappen, 0 levensuren, richting maakt niet uit, max 1× per portaal per
-> beurt). Er kunnen er **2 tegelijk** open staan en ze delen nooit een paal. Duur 3–8 events.
 - **Duur & kans:** **3–6 events**; max **1** episode tegelijk; **uncommon**.
 - **LED/geluid:** **goud continu**; afloop-audio *"happy hour voorbij"*.
 - **Operator:** reactietijd 10 s (instelbaar via `global.reactieToestand`).
@@ -143,18 +140,39 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
 - **LED/geluid:** geen paal-LED; afroep-audio *"tweeling"*.
 
 ### 9b. Gelijke verdeling — `gelijke_verdeling` *(drukknop-event, juli 2026)*
-- **Afroep:** *"Gelijke verdeling! Druk op de regenboog-knop."*
+- **Afroep:** *"**Drukknop event** — gelijke verdeling — uur X."* (vaste knop-volgorde, zie onderaan)
 - **Effect:** één drukknop-paal toont een **regenboog** en is gearmd. Wie drukt: **alle levensuren
   van alle spelers gaan op één hoop en worden gelijk verdeeld** (rest-uren 1-voor-1 naar
   willekeurige spelers). Voor de armste spelers een cadeau, voor de leider een ramp — wie durft?
-- **Niemand drukt?** Na 3–5 events vervalt de kans en dooft de regenboog.
-- **Duur & kans:** duratie 3–5 events; max 1; **rare**.
-- **Operator:** dit is (naast de tijdbom) een **drukknop-event** — de bag trekt het via het
-  drukknop-token. Knop werkt pas na het armen (automatisch).
+- **Niemand drukt?** Na **5 events** vervalt de kans en dooft de regenboog.
+- **Duur & kans:** duratie **5 events**; max 1; **rare**.
+- **Operator:** één van de **vier drukknop-events** (tijdbom, gelijke verdeling, dubbel of niets,
+  plus 5 of min 3) — de bag trekt ze via het drukknop-token. Knop werkt pas na het armen (automatisch).
 
 ---
 
-## Wereld-events (8)
+### 9c. Dubbel of niets — `dubbel_of_niets` *(drukknop-event, juli 2026)*
+- **Afroep:** *"**Drukknop event** — dubbel of niets — uur X."*
+- **Effect:** de knop op uur X is gearmd. Wie drukt gokt **voor iedereen die op dat moment op die
+  paal staat**: bij winst **verdubbelen** hun levensuren, bij verlies gaan ze **volledig naar 0**.
+- **Kans:** **overdag (uur 7–18) 50 %**, **'s nachts 40 %**. 's Nachts gokken is dus dommer.
+- **Niemand drukt?** Na **5 events** vervalt de kans en wordt de knop ontwapend.
+- **Duur & kans:** duratie 5 events; max 1; **rare**.
+- **LED/geluid:** groene flits + stijgend deuntje bij winst, rode flits + dalend deuntje bij verlies.
+- **Operator:** dit is het meest spectaculaire knop-event — spelers verzamelen zich vaak massaal op
+  die paal. Waarschuw dat iedereen op de paal meegaat in de gok, ook wie niet drukte.
+
+### 9d. Plus 5 of min 3 — `vijf_of_min_drie` *(drukknop-event, juli 2026)*
+- **Afroep:** *"**Drukknop event** — plus vijf of min drie — uur X."*
+- **Effect:** identiek mechanisme, veel mildere inzet: **+5 levensuren** bij winst, **−3** bij
+  verlies (vloer 0). Zelfde dag/nacht-kansen.
+- **Duur & kans:** duratie 5 events; max 1; **uncommon** — komt dus vaker voor dan Dubbel of niets.
+- **Operator:** het "instap"-knop-event; laag risico, dus spelers durven. Goed om de knop-mechaniek
+  vroeg in de dag te introduceren.
+
+---
+
+## Wereld-events (13)
 
 ### 10. Nuke — `nuke`
 - **Afroep:** *"Nuke."* — daarna telt de klok af.
@@ -236,6 +254,23 @@ scoring: [`invarianten.md`](../invarianten.md); schema: [`events.md`](../spel/ev
   kost **+1 extra per doorkruist storm-uur** — omlopen of wachten is dus slimmer.
 - **Bliksem** (aparte dynamiek, zie hieronder): als die aanstaat kan de storm inslaan.
 - **Duur & kans:** 10 events; max 1; **epic**. De storm mag over andere events heen trekken.
+
+---
+
+### Bipolair beestje — `bipolair_beestje` *(juli 2026)*
+- **Afroep:** *"Een bipolair beestje verschijnt."* + het **uur** waar het gaat zitten.
+- **Wat het is:** een beestje op **één uur** dat **de middernachtpoort volgt**:
+  - poort **OPEN** → het houdt van **EVEN** verplaatsingen → paal kleurt **oranje**;
+  - poort **DICHT** → het houdt van **ONEVEN** verplaatsingen → paal kleurt **limoen**.
+- **Wat doen:** eindig je beurt op dat uur met een verplaatsing van de **juiste pariteit**, dan
+  krijg je **+1 levensuur** (`| BEESTJE BLIJ (+1)`). Verkeerde pariteit = **−1** (`| BEESTJE BOOS
+  (-1)`, vloer 0). **Stilstaan telt niet mee** — je moet echt bewegen; een portaal-teleport telt
+  niet als stap.
+- **Duur & kans:** verdwijnt na **4 humeurwissels** (dus na 4 keer dat de poort omklapt);
+  **max 3 tegelijk**; **epic**.
+- **Operator:** het humeur wisselt mee met de π-klok, dus het beestje "kiest" niet zelf — spelers
+  kunnen vooruitdenken door naar de poort te kijken. Leg dat uit, anders voelt het willekeurig.
+  Technisch: de kleuren gaan via een RGB-commando (actie 16), er is géén nieuwe firmware-actie voor.
 
 ---
 
@@ -322,6 +357,70 @@ zwijgt gaat tijdelijk uit de ring en komt vanzelf terug. *(EV3, F4.)*
 naar het **globale** klassement (valsspeelpunten idem; god-punten blijven staan). De laatste 30
 partijen staan in de Historiek. In sim-modus kan de operator één ronde **terugdraaien** (↶) bij
 een verkeerd gelopen event. *(S4–S6, D5–D6.)*
+
+---
+
+## Drukknop-events — de vaste volgorde
+
+Er zijn **vier** drukknop-events: **tijdbom**, **gelijke verdeling**, **dubbel of niets** en
+**plus 5 of min 3**. De laatste drie — waar de **knop de kern** is — volgen altijd dezelfde opbouw:
+
+1. **"Drukknop event"** — de stem kondigt de soort aan, zodat iedereen meteen weet dat er ergens
+   een knop gearmd wordt.
+2. **Welk event** het is.
+3. **Waar** — het **uur** waar de knop zit, als doelwit afgeroepen.
+4. De knop wordt **gearmd** en blijft **5 events** drukbaar.
+5. **Wordt er binnen die 5 events gedrukt**, dan treedt het gevolg in werking voor **iedereen die
+   op dat moment op die paal staat**, met een groene of rode flits + het bijhorende deuntje. Daarna
+   is de knop verbruikt.
+6. **Drukt niemand**, dan vervalt de kans en wordt de knop ontwapend (met afloop-cue).
+
+**Kans:** `paal 7–18` telt als **dag** → **50 %** goede uitkomst; daarbuiten is het **nacht** →
+**40 %**. 's Nachts gokken is dus slechter.
+
+**Welke palen?** Alleen palen die **écht een knop hebben** (nu: 3, 4, 7, 9, 11, 13, 15, 17, 19, 21,
+22), en nooit een paal die al bezet is door een tijdbom-ontmanteling, de roulette, een lopende
+gelijke verdeling of een andere gok. **Is er geen vrije knop-paal, dan wordt het event overgeslagen.**
+
+> **De tijdbom volgt deze volgorde bewust niet.** Daar is de knop een *redmiddel* en gaat het event
+> over de getroffen **spelers**; hij krijgt dus geen "drukknop event"-aankondiging en houdt zijn
+> eigen duur van 10 events.
+
+---
+
+## Event-mix, regie en vangnetten (operator)
+
+**Event-mix (bag)** — *Bediening → "Event-mix (bag)"*. Standaard **uit**: dan kiest de engine puur
+op tier, zoals altijd. Zet je hem aan, dan wordt per blok van 10 events een "zak" gevuld volgens
+quota (bv. 4 verplaatsing / 2 toestand / 2 wereld / 1 drukknop + 1 vrije joker) en geschud: **de
+verhouding ligt vast, de volgorde niet**. Extra regels: geen twee events van dezelfde categorie na
+elkaar, een plafond op zware events op rij, en een **harde drukknop-ondergrens** (elke N events
+minstens één knop-event — die vuurt zelfs als het quotum op 0 staat). Nieuwe quota gelden vanaf de
+**volgende** zak, of meteen met **Zak herschudden**. De tekst "Zak nu" toont wat er nog in zit.
+
+**Event-regie** — *Bediening → "Event-regie"*. Zet een event **nu als volgende** of achteraan de
+wachtrij, verwijder de eerstvolgende, sluit een event uit of laat het weer meedoen, en wijzig de
+tier. De tabel toont de eerstvolgende events.
+
+**Peek & veto** — *Bediening → "Peek & veto"*. Tijdens de aanloop zie je **welk event zo komt**.
+Bevalt het niet: **Veto / herkies** (het bag-token gaat terug in de zak, dus de verhouding blijft
+kloppen). Je kan ook het **doelwit overschrijven** of de aanloop overslaan met **Bevestig nu**.
+
+**Spelflow** — *Bediening → "Spelflow"*: aanloop 3–15 s (default 5), tempo-override (0 = automatisch)
+en legendary-frequentie.
+
+**Events-pagina** (`/events`) — permanent bepalen welke events meedoen en welke tier ze krijgen.
+
+**Incident-freeze** — *Pauze* bevriest **alles**: geen timer, geen veroudering, geen scoring, ook de
+minigames staan stil. Alle 24 palen gaan **wit** zolang de pauze duurt; bij *Hervat* komen de echte
+kleuren terug en lopen de tellers verder waar ze stonden. Dit is de knop bij een blessure.
+
+**Pre-flight zelftest** — *Spelstatus*: loopt alle 24 palen af (LED, zoemer, knop, batterij) en geeft
+een GO/NO-GO-rapport. Weigert te draaien tijdens een lopend spel.
+
+**Crash-herstel** — de spelstand gaat elke 15 s naar schijf. Na een stroomdip meldt het dashboard dat
+er een snapshot is; met **Herstel na reboot** (Admin) laad je hem, en het spel start dan **bevroren**
+zodat je eerst rustig naar het veld kan kijken.
 
 ---
 

@@ -1,7 +1,7 @@
 # H4 — Het complete spel uitgelegd
 
 **Eén document om Magnum Opus uit te leggen** — aan de spelers én aan jezelf als spelleider.
-Het bevat alles: het hoofdspel **Plates of Fate** (regels, de poort van middernacht, alle 15
+Het bevat alles: het hoofdspel **Plates of Fate** (regels, de poort van middernacht, alle 30
 events, aura & god-punten, alle straffen), plus de twee minigames **Klokslag** en **Infected**.
 Alles in spelerstaal, geen techniek. Wil je de exacte configuratie/afroepteksten of de
 operator-kant, kijk dan in [H5 — Elk event & elke speldynamiek](05-events-en-dynamieken.md); de
@@ -210,15 +210,26 @@ nooit een hele partij.
 | **Kleine rode LED bij de drukknop** | knop is **actief** | hij dooft even zolang je drukt = druk geregistreerd |
 | **Teamkleuren** (ademend/flikkerend/vol) | **Klokslag**-modus | zie §3 |
 | **Rood of blauw vol** | **Infected**-modus | rood = besmet gebied, blauw = veilige zone |
+| **Oranje** | **bipolair beestje** dat van **even** verplaatsingen houdt | eindig hier met een even aantal stappen → +1 |
+| **Limoen** | **bipolair beestje** dat van **oneven** verplaatsingen houdt | eindig hier met een oneven aantal stappen → +1 |
+| **Regenboog** | de gearmde knop van **Gelijke verdeling** | ren erheen en druk — alle levensuren worden gelijk verdeeld |
+| **Cyaan** | **storm**-baan | erin staan kost 1 uur; erdoorheen lopen levert net extra op |
+| **Geel flikkeren** | **bliksem** | iedereen op dat uur zakt naar 1 levensuur |
 
-*(Regenboog = technische test, geen spel.)*
+*(Regenboog = de gearmde knop van **Gelijke verdeling** — of, buiten het spel, een technische test.)*
 
 ### 2.6 Alle events
 
-Er zijn **18 events** in het middagspel (plus één avond-event, zie §5), verdeeld over drie soorten.
+Er zijn **29 dag-events** plus **één avond-event** (onmiddellijke dood), verdeeld over drie soorten.
 De stem roept elk event af; kijk mee naar de paal-kleuren. Hieronder telkens: **afroep · wie · wat
 doen · gevolg · kleur**. Sommige events komen vaak voor, andere zelden (de zeldzame zijn meestal de
 spectaculairste).
+
+> **Hoor je "drukknop event"?** Dan luister je naar twee dingen: **welk** event het is, en **welk
+> uur** de knop draagt. Ren erheen als je durft. Die knop blijft **5 events** lang drukbaar; drukt
+> niemand, dan vervalt hij. Let op: **wie drukt beslist voor iedereen die op die paal staat** — dus
+> ook voor jou als je er toevallig bij staat. Overdag is de kans op een goede uitkomst 50 %,
+> 's nachts maar 40 %.
 
 #### Verplaatsing-events (jij mag stappen zetten)
 
@@ -235,13 +246,23 @@ spectaculairste).
 - **Gevolg:** een verkeerd aantal levert **minder** winst op naar gelang je van het juiste getal
   afzit. Word je door de dichte poort tegengehouden op precies de poort-afstand, dan is dat **geen** fout.
 
+**2b. Iedereen 1 uur vooruit — "Iedereen exact 1 uur vooruit."** *(komt vaak voor)*
+- **Wie:** iedereen. **Wat doen:** precies **één** stap vooruit — niet meer, niet minder.
+- **Gevolg:** een ander aantal levert minder op (proportioneel) + een valsspeelpunt.
+
+**2c. Priem-verplaatsing — "Verplaats een priemgetal naar keuze."** *(af en toe)*
+- **Wie:** een groep. **Wat doen:** kies zelf hoeveel je stapt, maar het **moet een priemgetal
+  zijn**: 2, 3, 5, 7, 11, 13, 17, 19 of 23. **Let op: 1 telt niet.**
+- **Gevolg:** zit je ernaast, dan verdien je minder naarmate je verder van een priemgetal zit
+  (4 stappen → nog 3 uur; 1 stap → 0) + een valsspeelpunt. Je krijgt hier extra bedenktijd.
+
 #### Toestand-events (het veld verandert; meestal sta je stil tijdens de afroep)
 
 **3. Portalen — "Een portaal opent tussen twee uren."** *(af en toe)*
 - **Wat:** twee uren worden gekoppeld en kleuren **paars**. Iedereen staat stil tijdens de afroep.
 - **Gebruik daarna:** land je tijdens een beurt legaal op een portaal-uur, dan spring je **gratis** naar
   de partner (0 stappen, richting maakt niet uit, **max 1× per portaal per beurt** — geen ping-pong).
-- **Duur:** 3–8 events; hooguit 1 portaal tegelijk.
+- **Duur:** 3–8 events; er kunnen **2 portalen tegelijk** open staan (ze delen nooit een paal en liggen minstens 6 uren uit elkaar).
 
 **4. Happy Hour — "n uren worden Happy Hour."** *(af en toe)*
 - **Wat:** enkele uren kleuren **goud**. Eindig je een beurt op zo'n uur, dan tellen je **verdiende
@@ -334,6 +355,30 @@ spectaculairste).
 - **Kies één richting:** je mag **niet pendelen** (heen én terug in dezelfde beurt) → dat is fout
   (*"pendelen"*, 0 levensuren + valsspeelpunt). De middernachtpoort **achterwaarts** oversteken blijft
   verboden, en een **dichte** poort blijft dicht.
+
+#### Drukknop-events (de knop beslist)
+
+**17. Gelijke verdeling — "Drukknop event — gelijke verdeling — uur X."** *(zeldzaam)*
+- De knop op dat uur toont een **regenboog**. Wie drukt: **alle levensuren van iedereen gaan op één
+  hoop en worden gelijk verdeeld**. Voor de armsten een cadeau, voor de leider een ramp.
+
+**18. Dubbel of niets — "Drukknop event — dubbel of niets — uur X."** *(zeldzaam)*
+- Wie drukt gokt **voor iedereen die op die paal staat**: je levensuren **verdubbelen**, of ze gaan
+  **volledig naar 0**. Overdag 50 % kans op winst, 's nachts 40 %.
+
+**19. Plus 5 of min 3 — "Drukknop event — plus vijf of min drie — uur X."** *(af en toe)*
+- Zelfde gok, milder: **+5** of **−3** levensuren.
+
+#### Wereld-event met een eigen uur
+
+**20. Bipolair beestje — "Een bipolair beestje verschijnt."** *(episch, zeldzaam)*
+- Een beestje gaat op één uur zitten en **volgt de middernachtpoort**: staat de poort **open**, dan
+  houdt het van **even** verplaatsingen en kleurt de paal **oranje**; staat de poort **dicht**, dan
+  van **oneven** en kleurt hij **limoen**.
+- **Wat doen:** eindig je beurt op dat uur met het juiste aantal stappen (even of oneven), dan krijg
+  je **+1 levensuur**. Zit je ernaast: **−1**. Stilstaan telt niet — je moet echt bewegen.
+- Het beestje verdwijnt nadat de poort **4 keer** is omgeklapt. Er kunnen er **3 tegelijk** zijn.
+- **Tip:** kijk naar de middernachtpaal, dan weet je van tevoren welk humeur het beestje krijgt.
 
 ### 2.7 Onzichtbare mechanismen (goed om te weten)
 

@@ -117,6 +117,14 @@ Loop in rustige momenten een rondje en let op:
 
 ### 2.7 Wat je NIET doet
 
+> **Nieuw sinds juli 2026 — blijf hier vanaf.** Deze knoppen staan op pagina's die je toch openhebt,
+> maar ze veranderen het spel zelf:
+> - de pagina **Events** (`/events`) — events uit/aan zetten of tiers wijzigen is een spelbeslissing;
+> - **Event-mix (bag)** en **Spelflow** op Bediening — die bepalen het ritme van de hele partij;
+> - **Event-regie** en **Peek & veto** op Bediening — dat is de moderator die het spel regisseert;
+> - **"Herstel na reboot"** (Admin → Beheer) — die laadt een oude spelstand terug. Hij zit
+>   **buiten** het twee-staps slot, dus juist hier moet je oppassen. Meld het aan de moderator.
+
 - ❌ De schakelaar **Spel: uit / LOOPT** aanraken.
 - ❌ Instellingen wijzigen op *Beacons & Locatie* (scan-duur, locatie-sliders, profielen) — die zijn
   afgestemd; ze midden in een partij verzetten verandert het spelgevoel.
