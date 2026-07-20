@@ -34,7 +34,23 @@ Speelt automatisch, vlak vóór het volgende event, wanneer de toestand afloopt.
   `tijdreizen_voorbij.wav`, `max_per_uur_voorbij.wav`, `polonaise_voorbij.wav`
 - ✓ `tweeling_verbroken.wav` *(niet op duratie — gespeeld bij elke tweeling-verbreking via
   `global.tweelingVerbrokenCue`)*
-- ✗ `etenstijd_voorbij.wav`  *("de wolf is voldaan")*
+- ✓ `etenstijd_voorbij.wav`, `storm_voorbij.wav`
+- ✗ `middernacht_uitbreiding_voorbij.wav`, `gelijke_verdeling_voorbij.wav`
+  *(kans verkeken)*, `gelijke_verdeling_uitgevoerd.wav` *(knop op tijd gedrukt)*
+- ✗ `roulette_afgewend.wav`, `roulette_mislukt.wav`, `alle_zieken_gestorven.wav`,
+  `tijdbom_ontmanteld.wav`, `tijdbom_ontploft.wav`
+
+### `events/middernacht/` + `sound-effect/middernacht/` — oogst
+- ✓ `events/middernacht/oogst.wav` *("de spelers op middernacht worden geoogst")* —
+  gespeeld op het oogst-moment (out6 van node "Middernacht")
+- ✓ `sound-effect/middernacht/oogst_oof.wav` *(Roblox-sting)* — 4 s later, ná de
+  oogst-animatie (out2 van node "Oogst-einde")
+
+### `muziek/` — reactietijd-muziek (bestuurbaar kanaal, één bron tegelijk)
+Prioriteit in node **"Reactietijd-muziek-tick"**: pools → storm → polonaise.
+- ✓ `reactie_pools.wav`, `reactie_polonaise.wav`
+- ✗ **`reactie_storm.wav`** — de regen/onweer-track. Stond in de inbox maar is
+  verdwenen vóór plaatsing; opnieuw aanleveren (WAV).
 
 ### Nieuw (juli 2026): storm / bliksem / roulette / gelijke verdeling / middernacht-uitbreiding
 Alle hieronder ✗ — de config is al bekabeld, enkel de opnames ontbreken (ontbrekend = stil, nooit fataal).
